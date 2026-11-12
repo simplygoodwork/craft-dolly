@@ -1,0 +1,47 @@
+{
+  "name": "simplygoodwork/craft-portage",
+  "description": "Easily port content from one environment to another.",
+  "type": "craft-plugin",
+  "license": "proprietary",
+  "support": {
+    "email": "dev@simplygoodwork.com",
+    "issues": "https://github.com/simplygoodwork/craft-portage/issues?state=open",
+    "source": "https://github.com/simplygoodwork/craft-portage",
+    "docs": "https://github.com/simplygoodwork/craft-portage",
+    "rss": "https://github.com/simplygoodwork/craft-portage/releases.atom"
+  },
+  "require": {
+    "php": ">=8.2",
+    "craftcms/cms": "^5.12.0"
+  },
+  "require-dev": {
+    "craftcms/ecs": "dev-main",
+    "craftcms/phpstan": "dev-main"
+  },
+  "autoload": {
+    "psr-4": {
+      "simplygoodwork\\craftportage\\": "src/"
+    }
+  },
+  "extra": {
+    "handle": "portage",
+    "name": "Portage",
+    "developer": "Good Work",
+    "documentationUrl": "https://github.com/simplygoodwork/craft-portage"
+  },
+  "scripts": {
+    "check-cs": "ecs check --ansi",
+    "fix-cs": "ecs check --ansi --fix",
+    "phpstan": "phpstan --memory-limit=1G"
+  },
+  "config": {
+    "sort-packages": true,
+    "platform": {
+      "php": "8.2"
+    },
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true,
+      "craftcms/plugin-installer": true
+    }
+  }
+}

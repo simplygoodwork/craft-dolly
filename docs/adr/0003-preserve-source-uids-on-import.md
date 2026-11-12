@@ -1,0 +1,3 @@
+# Imported elements keep their source UID unless it collides
+
+When Import creates an element (a Root element, Owned content, or a Stub), it keeps the source element's UID if that UID is unused in the Target environment, and generates a new one only on collision. Matching by UID is the most reliable Resolution, so preserving UIDs means content pushed once (e.g. staging → prod) is matched by UID on every later Payload that references or overwrites it, instead of falling back to Natural keys. The reader might expect "create new" to mint fresh UIDs; we deliberately don't, accepting that the two environments now share element identities for ported content.
