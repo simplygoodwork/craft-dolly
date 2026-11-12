@@ -20,6 +20,8 @@ use craft\models\Section;
  * - category: group UID + slug, plus the parent slug path
  * - tag: group UID + title
  * - user: email, then username
+ *
+ * A Natural key that matches more than one element matches none, so a Reference is never related to the wrong one.
  */
 final class NaturalKey
 {
@@ -38,7 +40,7 @@ final class NaturalKey
     }
 
     /**
-     * Returns the ID of the element matching a Natural key, or null.
+     * Returns the ID of the one element matching a Natural key, or null if none or several match.
      *
      * @param class-string<ElementInterface> $class
      */
@@ -92,7 +94,7 @@ final class NaturalKey
             ->unique()
             ->all();
 
-        return self::firstOnPath($candidates, $section->type === Section::TYPE_STRUCTURE ? $key['path'] ?? [] : null);
+        return self::onlyOnPath($candidates, $section->type === Section::TYPE_STRUCTURE ? $key['path'] ?? [] : null);
     }
 
     /**
@@ -125,7 +127,7 @@ final class NaturalKey
             ->unique()
             ->all();
 
-        return self::firstOnPath($candidates, $key['path'] ?? []);
+        return self::onlyOnPath($candidates, $key['path'] ?? []);
     }
 
     /**
@@ -139,15 +141,16 @@ final class NaturalKey
         }
 
         // Tag titles are matched exactly, so escape the characters Craft's query param syntax treats specially.
-        $id = Tag::find()
+        $ids = Tag::find()
             ->groupId($group->id)
             ->title(Db::escapeParam($key['title']))
             ->status(null)
             ->site('*')
             ->unique()
-            ->ids()[0] ?? null;
+            ->limit(2)
+            ->ids();
 
-        return $id ? (int)$id : null;
+        return count($ids) === 1 ? (int)$ids[0] : null;
     }
 
     /**
@@ -188,20 +191,16 @@ final class NaturalKey
     }
 
     /**
-     * Returns the ID of the first candidate whose ancestors' slugs match the path, or of the first candidate when
-     * there's no structure to match against.
+     * Returns the ID of the only candidate whose ancestors' slugs match the path (any candidate when the elements
+     * aren't in a structure), or null if none or several do.
      *
      * @param ElementInterface[] $candidates
      * @param mixed $path list of ancestor slugs, or null when the elements aren't in a structure
      */
-    private static function firstOnPath(array $candidates, mixed $path): ?int
+    private static function onlyOnPath(array $candidates, mixed $path): ?int
     {
-        foreach ($candidates as $candidate) {
-            if ($path === null || self::path($candidate) === $path) {
-                return $candidate->id;
-            }
-        }
+        $matches = array_filter($candidates, fn(ElementInterface $candidate) => $path === null || self::path($candidate) === $path);
 
-        return null;
+        return count($matches) === 1 ? reset($matches)->id : null;
     }
 }

@@ -2,8 +2,11 @@
 
 namespace simplygoodwork\craftportage\console\controllers;
 
+use Craft;
 use craft\console\Controller;
+use craft\elements\User;
 use craft\helpers\Console;
+use craft\helpers\Db;
 use simplygoodwork\craftportage\import\ImportResult;
 use simplygoodwork\craftportage\import\ReferencePlan;
 use simplygoodwork\craftportage\import\RootResult;
@@ -12,8 +15,8 @@ use simplygoodwork\craftportage\references\Resolution;
 use yii\console\ExitCode;
 
 /**
- * Imports a Payload, or previews it with --dry-run. New entries are created disabled. Unresolved references are
- * skipped unless --stub, --replace or --choices say otherwise.
+ * Imports a Payload, or previews it with --dry-run, as the user given with --user. New entries are created disabled.
+ * Unresolved references are skipped unless --stub, --replace or --choices say otherwise.
  */
 class ImportController extends Controller
 {
@@ -43,15 +46,53 @@ class ImportController extends Controller
      */
     public ?string $choices = null;
 
+    /**
+     * @var string|null The email of the active user to run the Import as. Unresolved authors are credited to them, and
+     * the Import log records them. Required.
+     */
+    public ?string $user = null;
+
     public function options($actionID): array
     {
-        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'choices'];
+        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'choices', 'user'];
     }
 
     /**
      * Imports a Payload passed as an argument, with --file, or on stdin.
      */
     public function actionIndex(?string $payload = null): int
+    {
+        $user = $this->findUser();
+        if ($user === null) {
+            return ExitCode::USAGE;
+        }
+
+        $session = Craft::$app->getUser();
+        $previous = $session->getIdentity();
+        $session->setIdentity($user);
+        try {
+            return $this->importPayload($payload);
+        } finally {
+            $session->setIdentity($previous);
+        }
+    }
+
+    private function findUser(): ?User
+    {
+        if ($this->user === null || trim($this->user) === '') {
+            $this->stderr('Pass --user with the email of the user to run the Import as. Unresolved authors are credited to them.' . PHP_EOL, Console::FG_RED);
+            return null;
+        }
+
+        $user = User::find()->email(Db::escapeParam(trim($this->user)))->status(User::STATUS_ACTIVE)->one();
+        if (!$user) {
+            $this->stderr("No active user has the email $this->user." . PHP_EOL, Console::FG_RED);
+        }
+
+        return $user;
+    }
+
+    private function importPayload(?string $payload): int
     {
         $payload ??= $this->readPayload();
         $choices = $this->readChoices();
@@ -126,7 +167,9 @@ class ImportController extends Controller
         $outcome = match ($reference->choice) {
             ReferencePlan::CHOICE_STUB => 'will be Stubbed',
             ReferencePlan::CHOICE_REPLACE => "will be replaced with #{$reference->replacement?->id}",
-            default => 'will be skipped',
+            default => $reference->elementType === 'user'
+                ? sprintf('will be skipped in user fields; as an author, "%s" is credited instead', Craft::$app->getUser()->getIdentity()?->getName())
+                : 'will be skipped',
         };
         $this->stdout(
             "Unresolved reference $what: $outcome. Choices: " . implode(', ', $reference->availableChoices) . '.' . PHP_EOL,

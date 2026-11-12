@@ -362,7 +362,7 @@ class ReferencesTest extends Unit
         $this->assertSame([$stubs[0]->id], $this->importedEntry($result->roots[1]->elementId)->getFieldValue('relatedTopics')->status(null)->ids());
     }
 
-    public function testARootElementKeepsItsSourceUidWhenAnotherRootStubsAReferenceToIt(): void
+    public function testAReferenceToAnotherRootElementInThePayloadCanNotBeStubbed(): void
     {
         $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedArticles')]);
         $news = Schema::section('news', [$article]);
@@ -374,10 +374,32 @@ class ReferencesTest extends Unit
         $this->hardDelete($linking);
         $this->hardDelete($target);
 
-        $result = $this->portage()->import($payload, [$targetUid => 'stub']);
+        $this->assertSame(['skip', 'replace'], $this->portage()->preview($payload)->references[$targetUid]->availableChoices);
+        $this->assertSame(
+            'The Reference "Target" can\'t be Stubbed: this Payload imports it as a Root element. Skip it or choose a replacement.',
+            $this->portage()->import($payload, [$targetUid => 'stub'])->refusal,
+        );
+        $this->assertSame(0, (int)Entry::find()->sectionId($news->id)->status(null)->count());
+    }
 
-        $this->assertSame($targetUid, $this->importedEntry($result->roots[1]->elementId)->uid);
-        $this->assertNotSame($targetUid, Entry::find()->id($result->roots[0]->stubs[0]['elementId'])->status(null)->one()?->uid);
+    public function testANaturalKeyMatchingMoreThanOneElementLeavesTheReferenceUnresolved(): void
+    {
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $first = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
+        $second = Schema::entry($topics, $topic, ['title' => 'Craft again', 'slug' => 'craft']);
+        $sourceUid = $first->uid;
+
+        $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$first->id]]);
+
+        $payload = $this->portage()->export([$source]);
+        $this->hardDelete($source);
+        Schema::changeUid($first);
+        Schema::changeUid($second);
+
+        $this->assertFalse($this->portage()->preview($payload)->references[$sourceUid]->resolution->isResolved());
     }
 
     public function testACategoryStubRolledBackWithItsRootElementIsCreatedAgainForTheNext(): void

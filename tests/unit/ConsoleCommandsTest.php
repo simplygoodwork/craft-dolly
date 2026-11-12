@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\tests\unit;
 
 use Craft;
 use craft\elements\Entry;
+use craft\elements\User;
 use craft\fields\Entries;
 use craft\fields\Users;
 use craft\test\console\ConsoleTest;
@@ -42,7 +43,7 @@ class ConsoleCommandsTest extends ConsoleTest
         $this->assertStringStartsWith('portage:v1:', (string)file_get_contents($this->file));
 
         Craft::$app->getElements()->deleteElement($source, true);
-        $this->consoleCommand('portage/import', ['file' => $this->file], true)
+        $this->consoleCommand('portage/import', ['file' => $this->file, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -58,7 +59,7 @@ class ConsoleCommandsTest extends ConsoleTest
         $payload = Plugin::getInstance()->getPortage()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $this->consoleCommand('portage/import', [$payload], true)
+        $this->consoleCommand('portage/import', [$payload, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -71,7 +72,7 @@ class ConsoleCommandsTest extends ConsoleTest
         $payload = Plugin::getInstance()->getPortage()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true], false)
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Would create a disabled entry \"Dry run\" from $source->uid." . PHP_EOL)
             ->exitCode(ExitCode::OK)
@@ -83,7 +84,7 @@ class ConsoleCommandsTest extends ConsoleTest
 
     public function testRefusesAMalformedPayload(): void
     {
-        $this->consoleCommand('portage/import', ['not a payload'], true)
+        $this->consoleCommand('portage/import', ['not a payload', 'user' => $this->importerEmail()], true)
             ->stderr('Payload refused: This is not a Portage Payload: it should start with "portage:v1:".' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
@@ -101,7 +102,7 @@ class ConsoleCommandsTest extends ConsoleTest
     {
         [$payload, $kept, $gone] = $this->payloadRelatingTo('Kept', 'Gone');
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'stub' => $gone], false)
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'stub' => $gone, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Reference \"Kept\" (entry, $kept) matched by UID." . PHP_EOL)
             ->stdout("Unresolved reference \"Gone\" (entry, $gone): will be Stubbed. Choices: skip, stub, replace." . PHP_EOL)
@@ -118,13 +119,13 @@ class ConsoleCommandsTest extends ConsoleTest
         $instead = Schema::entry($topics, $topics->getEntryTypes()[0], ['title' => 'Instead']);
         file_put_contents($this->file, json_encode([$gone => $instead->id]));
 
-        $this->consoleCommand('portage/import', [$payload, 'choices' => $this->file], true)
+        $this->consoleCommand('portage/import', [$payload, 'choices' => $this->file, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $this->assertSame([$keptId, $instead->id], $this->relatedIds());
 
         Craft::$app->getElements()->deleteElement(Entry::find()->uid($this->sourceUid)->status(null)->one(), true);
-        $this->consoleCommand('portage/import', [$payload, 'stub' => $gone], true)
+        $this->consoleCommand('portage/import', [$payload, 'stub' => $gone, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $stub = Entry::find()->uid($gone)->status(null)->one();
@@ -142,10 +143,56 @@ class ConsoleCommandsTest extends ConsoleTest
         Craft::$app->getElements()->deleteElement($source, true);
         Craft::$app->getElements()->deleteElement($user, true);
 
-        $this->consoleCommand('portage/import', [$payload, 'stub' => $user->uid], true)
+        $this->consoleCommand('portage/import', [$payload, 'stub' => $user->uid, 'user' => $this->importerEmail()], true)
             ->stderr('Payload refused: The user "gone" can\'t be Stubbed: Portage never creates users. Skip it or choose a replacement user.' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
+    }
+
+    public function testImportRequiresTheActiveUserItRunsAs(): void
+    {
+        $source = $this->sourceEntry('Needs a user');
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Craft::$app->getElements()->deleteElement($source, true);
+
+        $this->consoleCommand('portage/import', [$payload], true)
+            ->stderr('Pass --user with the email of the user to run the Import as. Unresolved authors are credited to them.' . PHP_EOL)
+            ->exitCode(ExitCode::USAGE)
+            ->run();
+        $this->consoleCommand('portage/import', [$payload, 'user' => 'nobody@example.com'], true)
+            ->stderr('No active user has the email nobody@example.com.' . PHP_EOL)
+            ->exitCode(ExitCode::USAGE)
+            ->run();
+
+        $this->assertNull(Entry::find()->uid($source->uid)->status(null)->one());
+    }
+
+    public function testCreditsAnUnresolvedAuthorToTheUserTheImportRunsAs(): void
+    {
+        $gone = Schema::user('gone');
+        $entryType = Schema::entryType('article');
+        $section = Schema::section('news', [$entryType]);
+        $source = Schema::entry($section, $entryType, ['title' => 'Authored', 'authorIds' => [$gone->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Craft::$app->getElements()->deleteElement($source, true);
+        Craft::$app->getElements()->deleteElement($gone, true);
+        $importer = Schema::user('importer');
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => 'importer@example.com'], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout("Unresolved reference \"gone\" (user, $gone->uid): will be skipped in user fields; as an author, \"importer\" is credited instead. Choices: skip, replace." . PHP_EOL)
+            ->stdout("Would create a disabled entry \"Authored\" from $source->uid." . PHP_EOL)
+            ->stdout('  Warning: The author "gone" doesn\'t exist in this environment. "importer" will be credited instead.' . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $this->consoleCommand('portage/import', [$payload, 'user' => 'importer@example.com'], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $imported = Entry::find()->uid($source->uid)->status(null)->one();
+        $this->assertSame([$importer->id], $imported->getAuthorIds());
+        $this->assertSame($importer->id, Plugin::getInstance()->getImportLog()->getEntries()[0]->userId);
     }
 
     private string $sourceUid = '';
@@ -190,5 +237,13 @@ class ConsoleCommandsTest extends ConsoleTest
         $section = Schema::section('news', [$entryType]);
 
         return Schema::entry($section, $entryType, ['title' => $title, 'summary' => 'Via the CLI']);
+    }
+
+    /**
+     * The email of the user the Import runs as, created on first use.
+     */
+    private function importerEmail(): string
+    {
+        return (User::find()->username('importer')->one() ?? Schema::user('importer'))->email;
     }
 }

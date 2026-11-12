@@ -38,27 +38,27 @@ php craft portage/export 123
 php craft portage/export 123,456 --output=page.portage
 ```
 
-Import a Payload passed as an argument, from a file, or on stdin. New entries are created disabled, Unresolved references are skipped and listed, and the Import is recorded in the Import log:
+Import a Payload passed as an argument, from a file, or on stdin. `--user` is required: the email of the active user the Import runs as. New entries are created disabled, Unresolved references are skipped and listed, and the Import is recorded in the Import log against that user:
 
 ```bash
-php craft portage/import 'portage:v1:H4sI…'
-php craft portage/import --file=page.portage
-php craft portage/import < page.portage
+php craft portage/import 'portage:v1:H4sI…' --user=editor@example.com
+php craft portage/import --file=page.portage --user=editor@example.com
+php craft portage/import --user=editor@example.com < page.portage
 ```
 
 Add `--dry-run` to print the Preview and write nothing, not even an Import log entry. The Preview lists the Drift of every field, entry type, section and site that changed since Export, what will be skipped, and the required fields that will be left empty:
 
 ```bash
-php craft portage/import --file=page.portage --dry-run
+php craft portage/import --file=page.portage --user=editor@example.com --dry-run
 ```
 
-Related entries, categories, tags and users (including authors) are matched by UID, then by their Natural key: section + slug (plus the parent slug path in Structures) for entries, group + slug (plus parent path) for categories, group + title for tags, and email, then username, for users. The Preview shows the rule that matched each Reference.
+Related entries, categories, tags and users (including authors) are matched by UID, then by their Natural key: section + slug (plus the parent slug path in Structures) for entries, group + slug (plus parent path) for categories, group + title for tags, and email, then username, for users. A Natural key that matches more than one element matches none, so the Reference is left unresolved rather than related to the wrong element. The Preview shows the rule that matched each Reference.
 
-An Unresolved reference is skipped by default. Choose to create a disabled Stub in its original section or group with `--stub`, or to relate an existing element instead with `--replace`, or put the choices in a JSON file for `--choices`. Users are never Stubbed: an unresolved author is replaced by the user running the Import, and unresolved users in user fields are skipped.
+An Unresolved reference is skipped by default. Choose to create a disabled Stub in its original section or group with `--stub`, or to relate an existing element instead with `--replace`, or put the choices in a JSON file for `--choices`. Users are never Stubbed: an unresolved author is replaced by the `--user` the Import runs as, and unresolved users in user fields are skipped. Nor are entries the same Payload imports as Root elements, since a Stub would duplicate them. Stubs are created in the first site of their section or group, at the top level of a Structure. A choice that can't be carried out refuses the whole Payload before anything is written.
 
 ```bash
-php craft portage/import --file=page.portage --stub=<uid>,<uid> --replace=<uid>=123
-php craft portage/import --file=page.portage --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
+php craft portage/import --file=page.portage --user=editor@example.com --stub=<uid>,<uid> --replace=<uid>=123
+php craft portage/import --file=page.portage --user=editor@example.com --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
 ```
 
 Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.

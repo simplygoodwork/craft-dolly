@@ -16,12 +16,12 @@ use simplygoodwork\craftportage\references\ElementTypes;
  * Builds unsaved Stubs for Unresolved references: disabled, minimal elements in the Reference's original section or
  * group, populated only from the Reference's identifying information. The Importer saves them.
  *
- * Users are never Stubbed.
+ * Users are never Stubbed, and neither are the Payload's own Root elements: a Stub would duplicate the Root element.
  */
 final class Stubs
 {
     /**
-     * @param array<string, true> $rootUids source UIDs of the Payload's Root elements, which keep them over a Stub
+     * @param array<string, true> $rootUids source UIDs of the Payload's Root elements, which are never Stubbed
      */
     public function __construct(
         private readonly UidClaims $uids,
@@ -30,12 +30,20 @@ final class Stubs
     }
 
     /**
-     * Returns whether a Reference can be Stubbed in this environment: its element type allows Stubs and its section
-     * or group exists here.
+     * Returns whether a Reference can be Stubbed in this environment: its element type allows Stubs, its section
+     * or group exists here, and it isn't one of the Payload's Root elements.
      */
-    public static function canStub(ReferencePlan $reference): bool
+    public function canStub(ReferencePlan $reference): bool
     {
-        return self::container($reference) !== null;
+        return !$this->isRoot($reference) && self::container($reference) !== null;
+    }
+
+    /**
+     * Returns whether the Reference is one of the Payload's own Root elements.
+     */
+    public function isRoot(ReferencePlan $reference): bool
+    {
+        return isset($this->rootUids[$reference->uid]);
     }
 
     /**
@@ -44,6 +52,10 @@ final class Stubs
      */
     public function build(ReferencePlan $reference): ?ElementInterface
     {
+        if ($this->isRoot($reference)) {
+            return null;
+        }
+
         $container = self::container($reference);
         $key = $reference->reference['naturalKey'] ?? [];
         $slug = is_string($key['slug'] ?? null) && $key['slug'] !== '' ? $key['slug'] : null;
@@ -61,7 +73,7 @@ final class Stubs
             return null;
         }
 
-        $stub->uid = isset($this->rootUids[$reference->uid]) ? null : $this->uids->claim($reference->uid);
+        $stub->uid = $this->uids->claim($reference->uid);
         $stub->enabled = false;
         $stub->title = $reference->title;
         if ($slug !== null && !$stub instanceof Tag) {

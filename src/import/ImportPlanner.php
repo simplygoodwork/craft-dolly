@@ -137,7 +137,7 @@ final class ImportPlanner
 
             $reference->availableChoices = [
                 ReferencePlan::CHOICE_SKIP,
-                ...(Stubs::canStub($reference) ? [ReferencePlan::CHOICE_STUB] : []),
+                ...($stubs->canStub($reference) ? [ReferencePlan::CHOICE_STUB] : []),
                 ReferencePlan::CHOICE_REPLACE,
             ];
             $choice = $choices[$uid] ?? ReferencePlan::CHOICE_SKIP;
@@ -145,7 +145,7 @@ final class ImportPlanner
             if ($choice === ReferencePlan::CHOICE_SKIP) {
                 $reference->choice = ReferencePlan::CHOICE_SKIP;
             } elseif ($choice === ReferencePlan::CHOICE_STUB) {
-                $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference));
+                $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference, $stubs));
                 $reference->choice = ReferencePlan::CHOICE_STUB;
             } elseif (is_int($choice) || (is_string($choice) && ctype_digit($choice))) {
                 $reference->replacement = $this->replacement($reference, (int)$choice);
@@ -159,8 +159,12 @@ final class ImportPlanner
         }
     }
 
-    private function whyNoStub(ReferencePlan $reference): string
+    private function whyNoStub(ReferencePlan $reference, Stubs $stubs): string
     {
+        if ($stubs->isRoot($reference)) {
+            return "The Reference {$reference->name()} can't be Stubbed: this Payload imports it as a Root element. Skip it or choose a replacement.";
+        }
+
         if ($reference->elementType === 'user') {
             return "The user {$reference->name()} can't be Stubbed: Portage never creates users. Skip it or choose a replacement user.";
         }
