@@ -32,11 +32,11 @@ class DriftTest extends Unit
         $this->assertSame(PlainText::class, $first['schema']['fields'][$summary->uid]['type']);
 
         // Re-saving without changes keeps the config, so the Fingerprint stays the same.
-        Craft::$app->getFields()->saveField(Craft::$app->getFields()->getFieldByUid($summary->uid));
+        Schema::updateField($summary->uid);
         $second = $this->envelope($this->portage()->export([$source]));
         $this->assertSame($first['schema'], $second['schema']);
 
-        $this->changeSettings($summary->uid);
+        Schema::updateField($summary->uid, ['charLimit' => 42]);
         $third = $this->envelope($this->portage()->export([$source]));
         $this->assertNotSame(
             $first['schema']['fields'][$summary->uid]['fingerprint'],
@@ -56,7 +56,7 @@ class DriftTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text']);
         $payload = $this->portage()->export([$source]);
 
-        $this->changeSettings($summary->uid);
+        Schema::updateField($summary->uid, ['charLimit' => 42]);
 
         $plan = $this->portage()->preview($payload);
         $this->assertFalse($plan->isRefused());
@@ -107,7 +107,7 @@ class DriftTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text', 'subtitle' => 'Sub']);
         $payload = $this->portage()->export([$source]);
 
-        $this->assertTrue(Craft::$app->getFields()->deleteField($subtitle));
+        Schema::deleteField($subtitle);
 
         $plan = $this->portage()->preview($payload);
         $this->assertSame('missing', $plan->drift->get('fields', $subtitle->uid)?->state);
@@ -138,9 +138,7 @@ class DriftTest extends Unit
         ]);
         $payload = $this->portage()->export([$source]);
 
-        $contentBlocks->setEntryTypes([$text]);
-        $this->assertTrue(Craft::$app->getFields()->saveField($contentBlocks));
-        Schema::refresh();
+        Schema::updateField($contentBlocks->uid, ['entryTypes' => [$text]]);
 
         $warning = 'Blocks of type "Quote" in "Content Blocks" will be skipped: their entry type isn\'t allowed in that field in this environment.';
         $this->assertContains($warning, $this->portage()->preview($payload)->roots[0]->warnings);
@@ -185,7 +183,7 @@ class DriftTest extends Unit
         $party = Schema::entry($events, $event, ['title' => 'Party']);
         $payload = $this->portage()->export([$party, $story]);
 
-        $this->assertTrue(Craft::$app->getEntries()->deleteSection($events));
+        Schema::deleteSection($events);
 
         $blocked = 'The section "Events" doesn\'t exist in this environment. Root elements in it can\'t be imported.';
         $plan = $this->portage()->preview($payload);
@@ -240,15 +238,6 @@ class DriftTest extends Unit
         $this->assertNotNull($entry, "No entry with ID $id");
 
         return $entry;
-    }
-
-    private function changeSettings(string $fieldUid): void
-    {
-        /** @var PlainText $field */
-        $field = Craft::$app->getFields()->getFieldByUid($fieldUid);
-        $field->charLimit = 42;
-        $this->assertTrue(Craft::$app->getFields()->saveField($field));
-        Schema::refresh();
     }
 
     private function portage(): Portage

@@ -19,10 +19,12 @@ use craft\models\Section_SiteSettings;
 use RuntimeException;
 
 /**
- * Builds schema (fields, entry types, sections) and entries inside tests.
+ * Builds schema (fields, entry types, sections) and entries inside tests, and changes the install between Export
+ * and Import to simulate a different Target environment.
  *
  * Every method saves through Craft's public services and throws if Craft
  * rejects the save, so a broken fixture fails loudly at the line that built it.
+ * Every method that changes existing schema also calls `refresh()`, so the Import sees the change.
  */
 final class Schema
 {
@@ -155,6 +157,44 @@ final class Schema
     }
 
     /**
+     * Sets properties on an existing field and saves it, e.g. `['charLimit' => 42]` or `['entryTypes' => [$text]]`
+     * for a Matrix field. With no properties, re-saves the field unchanged.
+     *
+     * @param array<string, mixed> $properties
+     */
+    public static function updateField(string $fieldUid, array $properties = []): FieldInterface
+    {
+        $fields = Craft::$app->getFields();
+        $field = $fields->getFieldByUid($fieldUid) ?? throw new RuntimeException("No field with UID $fieldUid");
+        foreach ($properties as $name => $value) {
+            $field->$name = $value;
+        }
+
+        if (!$fields->saveField($field)) {
+            self::fail("field \"$field->handle\"", $field->getErrors());
+        }
+        self::refresh();
+
+        return $field;
+    }
+
+    public static function deleteField(FieldInterface $field): void
+    {
+        if (!Craft::$app->getFields()->deleteField($field)) {
+            throw new RuntimeException("Couldn't delete field \"$field->handle\".");
+        }
+        self::refresh();
+    }
+
+    public static function deleteSection(Section $section): void
+    {
+        if (!Craft::$app->getEntries()->deleteSection($section)) {
+            throw new RuntimeException("Couldn't delete section \"$section->handle\".");
+        }
+        self::refresh();
+    }
+
+    /**
      * Changes a field's type, keeping its UID, name and handle, then refreshes the schema caches.
      *
      * @param class-string<FieldInterface> $class
@@ -182,8 +222,8 @@ final class Schema
     /**
      * Clears Craft's in-memory schema caches, as a new request in the Target environment would.
      *
-     * Call it after changing the install between Export and Import, so the Import doesn't see stale fields or
-     * entry types.
+     * The methods that change existing schema call it already. Call it yourself only after changing schema through
+     * Craft's services directly.
      */
     public static function refresh(): void
     {

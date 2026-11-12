@@ -19,8 +19,8 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the plugin root. See `docs/agen
 Codeception with Craft's test module, run through DDEV against a separate `portage_test` database:
 
 ```bash
-ddev exec --dir /var/www/html/plugins/portage composer test
+ddev exec --dir /var/www/html/plugins/portage composer check
 ddev exec --dir /var/www/html/plugins/portage vendor/bin/codecept run unit <TestClass>
 ```
 
-Build schema in tests with `tests/_support/Schema.php`. See "Running tests" in `README.md` for details.
+Run `composer check` (phpstan, coding standards, whole suite) before committing. Build and change schema in tests with `tests/_support/Schema.php`. See "Running tests" and "Building schema in tests" in `README.md` for the gotchas.

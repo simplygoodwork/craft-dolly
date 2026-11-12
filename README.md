@@ -78,6 +78,14 @@ The bootstrap creates the test database if it's missing. It connects to `db` as 
 
 Each test runs in a transaction that is rolled back afterwards, so schema and content created in one test don't leak into the next.
 
+Before committing, run every check (phpstan, coding standards, the whole suite):
+
+```bash
+ddev exec --dir /var/www/html/plugins/portage composer check
+```
+
+Console tests use `consoleCommand($command, $params, $ignoreStdOut)`. Pass `false` as the third argument whenever the test asserts `->stdout()`: with `true`, every stdout expectation is skipped and the test passes without checking the output.
+
 ### Building schema in tests
 
 `simplygoodwork\craftportage\tests\support\Schema` (in `tests/_support/Schema.php`) builds fields, entry types, sections and entries through Craft's services, and throws with the validation errors (nested entries included) if a save fails:
@@ -99,4 +107,14 @@ $entry = Schema::entry($section, $page, [
 ]);
 ```
 
-Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type.
+Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
+
+To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()` and `Schema::deleteSection()`:
+
+```php
+$payload = Plugin::getInstance()->getPortage()->export([$entry]);
+Schema::updateField($summary->uid, ['charLimit' => 42]);
+$plan = Plugin::getInstance()->getPortage()->preview($payload);
+```
+
+These refresh Craft's in-memory schema caches, as a new request would. Craft otherwise keeps serving the old fields and entry types to the Import. If you change schema through Craft's services directly, call `Schema::refresh()` afterwards. Add a `Schema` method for any new kind of change rather than changing schema inline in a test.

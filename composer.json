@@ -42,7 +42,12 @@
     "check-cs": "ecs check --ansi",
     "fix-cs": "ecs check --ansi --fix",
     "phpstan": "phpstan --memory-limit=1G",
-    "test": "codecept run"
+    "test": "codecept run",
+    "check": [
+      "@phpstan",
+      "@check-cs",
+      "@test"
+    ]
   },
   "config": {
     "sort-packages": true,

@@ -21,6 +21,7 @@ _Avoid_: Paste, restore, sync
 **Preview**:
 The report shown before an Import commits, listing every Resolution, Drift and skipped value, and the user's choices for Unresolved References.
 _Avoid_: Dry run, diff
+_Exception_: the CLI flag `portage/import --dry-run` (and the option property `$dryRun` behind it), following command-line convention. Everything else, including its output and docs, says Preview.
 
 **Source environment** / **Target environment**:
 The environment a Payload was exported from, and the one it is imported into.
