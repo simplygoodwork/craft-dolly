@@ -39,8 +39,11 @@ class Portage extends Component
      *
      * @param array<string, string|int> $choices for Unresolved references, by Reference UID: "skip" (the default),
      * "stub", or the ID of a replacement element
+     * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, by Root element UID:
+     * the `mode` ("create", the default, or "overwrite" the matching entry) and the target `section` (a UID or handle;
+     * the default is the Payload's own section)
      */
-    public function preview(string $payload, array $choices = []): ImportPlan
+    public function preview(string $payload, array $choices = [], array $rootChoices = []): ImportPlan
     {
         try {
             $decoded = $this->codec()->decode($payload);
@@ -48,7 +51,7 @@ class Portage extends Component
             return ImportPlan::refused($e->getMessage());
         }
 
-        return (new ImportPlanner($this->adapters()))->plan($decoded, $choices);
+        return (new ImportPlanner($this->adapters()))->plan($decoded, $choices, $rootChoices);
     }
 
     /**
@@ -56,10 +59,11 @@ class Portage extends Component
      * imports nothing and isn't logged.
      *
      * @param array<string, string|int> $choices for Unresolved references, as for `preview()`
+     * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, as for `preview()`
      */
-    public function import(string $payload, array $choices = []): ImportResult
+    public function import(string $payload, array $choices = [], array $rootChoices = []): ImportResult
     {
-        $plan = $this->preview($payload, $choices);
+        $plan = $this->preview($payload, $choices, $rootChoices);
         if ($plan->isRefused()) {
             return ImportResult::refused((string)$plan->refusal);
         }

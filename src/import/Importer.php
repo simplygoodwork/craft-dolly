@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\import;
 
 use Craft;
+use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
 use Throwable;
@@ -27,6 +28,9 @@ final class Importer
     private function importRoot(RootPlan $plan): RootResult
     {
         $result = RootResult::fromPlan($plan);
+        if ($plan->overwrite) {
+            return $this->overwriteRoot($plan, $plan->overwrite, $result);
+        }
         $entry = $plan->entry;
 
         if ($plan->isBlocked() || !$entry) {
@@ -37,39 +41,20 @@ final class Importer
         $created = [];
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
-            foreach ($plan->stubs as $reference) {
-                $stub = $reference->stub;
-                // A Stub shared with an earlier Root element is already saved.
-                if (!$stub || $stub->id !== null) {
-                    continue;
-                }
-                if (!Craft::$app->getElements()->saveElement($stub)) {
-                    $this->rollBack($transaction, $created);
-                    $result->fail("Craft couldn't create the Stub for {$reference->name()}: " . implode(' ', $stub->getFirstErrors()));
-                    return $result;
-                }
-                $created[] = $stub;
-                $result->stubs[] = [
-                    'uid' => $reference->uid,
-                    'elementType' => $reference->elementType,
-                    'title' => $reference->title,
-                    'elementId' => (int)$stub->id,
-                ];
+            $error = $this->saveStubs($plan, $result, $created);
+            if ($error === null && !Craft::$app->getElements()->saveElement($entry)) {
+                $error = 'Craft couldn\'t save the entry: ' . implode(' ', $entry->getFirstErrors());
             }
-
-            if (!Craft::$app->getElements()->saveElement($entry)) {
-                $this->rollBack($transaction, $created);
-                $result->fail('Craft couldn\'t save the entry: ' . implode(' ', $entry->getFirstErrors()));
-                return $result;
-            }
-
             foreach ($plan->sites as $site) {
-                $error = $this->saveSite($entry, $site);
                 if ($error !== null) {
-                    $this->rollBack($transaction, $created);
-                    $result->fail($error);
-                    return $result;
+                    break;
                 }
+                $error = $this->saveSite($entry, $site);
+            }
+            if ($error !== null) {
+                $this->rollBack($transaction, $created);
+                $result->fail($error);
+                return $result;
             }
             $transaction->commit();
         } catch (Throwable $e) {
@@ -82,6 +67,111 @@ final class Importer
         $result->elementId = $entry->id;
 
         return $result;
+    }
+
+    /**
+     * Saves the Stubs the Root element's relations point at, and records them on the result.
+     *
+     * @param ElementInterface[] $created collects the Stubs this saved, so a rollback can forget their IDs
+     * @return string|null the error, or null if they saved
+     */
+    private function saveStubs(RootPlan $plan, RootResult $result, array &$created): ?string
+    {
+        foreach ($plan->stubs as $reference) {
+            $stub = $reference->stub;
+            // A Stub shared with an earlier Root element is already saved.
+            if (!$stub || $stub->id !== null) {
+                continue;
+            }
+            if (!Craft::$app->getElements()->saveElement($stub)) {
+                return "Craft couldn't create the Stub for {$reference->name()}: " . implode(' ', $stub->getFirstErrors());
+            }
+            $created[] = $stub;
+            $result->stubs[] = [
+                'uid' => $reference->uid,
+                'elementType' => $reference->elementType,
+                'title' => $reference->title,
+                'elementId' => (int)$stub->id,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Creates a draft on the matched entry and applies the Payload's content to it, in one transaction with the Stubs
+     * its relations need. The canonical entry is never changed.
+     */
+    private function overwriteRoot(RootPlan $root, OverwritePlan $plan, RootResult $result): RootResult
+    {
+        $name = "\"{$plan->canonical->title}\"";
+        $created = [];
+        $transaction = Craft::$app->getDb()->beginTransaction();
+        try {
+            $error = $this->saveStubs($root, $result, $created);
+            $draft = null;
+            if ($error === null) {
+                $draft = Craft::$app->getDrafts()->createDraft(
+                    $plan->canonical,
+                    Craft::$app->getUser()->getId(),
+                    'Portage import',
+                    'Created by a Portage Import.',
+                );
+            }
+            foreach ($plan->sites as $site) {
+                if ($error !== null || !$draft) {
+                    break;
+                }
+                $error = $this->saveDraftSite($draft, $site);
+            }
+            if ($error !== null || !$draft) {
+                $this->rollBack($transaction, $created);
+                $result->fail($error ?? "Craft couldn't create a draft on the entry $name.");
+                return $result;
+            }
+            $transaction->commit();
+        } catch (Throwable $e) {
+            $this->rollBack($transaction, $created);
+            Craft::$app->getErrorHandler()->logException($e);
+            $result->fail("Couldn't overwrite the entry $name: " . $e->getMessage());
+            return $result;
+        }
+
+        $result->status = RootResult::STATUS_OVERWRITTEN;
+        $result->elementId = (int)$plan->canonical->id;
+        $result->draftId = (int)$draft->draftId;
+
+        return $result;
+    }
+
+    /**
+     * Applies the Payload's content for one site to the draft: its title, slug and the field values it carries.
+     *
+     * @return string|null the error, or null if it saved
+     */
+    private function saveDraftSite(Entry $draft, SitePlan $plan): ?string
+    {
+        $siteName = $plan->site->getName();
+        $siteDraft = Entry::find()->id($draft->id)->drafts()->siteId($plan->site->id)->status(null)->one();
+        if (!$siteDraft) {
+            return "Craft didn't create the draft in the site \"$siteName\".";
+        }
+
+        if ($plan->title !== null) {
+            $siteDraft->title = $plan->title;
+        }
+        if ($plan->slug !== null) {
+            $siteDraft->slug = $plan->slug;
+        }
+        $siteDraft->setFieldValues($plan->fieldValues);
+        // A draft may be incomplete, like any draft an editor saves.
+        $siteDraft->setScenario(Element::SCENARIO_ESSENTIALS);
+
+        if (!Craft::$app->getElements()->saveElement($siteDraft)) {
+            return "Craft couldn't save the draft's content for the site \"$siteName\": " . implode(' ', $siteDraft->getFirstErrors());
+        }
+
+        return null;
     }
 
     /**

@@ -9,6 +9,7 @@ use craft\helpers\Console;
 use craft\helpers\Db;
 use simplygoodwork\craftportage\import\ImportResult;
 use simplygoodwork\craftportage\import\ReferencePlan;
+use simplygoodwork\craftportage\import\RootPlan;
 use simplygoodwork\craftportage\import\RootResult;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\references\Resolution;
@@ -16,7 +17,8 @@ use yii\console\ExitCode;
 
 /**
  * Imports a Payload, or previews it with --dry-run, as the user given with --user. New entries are created disabled.
- * Unresolved references are skipped unless --stub, --replace or --choices say otherwise.
+ * Unresolved references are skipped unless --stub, --replace or --choices say otherwise. A Root element that matches an
+ * existing entry is created as a new entry unless --overwrite chooses the overwrite Import mode, and goes to its own section unless --section chooses a Target section.
  */
 class ImportController extends Controller
 {
@@ -47,6 +49,18 @@ class ImportController extends Controller
     public ?string $choices = null;
 
     /**
+     * @var string|null Comma-separated UIDs of Root elements to overwrite the matching entry for, or `*` for every Root
+     * element that matches an entry (the rest are created). Overwrite creates a draft on the matched entry.
+     */
+    public ?string $overwrite = null;
+
+    /**
+     * @var string|null The handle of the Target section to import every Root entry into, or comma-separated `uid=handle` pairs
+     * to choose a Target section for individual Root elements.
+     */
+    public ?string $section = null;
+
+    /**
      * @var string|null The email of the active user to run the Import as. Unresolved authors are credited to them, and
      * the Import log records them. Required.
      */
@@ -54,7 +68,7 @@ class ImportController extends Controller
 
     public function options($actionID): array
     {
-        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'choices', 'user'];
+        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'choices', 'overwrite', 'section', 'user'];
     }
 
     /**
@@ -100,11 +114,16 @@ class ImportController extends Controller
             return ExitCode::NOINPUT;
         }
 
-        if ($this->dryRun) {
-            return $this->preview($payload, $choices);
+        $rootChoices = $this->readRootChoices();
+        if ($rootChoices === null) {
+            return ExitCode::USAGE;
         }
 
-        $result = Plugin::getInstance()->getPortage()->import($payload, $choices);
+        if ($this->dryRun) {
+            return $this->preview($payload, $choices, $rootChoices);
+        }
+
+        $result = Plugin::getInstance()->getPortage()->import($payload, $choices, $rootChoices);
 
         if ($result->isRefused()) {
             $this->stderr("Payload refused: $result->refusal" . PHP_EOL, Console::FG_RED);
@@ -118,10 +137,11 @@ class ImportController extends Controller
 
     /**
      * @param array<string, string|int> $choices
+     * @param array<string, array{mode?: string, section?: string}> $rootChoices
      */
-    private function preview(string $payload, array $choices): int
+    private function preview(string $payload, array $choices, array $rootChoices): int
     {
-        $plan = Plugin::getInstance()->getPortage()->preview($payload, $choices);
+        $plan = Plugin::getInstance()->getPortage()->preview($payload, $choices, $rootChoices);
 
         if ($plan->isRefused()) {
             $this->stderr("Payload refused: $plan->refusal" . PHP_EOL, Console::FG_RED);
@@ -136,6 +156,10 @@ class ImportController extends Controller
             }
         }
 
+        foreach ($plan->warnings as $warning) {
+            $this->stdout("Warning: $warning" . PHP_EOL, Console::FG_YELLOW);
+        }
+
         foreach ($plan->references as $reference) {
             $this->previewReference($reference);
         }
@@ -144,13 +168,37 @@ class ImportController extends Controller
             $title = $root->title !== null ? "\"$root->title\"" : 'an entry';
             if ($root->isBlocked()) {
                 $this->stdout("Can't import $title from $root->sourceUid: $root->blockedBy" . PHP_EOL, Console::FG_RED);
+            } elseif ($root->mode === RootPlan::MODE_OVERWRITE) {
+                $this->stdout("Would create a draft on entry #{$root->match?->elementId} from $root->sourceUid." . PHP_EOL, Console::FG_GREEN);
             } else {
                 $this->stdout("Would create a disabled entry $title from $root->sourceUid." . PHP_EOL, Console::FG_GREEN);
             }
+            $this->previewMatch($root);
             $this->details($root->unresolvedReferences, $root->warnings, $root->incompleteFields);
         }
 
         return ExitCode::OK;
+    }
+
+    private function previewMatch(RootPlan $root): void
+    {
+        if ($root->isBlocked()) {
+            return;
+        }
+
+        $match = $root->match;
+        $found = match (true) {
+            $match === null => 'No existing entry matches',
+            $match->rule === Resolution::RULE_NATURAL_KEY => "Matches entry #$match->elementId by Natural key",
+            default => "Matches entry #$match->elementId by UID",
+        };
+        $this->stdout(sprintf('  %s. Modes: %s. Chosen: %s.', $found, implode(', ', $root->availableModes), $root->mode) . PHP_EOL);
+        if ($root->section) {
+            $this->stdout("  Target section: \"{$root->section->name}\"." . PHP_EOL);
+        }
+        if ($root->overwriteUnavailable !== null) {
+            $this->stdout("  Can't overwrite: $root->overwriteUnavailable" . PHP_EOL, Console::FG_YELLOW);
+        }
     }
 
     private function previewReference(ReferencePlan $reference): void
@@ -217,6 +265,36 @@ class ImportController extends Controller
     }
 
     /**
+     * Returns the choices from --overwrite and --section, by Root element UID (`*` for every Root element), or null
+     * if they can't be read.
+     *
+     * @return array<string, array{mode?: string, section?: string}>|null
+     */
+    private function readRootChoices(): ?array
+    {
+        $rootChoices = [];
+
+        foreach ($this->split($this->overwrite) as $uid) {
+            $rootChoices[$uid]['mode'] = RootPlan::MODE_OVERWRITE;
+        }
+
+        foreach ($this->split($this->section) as $item) {
+            if (!str_contains($item, '=')) {
+                $rootChoices['*']['section'] = $item;
+                continue;
+            }
+            [$uid, $handle] = array_map('trim', explode('=', $item, 2));
+            if ($uid === '' || $handle === '') {
+                $this->stderr("--section expects a section handle, or uid=handle pairs, not \"$item\"." . PHP_EOL, Console::FG_RED);
+                return null;
+            }
+            $rootChoices[$uid]['section'] = $handle;
+        }
+
+        return $rootChoices;
+    }
+
+    /**
      * @return list<string>
      */
     private function split(?string $list): array
@@ -248,6 +326,8 @@ class ImportController extends Controller
         foreach ($result->roots as $root) {
             if ($root->status === RootResult::STATUS_FAILED) {
                 $this->stdout("Failed to import $root->sourceUid: " . implode(' ', $root->errors) . PHP_EOL, Console::FG_RED);
+            } elseif ($root->status === RootResult::STATUS_OVERWRITTEN) {
+                $this->stdout("Created a draft #$root->draftId on entry #$root->elementId from $root->sourceUid." . PHP_EOL, Console::FG_GREEN);
             } else {
                 $this->stdout("Created disabled entry #$root->elementId from $root->sourceUid." . PHP_EOL, Console::FG_GREEN);
             }

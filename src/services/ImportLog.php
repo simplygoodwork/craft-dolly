@@ -9,6 +9,7 @@ use simplygoodwork\craftportage\import\RootResult;
 use simplygoodwork\craftportage\models\ImportLogEntry;
 use simplygoodwork\craftportage\records\ImportLogRecord;
 use yii\base\Component;
+use yii\db\ActiveQuery;
 
 /**
  * Records Imports in the Import log and reads them back.
@@ -37,9 +38,24 @@ class ImportLog extends Component
      */
     public function getEntries(): array
     {
-        $records = ImportLogRecord::find()
-            ->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC])
-            ->all();
+        return $this->entries(ImportLogRecord::find());
+    }
+
+    /**
+     * @return list<ImportLogEntry> the Imports of a Payload, newest first
+     */
+    public function getEntriesForPayload(string $payloadIdentity): array
+    {
+        return $this->entries(ImportLogRecord::find()->where(['payloadIdentity' => $payloadIdentity]));
+    }
+
+    /**
+     * @param ActiveQuery<ImportLogRecord> $query
+     * @return list<ImportLogEntry> newest first
+     */
+    private function entries(ActiveQuery $query): array
+    {
+        $records = $query->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC])->all();
 
         return array_values(array_map(fn(ImportLogRecord $record) => $this->entry($record), $records));
     }

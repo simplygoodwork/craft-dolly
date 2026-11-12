@@ -61,6 +61,15 @@ php craft portage/import --file=page.portage --user=editor@example.com --stub=<u
 php craft portage/import --file=page.portage --user=editor@example.com --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
 ```
 
+A Root entry that matches an existing entry, by UID or else by its Natural key in the target section, can be imported in one of two modes: create a new entry (the default; a UID that's already used gets a fresh one, and so does any of its Owned content) or overwrite. Overwrite creates a draft on the matched entry and applies only the fields the Payload carries and that aren't skipped; a Matrix field's blocks are replaced as a whole. The matched entry itself is never changed, and its enabled state and authors are kept. Choose overwrite with `--overwrite`, a comma-separated list of Root element UIDs, or `*` for every Root element that matches an entry (the rest are created). Send Root entries to another section with `--section`: a section handle for every Root entry, or comma-separated `uid=handle` pairs. The section must allow the entry type, otherwise the Payload is refused. The report says "Created a draft #X on entry #Y" for each overwrite, and `--dry-run` prints each Root element's match, the modes available, the mode chosen and the target section:
+
+```bash
+php craft portage/import --file=page.portage --user=editor@example.com --overwrite='*'
+php craft portage/import --file=page.portage --user=editor@example.com --overwrite=<uid> --section=<uid>=blog
+```
+
+When the Import log already holds the Payload, the Preview warns who imported it and when. The warning doesn't stop the Import.
+
 Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.
 
 ## Development
@@ -118,7 +127,7 @@ $entry = Schema::entry($section, $page, [
 
 `Schema::categoryGroup()`, `Schema::category()`, `Schema::tagGroup()`, `Schema::tag()` and `Schema::user()` build related elements. `Schema::site()` adds a site (create sites before the sections that use them), and `Schema::translate($element, $site, [...])` saves an element's content in another site. Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
 
-To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()` and `Schema::deleteSite()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
+`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()` and `Schema::deleteSite()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
 $payload = Plugin::getInstance()->getPortage()->export([$entry]);

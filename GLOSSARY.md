@@ -23,6 +23,14 @@ The report shown before an Import commits, listing every Resolution, Drift and s
 _Avoid_: Dry run, diff
 _Exception_: the CLI flag `portage/import --dry-run` (and the option property `$dryRun` behind it), following command-line convention. Everything else, including its output and docs, says Preview.
 
+**Import mode**:
+What an Import does with a Root element that matches an existing entry in the Target environment: *create new* (the default) or *overwrite*, which applies the Payload to a draft of the matched entry and never touches the live one.
+_Avoid_: Strategy, merge
+
+**Target section**:
+The section a Root entry is imported into: the Payload's own section, or the one the user chose instead, if it allows the entry type.
+_Avoid_: Destination section, override section
+
 **Source environment** / **Target environment**:
 The environment a Payload was exported from, and the one it is imported into.
 _Avoid_: From/to, origin, destination

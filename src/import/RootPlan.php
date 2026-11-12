@@ -3,6 +3,8 @@
 namespace simplygoodwork\craftportage\import;
 
 use craft\elements\Entry;
+use craft\models\Section;
+use simplygoodwork\craftportage\references\Resolution;
 
 /**
  * What an Import will do with one Root element: the unsaved entry to create, or why the Root element is blocked,
@@ -45,6 +47,46 @@ final class RootPlan
      */
     public array $stubs = [];
 
+    public const MODE_CREATE = 'create';
+    public const MODE_OVERWRITE = 'overwrite';
+
+    /**
+     * @var Resolution|null the existing entry this Root element matches in the Target environment (by UID, then by
+     * Natural key in the target section), or null if none does
+     */
+    public ?Resolution $match = null;
+
+    /**
+     * @var Entry|null the matched entry, loaded
+     */
+    public ?Entry $matchedEntry = null;
+
+    /**
+     * @var list<string> the Import modes the user can choose: "create", plus "overwrite" when the Root element matches an
+     * entry that it can overwrite
+     */
+    public array $availableModes = [self::MODE_CREATE];
+
+    /**
+     * @var string the Import mode: "create" a new entry (the default) or "overwrite" the matched entry
+     */
+    public string $mode = self::MODE_CREATE;
+
+    /**
+     * @var string|null why a matched entry can't be overwritten, or null if it can (or nothing matched)
+     */
+    public ?string $overwriteUnavailable = null;
+
+    /**
+     * @var Section|null the Target section: the Payload's own section, or the one the user chose
+     */
+    public ?Section $section = null;
+
+    /**
+     * @var OverwritePlan|null the draft the Import will create on the matched entry, when the mode is "overwrite"
+     */
+    public ?OverwritePlan $overwrite = null;
+
     public function __construct(
         public readonly ?string $sourceUid,
         public readonly ?string $title = null,
@@ -56,6 +98,17 @@ final class RootPlan
         $this->blockedBy = $reason;
         $this->entry = null;
         $this->sites = [];
+        $this->overwrite = null;
+        $this->availableModes = [self::MODE_CREATE];
+        $this->mode = self::MODE_CREATE;
+    }
+
+    /**
+     * Names the Root element in a message: by its title, or else by its UID.
+     */
+    public function label(): string
+    {
+        return $this->title !== null ? "the Root element \"$this->title\"" : "the Root element $this->sourceUid";
     }
 
     public function isBlocked(): bool

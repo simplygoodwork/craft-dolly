@@ -9,13 +9,16 @@ use craft\elements\Entry;
 use craft\elements\User;
 use craft\enums\PropagationMethod;
 use craft\helpers\ArrayHelper;
+use craft\helpers\DateTimeHelper;
 use craft\helpers\ElementHelper;
 use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftportage\models\ImportLogEntry;
 use simplygoodwork\craftportage\payload\DecodedPayload;
+use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\references\ElementTypes;
 use simplygoodwork\craftportage\references\ReferenceResolver;
 use simplygoodwork\craftportage\schema\SchemaManifest;
@@ -36,8 +39,12 @@ final class ImportPlanner
     /**
      * @param array<mixed> $choices for Unresolved references, by Reference UID: "skip", "stub", or the ID of a
      * replacement element. Omitted choices are "skip".
+     * @param array<mixed> $rootChoices for Root elements, by Root element UID: `['mode' => 'create'|'overwrite',
+     * 'section' => section UID or handle]`. Omitted choices are "create" in the Payload's own section. The key `*`
+     * is the default for every Root element: Root elements that can't be overwritten are created instead, while an
+     * explicit choice that can't be carried out is refused.
      */
-    public function plan(DecodedPayload $payload, array $choices = []): ImportPlan
+    public function plan(DecodedPayload $payload, array $choices = [], array $rootChoices = []): ImportPlan
     {
         $envelope = $payload->envelope;
         $drift = (new SchemaManifest())->classify($envelope['schema'] ?? null);
@@ -46,6 +53,7 @@ final class ImportPlanner
 
         try {
             $this->applyChoices($references, $choices, new Stubs($uids, $this->rootUids($envelope['roots'])));
+            $rootChoices = $this->parseRootChoices($rootChoices, $this->rootUids($envelope['roots']));
         } catch (InvalidChoiceException $e) {
             return ImportPlan::refused($e->getMessage());
         }
@@ -64,8 +72,20 @@ final class ImportPlanner
                 continue;
             }
 
-            $this->planRoot($root, new ImportContext($this->adapters, $references, $uids, $drift, $plan));
+            try {
+                $explicit = $rootChoices[$plan->sourceUid] ?? [];
+                $this->planRoot(
+                    $root,
+                    new ImportContext($this->adapters, $references, $uids, $drift, $plan),
+                    $explicit + ($rootChoices['*'] ?? []),
+                    !isset($explicit['mode']),
+                );
+            } catch (InvalidChoiceException $e) {
+                return ImportPlan::refused($e->getMessage());
+            }
         }
+
+        $earlierImports = Plugin::getInstance()->getImportLog()->getEntriesForPayload($payload->identity);
 
         return new ImportPlan(
             drift: $drift,
@@ -73,7 +93,69 @@ final class ImportPlanner
             references: $references,
             payloadIdentity: $payload->identity,
             source: is_array($envelope['source'] ?? null) ? $envelope['source'] : [],
+            earlierImports: $earlierImports,
+            warnings: array_map(fn(ImportLogEntry $import) => $this->duplicateWarning($import), $earlierImports),
         );
+    }
+
+    private function duplicateWarning(ImportLogEntry $import): string
+    {
+        $date = DateTimeHelper::toDateTime($import->dateCreated);
+        $when = $date ? $date->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))->format('j M Y \a\t H:i') : 'an unknown date';
+        $user = $import->userId !== null ? User::find()->id($import->userId)->status(null)->one() : null;
+        $who = $user ? sprintf(' by "%s"', $user->getName()) : ' by a user that no longer exists';
+
+        return "This Payload was already imported here on $when$who.";
+    }
+
+    /**
+     * Checks the user's choices for Root elements, and resolves the sections they chose.
+     *
+     * @param array<mixed> $choices
+     * @param array<string, true> $rootUids the Root elements in the Payload
+     * @return array<string, array{mode?: string, section?: Section}>
+     * @throws InvalidChoiceException if a choice names something that isn't a Root element, or an unknown mode or section
+     */
+    private function parseRootChoices(array $choices, array $rootUids): array
+    {
+        $parsed = [];
+
+        foreach ($choices as $uid => $choice) {
+            if (!is_string($uid) || ($uid !== '*' && !isset($rootUids[$uid]))) {
+                throw new InvalidChoiceException("The Payload has no Root element with the UID $uid, so its mode and section can't be chosen.");
+            }
+            if (!is_array($choice)) {
+                throw new InvalidChoiceException("The choice for the Root element $uid isn't valid. Choose a \"mode\" and a \"section\".");
+            }
+
+            $mode = $choice['mode'] ?? null;
+            if ($mode !== null && !in_array($mode, [RootPlan::MODE_CREATE, RootPlan::MODE_OVERWRITE], true)) {
+                throw new InvalidChoiceException(sprintf(
+                    'The mode %s for the Root element %s isn\'t valid. Choose "create" or "overwrite".',
+                    Json::encode($mode),
+                    $uid,
+                ));
+            }
+            if ($mode !== null) {
+                $parsed[$uid]['mode'] = $mode;
+            }
+
+            $section = $choice['section'] ?? null;
+            if ($section !== null) {
+                $entries = Craft::$app->getEntries();
+                $found = is_string($section) ? ($entries->getSectionByUid($section) ?? $entries->getSectionByHandle($section)) : null;
+                if (!$found) {
+                    throw new InvalidChoiceException(sprintf(
+                        'The section %s for the Root element %s doesn\'t exist in this environment, so it can\'t be chosen.',
+                        Json::encode($section),
+                        $uid,
+                    ));
+                }
+                $parsed[$uid]['section'] = $found;
+            }
+        }
+
+        return $parsed;
     }
 
     /**
@@ -192,8 +274,11 @@ final class ImportPlanner
 
     /**
      * @param array<mixed> $root
+     * @param array{mode?: string, section?: Section} $choice
+     * @param bool $modeIsDefault whether the Import mode comes from the `*` default rather than a choice for this Root element
+     * @throws InvalidChoiceException if the choice can't be carried out
      */
-    private function planRoot(array $root, ImportContext $context): void
+    private function planRoot(array $root, ImportContext $context, array $choice, bool $modeIsDefault): void
     {
         $plan = $context->plan;
 
@@ -202,20 +287,31 @@ final class ImportPlanner
             return;
         }
 
-        $section = is_string($root['section'] ?? null) ? Craft::$app->getEntries()->getSectionByUid($root['section']) : null;
+        $chosenSection = $choice['section'] ?? null;
+        $section = $chosenSection ?? (is_string($root['section'] ?? null) ? Craft::$app->getEntries()->getSectionByUid($root['section']) : null);
         if (!$section) {
             $plan->block($context->drift->get('sections', $root['section'] ?? null)->message
                 ?? 'The section doesn\'t exist in this environment.');
             return;
         }
-        $context->noteDrift('sections', $section->uid);
+        $plan->section = $section;
+        if (!$chosenSection) {
+            $context->noteDrift('sections', $section->uid);
+        }
 
         $entryType = ArrayHelper::firstWhere($section->getEntryTypes(), 'uid', $root['type'] ?? null);
+        if (!$entryType instanceof EntryType && $chosenSection) {
+            throw new InvalidChoiceException(sprintf(
+                '%s isn\'t allowed in the "%s" section, so %s can\'t be imported there. Choose a section that allows it.',
+                $this->entryTypeName($root, $context),
+                $section->name,
+                $plan->label(),
+            ));
+        }
         if (!$entryType instanceof EntryType) {
-            $name = $context->drift->get('entryTypes', $root['type'] ?? null)?->name;
             $plan->block(sprintf(
                 '%s isn\'t available in the "%s" section in this environment.',
-                $name !== null ? "The entry type \"$name\"" : 'The entry type',
+                $this->entryTypeName($root, $context),
                 $section->name,
             ));
             return;
@@ -225,6 +321,23 @@ final class ImportPlanner
         $sites = $this->targetSites($root['sites'] ?? null, $section, $context);
         if (!$sites) {
             $plan->block("None of the entry's sites exist in this environment, or the \"$section->name\" section isn't enabled for them.");
+            return;
+        }
+
+        $this->matchEntry($root, $section, $entryType, $context);
+        $overwrite = ($choice['mode'] ?? RootPlan::MODE_CREATE) === RootPlan::MODE_OVERWRITE;
+        if ($overwrite && !in_array(RootPlan::MODE_OVERWRITE, $plan->availableModes, true)) {
+            if (!$modeIsDefault) {
+                throw new InvalidChoiceException(sprintf(
+                    '%s can\'t be overwritten: %s',
+                    ucfirst($plan->label()),
+                    $plan->overwriteUnavailable ?? 'no entry in this environment matches it by UID or by its section and slug. Create it as a new entry instead.',
+                ));
+            }
+            $overwrite = false;
+        }
+        if ($overwrite) {
+            $this->planOverwrite($root, $sites, $entryType, $context);
             return;
         }
 
@@ -267,6 +380,138 @@ final class ImportPlanner
 
         $plan->entry = $entry;
         $plan->incompleteFields = $this->incompleteFields($entry);
+    }
+
+    /**
+     * Names the entry type of a Root element or nested entry in a message.
+     *
+     * @param array<mixed> $root
+     */
+    private function entryTypeName(array $root, ImportContext $context): string
+    {
+        $name = $context->drift->get('entryTypes', $root['type'] ?? null)?->name;
+
+        return $name !== null ? "The entry type \"$name\"" : 'The entry type';
+    }
+
+    /**
+     * Finds the existing entry the Root element matches: by UID, then by Natural key in the Target section. A UID
+     * match that can't be overwritten (it's in another section, or has another entry type) doesn't hide a Natural
+     * key match that can. Records the match and the Import modes it allows on the plan.
+     *
+     * @param array<mixed> $root
+     */
+    private function matchEntry(array $root, Section $section, EntryType $entryType, ImportContext $context): void
+    {
+        $plan = $context->plan;
+        $resolver = new ReferenceResolver();
+        $content = $context->content($root);
+        $matches = [
+            $resolver->resolve(['elementType' => 'entry', 'uid' => $root['uid'] ?? null]),
+            $resolver->resolve([
+                'elementType' => 'entry',
+                'naturalKey' => [
+                    'section' => $section->uid,
+                    'slug' => $content['slug'],
+                    'path' => is_array($root['path'] ?? null) ? $root['path'] : [],
+                ],
+            ]),
+        ];
+
+        foreach ($matches as $match) {
+            if (!$match->isResolved() || $match->elementId === $plan->match?->elementId) {
+                continue;
+            }
+
+            $existing = Entry::find()->id($match->elementId)->status(null)->site('*')->unique()->one();
+            $problem = $existing
+                ? $this->overwriteProblem($existing, $section, $entryType)
+                : "the entry matching {$plan->label()} can't be loaded.";
+
+            // Keep the first match to show, unless a later one can be overwritten.
+            if ($plan->match === null || $problem === null) {
+                $plan->match = $match;
+                $plan->matchedEntry = $existing;
+                $plan->overwriteUnavailable = $problem;
+            }
+            if ($problem === null) {
+                $plan->availableModes = [RootPlan::MODE_CREATE, RootPlan::MODE_OVERWRITE];
+                return;
+            }
+        }
+    }
+
+    /**
+     * Returns why an entry can't be overwritten by a Root element going into the Target section, or null if it can.
+     */
+    private function overwriteProblem(Entry $existing, Section $section, EntryType $entryType): ?string
+    {
+        $name = $existing->title !== null ? "\"$existing->title\"" : "entry #$existing->id";
+
+        if ($existing->sectionId !== $section->id) {
+            return sprintf(
+                'it matches %s in the "%s" section, not in the "%s" section it will be imported into.',
+                $name,
+                $existing->getSection()->name,
+                $section->name,
+            );
+        }
+        if ($existing->typeId !== $entryType->id) {
+            return sprintf(
+                'it matches %s, which has the entry type "%s", not "%s".',
+                $name,
+                $existing->getType()->name,
+                $entryType->name,
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Plans a draft on the matched entry: the Payload's title, slug and field values for each site the entry exists
+     * in. Fields the Payload doesn't carry, or that are skipped, aren't in the plan, so the draft keeps their values.
+     *
+     * @param array<mixed> $root
+     * @param non-empty-list<array{site: Site, uid: string}> $sites
+     */
+    private function planOverwrite(array $root, array $sites, EntryType $entryType, ImportContext $context): void
+    {
+        $plan = $context->plan;
+        $canonical = $plan->matchedEntry ?? throw new InvalidChoiceException("The entry matching {$plan->label()} can't be loaded.");
+
+        $existingSiteIds = array_map(
+            fn(Entry $entry) => (int)$entry->siteId,
+            Entry::find()->id($canonical->id)->status(null)->site('*')->all(),
+        );
+        $sitePlans = [];
+
+        foreach ($sites as $site) {
+            if (!in_array($site['site']->id, $existingSiteIds, true)) {
+                $plan->warn(sprintf(
+                    'The entry "%s" doesn\'t exist in the site "%s" in this environment. Content for that site will be skipped.',
+                    $canonical->title,
+                    $site['site']->getName(),
+                ));
+                continue;
+            }
+            $context->siteUid = $site['uid'];
+            $content = $context->content($root);
+            $sitePlans[] = new SitePlan(
+                $site['site'],
+                $content['title'],
+                $content['slug'],
+                $context->fieldValues($entryType, $content['fields']),
+            );
+        }
+
+        if (!$sitePlans) {
+            $plan->block("The entry \"$canonical->title\" doesn't exist in any of the Payload's sites in this environment.");
+            return;
+        }
+
+        $plan->mode = RootPlan::MODE_OVERWRITE;
+        $plan->overwrite = new OverwritePlan($canonical, $sitePlans);
     }
 
     /**

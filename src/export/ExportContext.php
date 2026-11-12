@@ -6,6 +6,7 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\models\Section;
 use InvalidArgumentException;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\references\ElementTypes;
@@ -58,8 +59,26 @@ final class ExportContext
             'section' => $section->uid,
             'type' => $this->entryTypeUid($entry),
             'authors' => array_map(fn(User $author) => $this->addReference($author), $entry->getAuthors()),
+            ...$this->structurePath($entry),
             ...$this->content($this->inEverySite($entry)),
         ];
+    }
+
+    /**
+     * The slugs of a saved Structure entry's ancestors, which are part of its Natural key on Import (Overwrite finds
+     * the entry by section, slug and this path).
+     *
+     * @return array{path?: list<string>}
+     */
+    private function structurePath(Entry $entry): array
+    {
+        if ($entry->id === null || $entry->getSection()?->type !== Section::TYPE_STRUCTURE) {
+            return [];
+        }
+
+        $path = NaturalKey::of($entry)['path'] ?? [];
+
+        return ['path' => is_array($path) ? array_values($path) : []];
     }
 
     /**

@@ -66,15 +66,17 @@ class ConsoleCommandsTest extends ConsoleTest
         $this->assertNotNull(Entry::find()->uid($source->uid)->status(null)->one());
     }
 
-    public function testDryRunPrintsThePreviewAndWritesNothing(): void
+    public function testPreviewFlagPrintsThePreviewAndWritesNothing(): void
     {
-        $source = $this->sourceEntry('Dry run');
+        $source = $this->sourceEntry('Preview only');
         $payload = Plugin::getInstance()->getPortage()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
         $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
-            ->stdout("Would create a disabled entry \"Dry run\" from $source->uid." . PHP_EOL)
+            ->stdout("Would create a disabled entry \"Preview only\" from $source->uid." . PHP_EOL)
+            ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
+            ->stdout('  Target section: "News".' . PHP_EOL)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -98,7 +100,7 @@ class ConsoleCommandsTest extends ConsoleTest
             ->run();
     }
 
-    public function testDryRunPrintsTheResolutionOfEachReferenceAndTheChoiceForUnresolvedOnes(): void
+    public function testPreviewFlagPrintsTheResolutionOfEachReferenceAndTheChoiceForUnresolvedOnes(): void
     {
         [$payload, $kept, $gone] = $this->payloadRelatingTo('Kept', 'Gone');
 
@@ -107,6 +109,8 @@ class ConsoleCommandsTest extends ConsoleTest
             ->stdout("Reference \"Kept\" (entry, $kept) matched by UID." . PHP_EOL)
             ->stdout("Unresolved reference \"Gone\" (entry, $gone): will be Stubbed. Choices: skip, stub, replace." . PHP_EOL)
             ->stdout('Would create a disabled entry "Related" from ' . $this->sourceUid . '.' . PHP_EOL)
+            ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
+            ->stdout('  Target section: "News".' . PHP_EOL)
             ->exitCode(ExitCode::OK)
             ->run();
     }
@@ -182,6 +186,8 @@ class ConsoleCommandsTest extends ConsoleTest
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Unresolved reference \"gone\" (user, $gone->uid): will be skipped in user fields; as an author, \"importer\" is credited instead. Choices: skip, replace." . PHP_EOL)
             ->stdout("Would create a disabled entry \"Authored\" from $source->uid." . PHP_EOL)
+            ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
+            ->stdout('  Target section: "News".' . PHP_EOL)
             ->stdout('  Warning: The author "gone" doesn\'t exist in this environment. "importer" will be credited instead.' . PHP_EOL)
             ->exitCode(ExitCode::OK)
             ->run();
@@ -193,6 +199,56 @@ class ConsoleCommandsTest extends ConsoleTest
         $imported = Entry::find()->uid($source->uid)->status(null)->one();
         $this->assertSame([$importer->id], $imported->getAuthorIds());
         $this->assertSame($importer->id, Plugin::getInstance()->getImportLog()->getEntries()[0]->userId);
+    }
+
+    public function testOverwriteCreatesADraftOnTheMatchedEntryAndThePreviewShowsTheMatch(): void
+    {
+        $source = $this->sourceEntry('Staging title');
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Schema::updateEntry($source, ['title' => 'Prod title']);
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'overwrite' => '*', 'user' => $this->importerEmail()], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout("Would create a draft on entry #$source->id from $source->uid." . PHP_EOL)
+            ->stdout("  Matches entry #$source->id by UID. Modes: create, overwrite. Chosen: overwrite." . PHP_EOL)
+            ->stdout('  Target section: "News".' . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $this->consoleCommand('portage/import', [$payload, 'overwrite' => $source->uid, 'user' => $this->importerEmail()], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $logged = Plugin::getInstance()->getImportLog()->getEntries()[0]->results[0];
+        $this->assertSame(['overwritten', $source->id], [$logged['status'], $logged['elementId']]);
+        $this->assertNotNull($logged['draftId']);
+
+        $this->assertSame('Prod title', Entry::find()->id($source->id)->status(null)->one()->title);
+        $this->assertSame('Staging title', Entry::find()->drafts()->draftOf($source->id)->status(null)->one()->title);
+    }
+
+    public function testSectionImportsEveryRootEntryIntoThatSectionAndThePreviewWarnsAboutADuplicate(): void
+    {
+        $source = $this->sourceEntry('Moved');
+        $article = Craft::$app->getEntries()->getEntryTypeByHandle('article');
+        Schema::section('blog', [$article]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+
+        $this->consoleCommand('portage/import', [$payload, 'section' => 'blog', 'user' => $this->importerEmail()], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+        $this->assertSame(1, (int)Entry::find()->section('blog')->status(null)->count());
+        Schema::setImportDate(Plugin::getInstance()->getImportLog()->getEntries()[0]->id, '2026-11-05 09:30:00');
+        $blogEntryId = (int)Entry::find()->section('blog')->status(null)->one()->id;
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'section' => "$source->uid=blog", 'user' => $this->importerEmail()], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout('Warning: This Payload was already imported here on 5 Nov 2026 at 09:30 by "importer".' . PHP_EOL)
+            ->stdout("Would create a disabled entry \"Moved\" from $source->uid." . PHP_EOL)
+            ->stdout("  Matches entry #$blogEntryId by Natural key. Modes: create, overwrite. Chosen: create." . PHP_EOL)
+            ->stdout('  Target section: "Blog".' . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
     }
 
     private string $sourceUid = '';

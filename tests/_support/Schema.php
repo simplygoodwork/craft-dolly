@@ -435,6 +435,46 @@ final class Schema
     }
 
     /**
+     * Adds a field to an existing entry type's field layout, as if the Target environment's project config had a
+     * field the Source environment's didn't.
+     */
+    public static function addFieldToEntryType(EntryType $entryType, FieldInterface $field): EntryType
+    {
+        $entries = Craft::$app->getEntries();
+        $entryType = $entries->getEntryTypeById($entryType->id) ?? throw new RuntimeException("No entry type with ID $entryType->id");
+        $layout = $entryType->getFieldLayout();
+        $tab = $layout->getTabs()[0];
+        $tab->setElements([...$tab->getElements(), new CustomField($field)]);
+        $layout->setTabs([$tab]);
+        $entryType->setFieldLayout($layout);
+
+        if (!$entries->saveEntryType($entryType)) {
+            self::fail("entry type \"$entryType->handle\"", $entryType->getErrors());
+        }
+        self::refresh();
+
+        return $entryType;
+    }
+
+    /**
+     * Sets when an Import in the Import log happened, as a datetime in the site's time zone like "2026-11-12 10:15:00",
+     * so a test can assert on its date.
+     */
+    public static function setImportDate(int $logId, string $dateTime): void
+    {
+        $date = new \DateTime($dateTime, new \DateTimeZone(Craft::$app->getTimeZone()));
+        Db::update('{{%portage_importlog}}', ['dateCreated' => Db::prepareDateForDb($date)], ['id' => $logId]);
+    }
+
+    /**
+     * Hard-deletes an element, as if it had never existed in the Target environment.
+     */
+    public static function deleteElement(ElementInterface $element): void
+    {
+        Craft::$app->getElements()->deleteElement($element, true);
+    }
+
+    /**
      * Saves an entry. Keys of `$values` that aren't entry attributes are set as custom field values.
      *
      * @param array<string, mixed> $values
@@ -446,6 +486,20 @@ final class Schema
             'typeId' => $entryType->id,
         ]);
 
+        self::saveElement($entry, $values);
+
+        return $entry;
+    }
+
+    /**
+     * Changes an existing entry's attributes and field values and saves it, as an editor editing it in the Target
+     * environment would.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function updateEntry(Entry $entry, array $values): Entry
+    {
+        $entry = Entry::find()->id($entry->id)->status(null)->one() ?? throw new RuntimeException("No entry with ID $entry->id");
         self::saveElement($entry, $values);
 
         return $entry;
