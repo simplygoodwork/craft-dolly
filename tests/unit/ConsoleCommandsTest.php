@@ -180,7 +180,7 @@ class ConsoleCommandsTest extends ConsoleTest
         $payload = Plugin::getInstance()->getPortage()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
         Craft::$app->getElements()->deleteElement($gone, true);
-        $importer = Schema::user('importer');
+        $importer = Schema::user('importer', ['admin' => true]);
 
         $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => 'importer@example.com'], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
@@ -300,6 +300,6 @@ class ConsoleCommandsTest extends ConsoleTest
      */
     private function importerEmail(): string
     {
-        return (User::find()->username('importer')->one() ?? Schema::user('importer'))->email;
+        return (User::find()->username('importer')->one() ?? Schema::user('importer', ['admin' => true]))->email;
     }
 }

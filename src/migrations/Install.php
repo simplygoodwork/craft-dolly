@@ -19,6 +19,7 @@ class Install extends Migration
             'payloadIdentity' => $this->char(64)->notNull(),
             'source' => $this->json(),
             'results' => $this->json(),
+            'choices' => $this->json(),
             'dateCreated' => $this->dateTime()->notNull(),
             'dateUpdated' => $this->dateTime()->notNull(),
             'uid' => $this->uid(),

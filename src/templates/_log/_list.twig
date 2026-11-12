@@ -1,0 +1,56 @@
+{#
+ # The Import log, newest first, linking to each Import's detail view.
+ #}
+
+{% set statusLabels = {
+    'created': 'created'|t('portage'),
+    'overwritten': 'drafted'|t('portage'),
+    'failed': 'failed'|t('portage'),
+} %}
+{% set choiceLabels = {
+    'skip': 'skipped'|t('portage'),
+    'stub': 'Stubbed'|t('portage'),
+    'replace': 'replaced'|t('portage'),
+} %}
+
+<h2>{{ 'Import log'|t('portage') }}</h2>
+
+{% if imports is empty %}
+    <p class="light">{{ 'Nothing has been imported here yet.'|t('portage') }}</p>
+{% else %}
+    <table id="portage-log" class="data fullwidth">
+        <thead>
+            <tr>
+                <th>{{ 'Import'|t('portage') }}</th>
+                <th>{{ 'Imported on'|t('portage') }}</th>
+                <th>{{ 'Imported by'|t('portage') }}</th>
+                <th>{{ 'Exported from'|t('portage') }}</th>
+                <th>{{ 'Results'|t('portage') }}</th>
+                <th>{{ 'Choices'|t('portage') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for import in imports %}
+                {% set user = import.userId ? craft.users.id(import.userId).status(null).one() : null %}
+                {% set counts = {} %}
+                {% for result in import.results %}
+                    {% set label = statusLabels[result.status] ?? result.status %}
+                    {% set counts = counts|merge({ (label): (counts[label] ?? 0) + 1 }) %}
+                {% endfor %}
+                {% set choiceCounts = {} %}
+                {% for choice in import.choices %}
+                    {% set label = choiceLabels[choice.choice] ?? choice.choice %}
+                    {% set choiceCounts = choiceCounts|merge({ (label): (choiceCounts[label] ?? 0) + 1 }) %}
+                {% endfor %}
+                <tr>
+                    <td><a href="{{ cpUrl('portage/log/' ~ import.id) }}">#{{ import.id }}</a></td>
+                    <td>{{ import.dateCreated|datetime('short') }}</td>
+                    <td>{{ user ? user.name : 'A user that no longer exists'|t('portage') }}</td>
+                    <td>{{ import.source.siteUrl ?? 'an unknown site'|t('portage') }} ({{ import.source.environment ?? 'unknown environment'|t('portage') }})</td>
+                    <td>{{ counts|map((count, label) => count ~ ' ' ~ label)|join(', ') }}</td>
+                    <td>{{ choiceCounts ? choiceCounts|map((count, label) => count ~ ' ' ~ label)|join(', ') : 'None'|t('portage') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

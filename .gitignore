@@ -6,3 +6,5 @@
 /node_modules
 /vendor
 /composer.lock
+/cpresources
+/tests/_data/*.portage

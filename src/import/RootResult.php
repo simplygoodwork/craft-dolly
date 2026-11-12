@@ -61,6 +61,7 @@ final class RootResult
 
     public function __construct(
         public readonly ?string $sourceUid,
+        public readonly ?string $title = null,
     ) {
     }
 
@@ -69,7 +70,7 @@ final class RootResult
      */
     public static function fromPlan(RootPlan $plan): self
     {
-        $result = new self($plan->sourceUid);
+        $result = new self($plan->sourceUid, $plan->title);
         $result->mode = $plan->mode;
         $result->sectionUid = $plan->section?->uid;
         $result->warnings = $plan->warnings;
@@ -95,6 +96,7 @@ final class RootResult
     {
         return [
             'sourceUid' => $this->sourceUid,
+            'title' => $this->title,
             'status' => $this->status,
             'elementId' => $this->elementId,
             'draftId' => $this->draftId,

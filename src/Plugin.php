@@ -4,8 +4,16 @@ namespace simplygoodwork\craftportage;
 
 use Craft;
 use craft\base\Plugin as BasePlugin;
+use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUrlRulesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\services\UserPermissions;
+use craft\services\Utilities;
+use craft\web\UrlManager;
 use simplygoodwork\craftportage\services\ImportLog;
 use simplygoodwork\craftportage\services\Portage;
+use simplygoodwork\craftportage\utilities\PortageUtility;
+use yii\base\Event;
 
 /**
  * Portage plugin
@@ -19,7 +27,17 @@ use simplygoodwork\craftportage\services\Portage;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.0';
+    /**
+     * Lets a user Export content.
+     */
+    public const PERMISSION_EXPORT = 'portage-exportContent';
+
+    /**
+     * Lets a user Import content, on top of Craft's save permissions for everything the Import writes to.
+     */
+    public const PERMISSION_IMPORT = 'portage-importContent';
+
+    public string $schemaVersion = '1.0.1';
 
     public static function config(): array
     {
@@ -52,17 +70,26 @@ class Plugin extends BasePlugin
         parent::init();
 
         $this->attachEventHandlers();
-
-        // Any code that creates an element query or loads Twig should be deferred until
-        // after Craft is fully initialized, to avoid conflicts with other plugins/modules
-        Craft::$app->onInit(function() {
-            // ...
-        });
     }
 
     private function attachEventHandlers(): void
     {
-        // Register event handlers here ...
-        // (see https://craftcms.com/docs/5.x/extend/events.html to get started)
+        Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function(RegisterUserPermissionsEvent $event) {
+            $event->permissions[] = [
+                'heading' => 'Portage',
+                'permissions' => [
+                    self::PERMISSION_EXPORT => ['label' => Craft::t('portage', 'Export content')],
+                    self::PERMISSION_IMPORT => ['label' => Craft::t('portage', 'Import content')],
+                ],
+            ];
+        });
+
+        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITIES, function(RegisterComponentTypesEvent $event) {
+            $event->types[] = PortageUtility::class;
+        });
+
+        Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $event) {
+            $event->rules['portage/log/<importId:\\d+>'] = 'portage/log/view';
+        });
     }
 }

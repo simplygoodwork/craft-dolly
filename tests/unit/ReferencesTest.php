@@ -300,7 +300,7 @@ class ReferencesTest extends Unit
     {
         $sam = Schema::user('sam');
         $gone = Schema::user('gone');
-        $importer = Schema::user('importer');
+        $importer = Schema::user('importer', ['admin' => true]);
 
         $article = Schema::entryType('article');
         $news = Schema::section('news', [$article], ['maxAuthors' => 2]);

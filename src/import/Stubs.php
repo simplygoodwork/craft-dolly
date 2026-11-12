@@ -31,11 +31,35 @@ final class Stubs
 
     /**
      * Returns whether a Reference can be Stubbed in this environment: its element type allows Stubs, its section
-     * or group exists here, and it isn't one of the Payload's Root elements.
+     * or group exists here, it isn't one of the Payload's Root elements, and the user running the Import may create
+     * elements there.
      */
     public function canStub(ReferencePlan $reference): bool
     {
-        return !$this->isRoot($reference) && self::container($reference) !== null;
+        $stub = $this->candidate($reference);
+
+        return $stub !== null && $this->isPermitted($stub);
+    }
+
+    /**
+     * Returns why the user running the Import may not create the Reference's Stub, or null if they may (or it can't be
+     * Stubbed for another reason).
+     */
+    public function whyForbidden(ReferencePlan $reference): ?string
+    {
+        $stub = $this->candidate($reference);
+        if ($stub === null || $this->isPermitted($stub)) {
+            return null;
+        }
+
+        $container = self::container($reference);
+
+        return match (true) {
+            $container instanceof Section => "you don't have permission to create entries in the \"$container->name\" section",
+            $container instanceof CategoryGroup => "you don't have permission to create categories in the \"$container->name\" group",
+            $container instanceof TagGroup => "you don't have permission to create tags in the \"$container->name\" group",
+            default => null,
+        };
     }
 
     /**
@@ -52,10 +76,41 @@ final class Stubs
      */
     public function build(ReferencePlan $reference): ?ElementInterface
     {
-        if ($this->isRoot($reference)) {
+        $stub = $this->candidate($reference);
+        if (!$stub || !$this->isPermitted($stub)) {
             return null;
         }
 
+        $stub->uid = $this->uids->claim($reference->uid);
+
+        return $stub;
+    }
+
+    /**
+     * Returns the Reference's unsaved Stub without a UID, or null if it's a Root element or its section or group
+     * doesn't exist here.
+     */
+    private function candidate(ReferencePlan $reference): ?ElementInterface
+    {
+        return $this->isRoot($reference) ? null : $this->unsaved($reference);
+    }
+
+    /**
+     * Returns whether the user running the Import may save the Stub. With nobody logged in, Craft's permissions
+     * aren't checked.
+     */
+    private function isPermitted(ElementInterface $stub): bool
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        return !$user || Craft::$app->getElements()->canSave($stub, $user);
+    }
+
+    /**
+     * Returns the Reference's Stub with its content but no UID, or null if its section or group doesn't exist here.
+     */
+    private function unsaved(ReferencePlan $reference): ?ElementInterface
+    {
         $container = self::container($reference);
         $key = $reference->reference['naturalKey'] ?? [];
         $slug = is_string($key['slug'] ?? null) && $key['slug'] !== '' ? $key['slug'] : null;
@@ -73,7 +128,6 @@ final class Stubs
             return null;
         }
 
-        $stub->uid = $this->uids->claim($reference->uid);
         $stub->enabled = false;
         $stub->title = $reference->title;
         if ($slug !== null && !$stub instanceof Tag) {

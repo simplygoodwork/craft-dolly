@@ -19,15 +19,17 @@ class ImportLog extends Component
     /**
      * @param array<string, mixed> $source
      * @param list<RootResult> $results
+     * @param list<array<string, mixed>> $choices the choice made for each Unresolved reference
      * @return int the log entry ID
      */
-    public function record(string $payloadIdentity, array $source, array $results): int
+    public function record(string $payloadIdentity, array $source, array $results, array $choices = []): int
     {
         $record = new ImportLogRecord();
         $record->userId = Craft::$app->getUser()->getId();
         $record->payloadIdentity = $payloadIdentity;
         $record->source = $source;
         $record->results = array_map(fn(RootResult $result) => $result->toArray(), $results);
+        $record->choices = $choices;
         $record->save(false);
 
         return $record->id;
@@ -39,6 +41,13 @@ class ImportLog extends Component
     public function getEntries(): array
     {
         return $this->entries(ImportLogRecord::find());
+    }
+
+    public function getEntryById(int $id): ?ImportLogEntry
+    {
+        $record = ImportLogRecord::findOne($id);
+
+        return $record ? $this->entry($record) : null;
     }
 
     /**
@@ -69,6 +78,7 @@ class ImportLog extends Component
             payloadIdentity: $record->payloadIdentity,
             source: $this->decodeJson($record->source),
             results: array_values($this->decodeJson($record->results)),
+            choices: array_values($this->decodeJson($record->choices)),
         );
     }
 

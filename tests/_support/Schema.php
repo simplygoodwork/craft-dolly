@@ -300,6 +300,18 @@ final class Schema
     }
 
     /**
+     * Gives a user exactly these permissions, e.g. `['accessCp', "createEntries:$section->uid"]`, replacing any they had.
+     *
+     * @param list<string> $permissions
+     */
+    public static function grantPermissions(User $user, array $permissions): void
+    {
+        if (!Craft::$app->getUserPermissions()->saveUserPermissions($user->id, $permissions)) {
+            throw new RuntimeException("Couldn't save permissions for user \"$user->username\"");
+        }
+    }
+
+    /**
      * Changes a user's email and username, as if the same person had a different account in the Target environment.
      */
     public static function changeUserIdentity(User $user, ?string $email, ?string $username = null): void

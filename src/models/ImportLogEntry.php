@@ -12,6 +12,7 @@ final class ImportLogEntry
     /**
      * @param array<string, mixed> $source the Payload's Source environment metadata
      * @param list<array<string, mixed>> $results the result for each Root element
+     * @param list<array<string, mixed>> $choices the choice made for each Unresolved reference
      */
     public function __construct(
         public readonly int $id,
@@ -20,6 +21,7 @@ final class ImportLogEntry
         public readonly string $payloadIdentity,
         public readonly array $source,
         public readonly array $results,
+        public readonly array $choices = [],
     ) {
     }
 }

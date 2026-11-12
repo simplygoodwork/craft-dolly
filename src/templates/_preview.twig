@@ -1,0 +1,138 @@
+{% extends '_layouts/cp' %}
+
+{#
+ # The Preview of an Import: a rendering of the ImportPlan from the core service. It decides nothing.
+ #}
+
+{% set title = 'Portage Preview'|t('portage') %}
+{% set crumbs = [
+    { label: 'Utilities'|t('app'), url: url('utilities') },
+    { label: 'Portage', url: url('utilities/portage') },
+] %}
+
+{% set driftStates = {
+    'matched': 'Matched'|t('portage'),
+    'drifted': 'Drifted'|t('portage'),
+    'type-changed': 'Type changed'|t('portage'),
+    'missing': 'Missing'|t('portage'),
+} %}
+{% set driftKinds = {
+    'sites': 'Site'|t('portage'),
+    'sections': 'Section'|t('portage'),
+    'entryTypes': 'Entry type'|t('portage'),
+    'fields': 'Field'|t('portage'),
+} %}
+
+{% block content %}
+<div id="portage-preview">
+    {% if plan.isRefused() %}
+        <p class="error">{{ plan.refusal }}</p>
+    {% else %}
+        <p>{{ 'Nothing has been imported yet. Check what will happen, then import.'|t('portage') }}</p>
+
+        {% if plan.source %}
+            <p class="light">
+                {{ 'Exported from {siteUrl} ({environment}) by {user} on {date}.'|t('portage', {
+                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('portage'),
+                    environment: plan.source.environment ?? 'unknown environment'|t('portage'),
+                    user: plan.source.exportedBy ?? 'an unknown user'|t('portage'),
+                    date: plan.source.exportedAt ?? 'an unknown date'|t('portage'),
+                }) }}
+            </p>
+        {% endif %}
+
+        {% for warning in plan.warnings %}
+            <p class="warning">{{ warning }}</p>
+        {% endfor %}
+
+        <h2>{{ 'Entries'|t('portage') }}</h2>
+        {% for root in plan.roots %}
+            <div class="pane">
+                {% set name = root.title is not null ? '"' ~ root.title ~ '"' : root.sourceUid %}
+                {% if root.isBlocked() %}
+                    <p class="error">{{ '{name} can’t be imported: {reason}'|t('portage', { name: name, reason: root.blockedBy }) }}</p>
+                {% elseif root.mode == 'overwrite' %}
+                    <p>{{ 'A draft will be created on {entry} with the Payload’s content.'|t('portage', { entry: '"' ~ root.overwrite.canonical.title ~ '"' }) }}</p>
+                {% else %}
+                    <p>{{ '{name} will be created as a disabled entry in the "{section}" section.'|t('portage', { name: name, section: root.section.name }) }}</p>
+                {% endif %}
+
+                {% if not root.isBlocked() and root.match and root.mode == 'create' %}
+                    <p class="light">{{ 'It matches an existing entry, which will be left alone.'|t('portage') }}</p>
+                {% endif %}
+
+                {% include 'portage/_root-details' with {
+                    warnings: root.warnings,
+                    unresolvedReferences: root.unresolvedReferences,
+                    incompleteFields: root.incompleteFields,
+                } only %}
+            </div>
+        {% endfor %}
+
+        {% if plan.references %}
+            <h2>{{ 'Related elements'|t('portage') }}</h2>
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th>{{ 'Element'|t('portage') }}</th>
+                        <th>{{ 'Type'|t('portage') }}</th>
+                        <th>{{ 'In this environment'|t('portage') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reference in plan.references %}
+                        <tr>
+                            <td>{{ reference.name() }}</td>
+                            <td>{{ reference.elementType|capitalize }}</td>
+                            <td>{{ reference.outcome() }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        {% set drift = plan.drift.all() %}
+        {% if drift %}
+            <h2>{{ 'Schema'|t('portage') }}</h2>
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th>{{ 'Kind'|t('portage') }}</th>
+                        <th>{{ 'Name'|t('portage') }}</th>
+                        <th>{{ 'State'|t('portage') }}</th>
+                        <th>{{ 'What happens'|t('portage') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in drift %}
+                        <tr>
+                            <td>{{ driftKinds[item.kind] ?? item.kind }}</td>
+                            <td>{{ item.name }}</td>
+                            <td>{{ driftStates[item.state] ?? item.state }}</td>
+                            <td>{{ item.outcome() }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        {% if plan.hasImportableRoots() %}
+            <form id="portage-import" method="post" accept-charset="UTF-8">
+                {{ actionInput('portage/import/import') }}
+                {{ csrfInput() }}
+                {{ hiddenInput('payload', payload) }}
+                <button type="submit" class="btn submit">{{ 'Import'|t('portage') }}</button>
+            </form>
+        {% else %}
+            <p class="error">{{ 'None of the entries can be imported.'|t('portage') }}</p>
+        {% endif %}
+    {% endif %}
+</div>
+
+{% if plan.envelope %}
+    <details>
+        <summary>{{ 'View as JSON'|t('portage') }}</summary>
+        <pre id="portage-json" class="code">{{ plan.envelope|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}</pre>
+    </details>
+{% endif %}
+{% endblock %}

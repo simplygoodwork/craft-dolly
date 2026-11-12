@@ -69,7 +69,7 @@ class Portage extends Component
         }
 
         $roots = (new Importer())->import($plan);
-        $logId = Plugin::getInstance()->getImportLog()->record((string)$plan->payloadIdentity, $plan->source, $roots);
+        $logId = Plugin::getInstance()->getImportLog()->record((string)$plan->payloadIdentity, $plan->source, $roots, $plan->choices());
 
         return new ImportResult($roots, payloadIdentity: $plan->payloadIdentity, logId: $logId);
     }

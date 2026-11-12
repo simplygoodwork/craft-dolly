@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\import;
 
+use Craft;
 use craft\base\ElementInterface;
 use simplygoodwork\craftportage\references\ElementTypes;
 use simplygoodwork\craftportage\references\Resolution;
@@ -63,6 +64,52 @@ final class ReferencePlan
         }
 
         return $this->replacement ?? $this->stub;
+    }
+
+    /**
+     * What the Import will do with the Reference, for the Preview: which rule matched it, or for an Unresolved
+     * reference, what happens to it.
+     */
+    public function outcome(): string
+    {
+        if ($this->resolution->isResolved()) {
+            return $this->resolution->rule === Resolution::RULE_NATURAL_KEY ? 'Matched by Natural key' : 'Matched by UID';
+        }
+
+        return match ($this->choice) {
+            self::CHOICE_STUB => 'Unresolved: a Stub will be created',
+            self::CHOICE_REPLACE => sprintf('Unresolved: replaced with %s', $this->replacementName()),
+            default => $this->elementType === 'user'
+                ? sprintf(
+                    'Unresolved: skipped in user fields. As an author, %s will be credited instead.',
+                    ($importer = Craft::$app->getUser()->getIdentity()) ? "\"{$importer->getName()}\"" : 'nobody',
+                )
+                : 'Unresolved: will be skipped',
+        };
+    }
+
+    /**
+     * The choice for an Unresolved reference, as the Import log records it.
+     *
+     * @return array{uid: string, elementType: string|null, title: string|null, choice: string|null, replacementId: int|null, replacementTitle: string|null}
+     */
+    public function toLogArray(): array
+    {
+        return [
+            'uid' => $this->uid,
+            'elementType' => $this->elementType,
+            'title' => $this->title,
+            'choice' => $this->choice,
+            'replacementId' => $this->replacement?->id,
+            'replacementTitle' => $this->replacement ? $this->replacementName() : null,
+        ];
+    }
+
+    private function replacementName(): string
+    {
+        $replacement = $this->replacement;
+
+        return $replacement?->title !== null ? "\"$replacement->title\"" : '#' . ($replacement->id ?? '?');
     }
 
     /**

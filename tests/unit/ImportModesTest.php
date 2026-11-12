@@ -250,7 +250,7 @@ class ImportModesTest extends Unit
 
     public function testTheSecondPreviewOfAPayloadWarnsWhoImportedItAndWhenWithoutBlockingTheImport(): void
     {
-        $jane = Schema::user('jane', ['firstName' => 'Jane', 'lastName' => 'Doe']);
+        $jane = Schema::user('jane', ['firstName' => 'Jane', 'lastName' => 'Doe', 'admin' => true]);
         $article = Schema::entryType('article');
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Twice']);
@@ -276,7 +276,7 @@ class ImportModesTest extends Unit
 
     public function testTheDuplicateWarningNamesEachEarlierImportAndCopesWithADeletedUser(): void
     {
-        $jane = Schema::user('jane', ['firstName' => 'Jane', 'lastName' => 'Doe']);
+        $jane = Schema::user('jane', ['firstName' => 'Jane', 'lastName' => 'Doe', 'admin' => true]);
         $article = Schema::entryType('article');
         $news = Schema::section('news', [$article]);
         $payload = $this->portage()->export([Schema::entry($news, $article, ['title' => 'Thrice'])]);

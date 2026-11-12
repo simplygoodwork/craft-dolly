@@ -1,0 +1,92 @@
+{% extends '_layouts/cp' %}
+
+{#
+ # One Import from the Import log: who ran it, when, where the Payload came from, the choices made and the result for
+ # each Root element.
+ #}
+
+{% set title = 'Import #{id}'|t('portage', { id: import.id }) %}
+{% set crumbs = [
+    { label: 'Utilities'|t('app'), url: url('utilities') },
+    { label: 'Portage', url: url('utilities/portage') },
+] %}
+
+{% set user = import.userId ? craft.users.id(import.userId).status(null).one() : null %}
+{% set statuses = {
+    'created': 'Created a disabled entry'|t('portage'),
+    'overwritten': 'Created a draft on'|t('portage'),
+    'failed': 'Failed'|t('portage'),
+} %}
+
+{% block content %}
+<div id="portage-log-entry">
+    <dl class="meta">
+        <dt>{{ 'Imported by'|t('portage') }}</dt>
+        <dd>{{ user ? user.name : 'A user that no longer exists'|t('portage') }}</dd>
+        <dt>{{ 'Imported on'|t('portage') }}</dt>
+        <dd>{{ import.dateCreated|datetime('short') }}</dd>
+        <dt>{{ 'Exported from'|t('portage') }}</dt>
+        <dd>{{ import.source.siteUrl ?? 'an unknown site'|t('portage') }} ({{ import.source.environment ?? 'unknown environment'|t('portage') }})</dd>
+        <dt>{{ 'Exported by'|t('portage') }}</dt>
+        <dd>{{ import.source.exportedBy ?? 'an unknown user'|t('portage') }}, {{ import.source.exportedAt ?? 'at an unknown time'|t('portage') }}</dd>
+        <dt>{{ 'Payload identity'|t('portage') }}</dt>
+        <dd><code>{{ import.payloadIdentity }}</code></dd>
+    </dl>
+
+    {% if import.choices %}
+        <h2>{{ 'Choices for Unresolved references'|t('portage') }}</h2>
+        <ul class="bullets">
+            {% for choice in import.choices %}
+                {% set name = (choice.title is not null ? '"' ~ choice.title ~ '"' : choice.uid) ~ (choice.elementType ? ' (' ~ choice.elementType ~ ')' : '') %}
+                <li>
+                    {% if choice.choice == 'stub' %}
+                        {{ '{name}: a Stub was created'|t('portage', { name: name }) }}
+                    {% elseif choice.choice == 'replace' %}
+                        {{ '{name}: replaced with {replacement}'|t('portage', { name: name, replacement: choice.replacementTitle ?? ('#' ~ choice.replacementId) }) }}
+                    {% else %}
+                        {{ '{name}: skipped'|t('portage', { name: name }) }}
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <h2>{{ 'Results'|t('portage') }}</h2>
+    {% for result in import.results %}
+        {% set entry = result.elementId ? craft.entries.id(result.elementId).status(null).site('*').unique().one() : null %}
+        {% set draft = result.draftId ?? null ? craft.entries.draftId(result.draftId).status(null).site('*').unique().one() : null %}
+        {% set name = result.title ?? result.sourceUid %}
+        <div class="pane">
+            <p>
+                <strong>{{ statuses[result.status] ?? result.status }}</strong>:
+                {% if draft %}
+                    <a href="{{ draft.cpEditUrl }}">{{ entry.title ?? name }}</a>
+                {% elseif entry %}
+                    <a href="{{ entry.cpEditUrl }}">{{ entry.title ?? name }}</a>
+                {% else %}
+                    {{ name }}
+                {% endif %}
+            </p>
+            {% set section = result.section ?? null ? craft.app.entries.getSectionByUid(result.section) : null %}
+            <p class="light">
+                {{ (result.mode ?? 'create') == 'overwrite' ? 'Overwrite'|t('portage') : 'Create new'|t('portage') }}{% if section %}, {{ 'in the "{section}" section'|t('portage', { section: section.name }) }}{% endif %}
+            </p>
+            {% if result.errors ?? [] or result.stubs ?? [] %}
+                <ul class="bullets">
+                    {% for error in result.errors ?? [] %}
+                        <li class="error">{{ error }}</li>
+                    {% endfor %}
+                    {% for stub in result.stubs ?? [] %}
+                        <li>{{ 'Created a disabled Stub for {name}.'|t('portage', { name: stub.title is not null ? '"' ~ stub.title ~ '"' : stub.uid }) }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% include 'portage/_root-details' with {
+                warnings: result.warnings ?? [],
+                unresolvedReferences: result.unresolvedReferences ?? [],
+                incompleteFields: result.incompleteFields ?? [],
+            } only %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

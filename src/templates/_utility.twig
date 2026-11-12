@@ -1,0 +1,34 @@
+{% import '_includes/forms' as forms %}
+
+{% if not canImport %}
+    <p>{{ "You don't have permission to import content."|t('portage') }}</p>
+{% else %}
+    <h2>{{ 'Paste a Payload'|t('portage') }}</h2>
+    <p class="light">{{ 'Paste Payload text, or upload a .portage file. You will see a Preview before anything is imported.'|t('portage') }}</p>
+
+    <form method="post" enctype="multipart/form-data" accept-charset="UTF-8">
+        {{ actionInput('portage/import/preview') }}
+        {{ csrfInput() }}
+
+        {{ forms.textareaField({
+            label: 'Payload text'|t('portage'),
+            id: 'payload',
+            name: 'payload',
+            rows: 8,
+            class: 'code',
+        }) }}
+
+        {{ forms.fileField({
+            label: 'Or upload a .portage file'|t('portage'),
+            id: 'payloadFile',
+            name: 'payloadFile',
+            accept: '.portage,text/plain',
+        }) }}
+
+        <button type="submit" class="btn submit">{{ 'Preview'|t('portage') }}</button>
+    </form>
+
+    <hr>
+
+    {% include 'portage/_log/_list' %}
+{% endif %}

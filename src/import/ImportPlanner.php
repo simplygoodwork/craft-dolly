@@ -99,6 +99,7 @@ final class ImportPlanner
             source: is_array($envelope['source'] ?? null) ? $envelope['source'] : [],
             earlierImports: $earlierImports,
             warnings: array_map(fn(ImportLogEntry $import) => $this->duplicateWarning($import), $earlierImports),
+            envelope: $envelope,
         );
     }
 
@@ -363,6 +364,11 @@ final class ImportPlanner
             return "The user {$reference->name()} can't be Stubbed: Portage never creates users. Skip it or choose a replacement user.";
         }
 
+        $whyForbidden = $stubs->whyForbidden($reference);
+        if ($whyForbidden !== null) {
+            return "The Reference {$reference->name()} can't be Stubbed: $whyForbidden. Skip it or choose a replacement.";
+        }
+
         return "The Reference {$reference->name()} can't be Stubbed: its section or group doesn't exist in this environment. Skip it or choose a replacement.";
     }
 
@@ -456,6 +462,15 @@ final class ImportPlanner
             'typeId' => $entryType->id,
             'siteId' => $sites[0]['site']->id,
         ]);
+        $user = Craft::$app->getUser()->getIdentity();
+        if ($user && !Craft::$app->getElements()->canSave($entry, $user)) {
+            $plan->block(sprintf(
+                'You don\'t have permission to create entries in the "%s" section, so %s can\'t be imported.',
+                $section->name,
+                $plan->title !== null ? "\"$plan->title\"" : 'the entry',
+            ));
+            return;
+        }
         if ($section->propagationMethod === PropagationMethod::Custom) {
             // The entry is created only in the Payload's sites.
             $entry->setEnabledForSite(array_fill_keys(array_map(fn(array $site) => $site['site']->id, $sites), true));
@@ -573,6 +588,19 @@ final class ImportPlanner
                 $existing->getType()->name,
                 $entryType->name,
             );
+        }
+
+        $user = Craft::$app->getUser()->getIdentity();
+        $elements = Craft::$app->getElements();
+        if ($user && !$elements->canView($existing, $user)) {
+            return sprintf(
+                'you don\'t have permission to view %s in the "%s" section, so you can\'t create a draft on it.',
+                $name,
+                $section->name,
+            );
+        }
+        if ($user && !$elements->canCreateDrafts($existing, $user)) {
+            return sprintf('you don\'t have permission to create drafts on %s in the "%s" section.', $name, $section->name);
         }
 
         return null;

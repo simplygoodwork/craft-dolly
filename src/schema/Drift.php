@@ -31,6 +31,14 @@ final class Drift
     }
 
     /**
+     * What the Drift means for the Import, for the Preview.
+     */
+    public function outcome(): string
+    {
+        return $this->message ?? 'Imported as is.';
+    }
+
+    /**
      * @return array<string, string|null>
      */
     public function toArray(): array

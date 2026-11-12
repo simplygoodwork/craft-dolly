@@ -62,6 +62,39 @@ class ImportLogTest extends Unit
         $this->assertNotSame($first->payloadIdentity, $third->payloadIdentity);
     }
 
+    public function testRecordsTheChoiceMadeForEachUnresolvedReference(): void
+    {
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $kept = Schema::entry($topics, $topic, ['title' => 'Kept']);
+        $stubbed = Schema::entry($topics, $topic, ['title' => 'Stubbed']);
+        $skipped = Schema::entry($topics, $topic, ['title' => 'Skipped']);
+        $replaced = Schema::entry($topics, $topic, ['title' => 'Replaced']);
+        $replacement = Schema::entry($topics, $topic, ['title' => 'Replacement']);
+        $article = Schema::entryType('article', [Schema::field(\craft\fields\Entries::class, 'relatedTopics')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, [
+            'title' => 'Related',
+            'relatedTopics' => [$kept->id, $stubbed->id, $skipped->id, $replaced->id],
+        ]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $uids = [$stubbed->uid, $skipped->uid, $replaced->uid];
+        Schema::deleteElement($stubbed);
+        Schema::deleteElement($skipped);
+        Schema::deleteElement($replaced);
+
+        Plugin::getInstance()->getPortage()->import($payload, [$uids[0] => 'stub', $uids[2] => $replacement->id]);
+
+        $this->assertSame(
+            [
+                ['uid' => $uids[0], 'elementType' => 'entry', 'title' => 'Stubbed', 'choice' => 'stub', 'replacementId' => null, 'replacementTitle' => null],
+                ['uid' => $uids[1], 'elementType' => 'entry', 'title' => 'Skipped', 'choice' => 'skip', 'replacementId' => null, 'replacementTitle' => null],
+                ['uid' => $uids[2], 'elementType' => 'entry', 'title' => 'Replaced', 'choice' => 'replace', 'replacementId' => $replacement->id, 'replacementTitle' => '"Replacement"'],
+            ],
+            Plugin::getInstance()->getImportLog()->getEntries()[0]->choices,
+        );
+    }
+
     public function testARefusedPayloadIsNotLogged(): void
     {
         $result = Plugin::getInstance()->getPortage()->import('not a payload');

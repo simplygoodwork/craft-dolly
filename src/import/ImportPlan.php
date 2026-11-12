@@ -18,6 +18,7 @@ final class ImportPlan
      * @param array<string, ReferencePlan> $references by Reference UID
      * @param list<ImportLogEntry> $earlierImports the Imports of this same Payload already in the Import log, newest first
      * @param list<string> $warnings about the whole Payload, which don't block the Import
+     * @param array<string, mixed> $envelope the decoded Payload, for the Preview's "View as JSON"
      */
     public function __construct(
         public readonly DriftReport $drift = new DriftReport(),
@@ -28,6 +29,7 @@ final class ImportPlan
         public readonly array $source = [],
         public readonly array $earlierImports = [],
         public readonly array $warnings = [],
+        public readonly array $envelope = [],
     ) {
     }
 
@@ -39,5 +41,31 @@ final class ImportPlan
     public function isRefused(): bool
     {
         return $this->refusal !== null;
+    }
+
+    /**
+     * The choice for each Unresolved reference, as the Import log records it.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function choices(): array
+    {
+        $unresolved = array_filter($this->references, fn(ReferencePlan $reference) => !$reference->resolution->isResolved());
+
+        return array_values(array_map(fn(ReferencePlan $reference) => $reference->toLogArray(), $unresolved));
+    }
+
+    /**
+     * Whether the Import would import anything: the Payload isn't refused and at least one Root element isn't blocked.
+     */
+    public function hasImportableRoots(): bool
+    {
+        foreach ($this->isRefused() ? [] : $this->roots as $root) {
+            if (!$root->isBlocked()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

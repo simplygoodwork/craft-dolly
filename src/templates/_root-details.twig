@@ -1,0 +1,24 @@
+{#
+ # What was (or will be) skipped or imported imperfectly for one Root element, in the Preview and the Import log.
+ #
+ # @param warnings list<string>
+ # @param unresolvedReferences list<{uid, title, field}>
+ # @param incompleteFields list<string>
+ #}
+
+{% if warnings or unresolvedReferences or incompleteFields %}
+    <ul class="bullets">
+        {% for warning in warnings %}
+            <li class="warning">{{ warning }}</li>
+        {% endfor %}
+        {% for reference in unresolvedReferences %}
+            <li>{{ 'Skipped in "{field}": {reference}'|t('portage', {
+                field: reference.field,
+                reference: reference.title is not null ? '"' ~ reference.title ~ '"' : reference.uid,
+            }) }}</li>
+        {% endfor %}
+        {% for field in incompleteFields %}
+            <li>{{ 'Required but left empty: {field}'|t('portage', { field: field }) }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
