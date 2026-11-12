@@ -87,6 +87,11 @@ final class RootPlan
      */
     public ?OverwritePlan $overwrite = null;
 
+    /**
+     * @var Placement|null where a new entry in a Structure section will go, or null when it isn't one
+     */
+    public ?Placement $placement = null;
+
     public function __construct(
         public readonly ?string $sourceUid,
         public readonly ?string $title = null,
@@ -99,6 +104,7 @@ final class RootPlan
         $this->entry = null;
         $this->sites = [];
         $this->overwrite = null;
+        $this->placement = null;
         $this->availableModes = [self::MODE_CREATE];
         $this->mode = self::MODE_CREATE;
     }

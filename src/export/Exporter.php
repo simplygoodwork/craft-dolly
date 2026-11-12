@@ -26,7 +26,10 @@ final class Exporter
      */
     public function export(array $roots): array
     {
-        $context = new ExportContext($this->adapters);
+        $context = new ExportContext(
+            $this->adapters,
+            array_fill_keys(array_map(fn(Entry $entry) => (string)$entry->uid, $roots), true),
+        );
         $rootData = array_map(fn(Entry $entry) => $context->exportRoot($entry), array_values($roots));
 
         return [

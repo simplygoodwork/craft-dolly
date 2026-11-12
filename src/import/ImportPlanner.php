@@ -59,6 +59,7 @@ final class ImportPlanner
         }
 
         $plans = [];
+        $parentUids = [];
 
         foreach ($envelope['roots'] as $root) {
             $plan = new RootPlan(
@@ -83,7 +84,10 @@ final class ImportPlanner
             } catch (InvalidChoiceException $e) {
                 return ImportPlan::refused($e->getMessage());
             }
+            $parentUids[] = [$plan, $root['parent'] ?? null];
         }
+
+        $this->planPlacements($parentUids, $references);
 
         $earlierImports = Plugin::getInstance()->getImportLog()->getEntriesForPayload($payload->identity);
 
@@ -96,6 +100,112 @@ final class ImportPlanner
             earlierImports: $earlierImports,
             warnings: array_map(fn(ImportLogEntry $import) => $this->duplicateWarning($import), $earlierImports),
         );
+    }
+
+    /**
+     * Decides where each new Structure entry goes, after its new siblings: under its parent when the parent is a Root
+     * element of this Payload, otherwise under the entry its parent Reference points at (matched, replacement or
+     * Stub). A parent that doesn't exist, can't be imported or isn't in the Target section leaves the entry at the top
+     * level, with a warning. Sibling order isn't preserved.
+     *
+     * @param list<array{RootPlan, mixed}> $parentUids each Root element's plan and the UID of its parent in the Payload
+     * @param array<string, ReferencePlan> $references
+     */
+    private function planPlacements(array $parentUids, array $references): void
+    {
+        $roots = [];
+        foreach ($parentUids as [$plan]) {
+            if ($plan->sourceUid !== null) {
+                $roots[$plan->sourceUid] ??= $plan;
+            }
+        }
+
+        foreach ($parentUids as [$plan, $parentUid]) {
+            $section = $plan->section;
+            if (!$plan->entry || !$section || $section->type !== Section::TYPE_STRUCTURE) {
+                continue;
+            }
+            $moveToEnd = $section->defaultPlacement === Section::DEFAULT_PLACEMENT_BEGINNING;
+            $plan->placement = new Placement(moveToEnd: $moveToEnd);
+            if (!is_string($parentUid)) {
+                continue;
+            }
+
+            $parentRoot = $roots[$parentUid] ?? null;
+            if ($parentRoot && $parentRoot !== $plan) {
+                $this->placeUnderRoot($plan, $parentRoot, $section, $moveToEnd);
+                continue;
+            }
+
+            $reference = $references[$parentUid] ?? null;
+            $target = $reference?->target();
+            if (!$reference || !$target instanceof Entry) {
+                $plan->warn(sprintf(
+                    'The parent entry %s doesn\'t exist in this environment. %s',
+                    $reference ? $reference->name() : $parentUid,
+                    $this->placedAtTopLevel($section),
+                ));
+                continue;
+            }
+            if ($target->sectionId !== $section->id) {
+                $plan->warn($this->parentInAnotherSection($reference->name(), $section));
+                continue;
+            }
+
+            if ($reference->stub) {
+                $plan->stubs[$reference->uid] = $reference;
+            }
+            $plan->placement = new Placement(parent: $target, moveToEnd: $moveToEnd);
+        }
+    }
+
+    /**
+     * Places a new Structure entry under its parent, a Root element of this Payload: under the entry it creates, or
+     * the entry it overwrites.
+     */
+    private function placeUnderRoot(RootPlan $plan, RootPlan $parentRoot, Section $section, bool $moveToEnd): void
+    {
+        $name = $parentRoot->title !== null ? "\"$parentRoot->title\"" : (string)$parentRoot->sourceUid;
+
+        if ($parentRoot->isBlocked() || $this->isAncestor($plan, $parentRoot)) {
+            $plan->warn(sprintf('The parent entry %s can\'t be imported. %s', $name, $this->placedAtTopLevel($section)));
+        } elseif ($parentRoot->section?->id !== $section->id) {
+            $plan->warn($this->parentInAnotherSection($name, $section));
+        } elseif ($parentRoot->overwrite) {
+            $plan->placement = new Placement(parent: $parentRoot->overwrite->canonical, moveToEnd: $moveToEnd);
+        } else {
+            $plan->placement = new Placement(parentRoot: $parentRoot, parentName: $name, moveToEnd: $moveToEnd);
+        }
+    }
+
+    /**
+     * Returns whether a Root element will be placed above another, directly or further up, which would make placing
+     * it under the other a loop. Only a damaged Payload has one.
+     */
+    private function isAncestor(RootPlan $plan, RootPlan $other): bool
+    {
+        for ($ancestor = $other->placement?->parentRoot; $ancestor; $ancestor = $ancestor->placement?->parentRoot) {
+            if ($ancestor === $plan) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function parentInAnotherSection(string $parentName, Section $section): string
+    {
+        return sprintf(
+            'The parent entry %s isn\'t in the "%s" section in this environment. %s',
+            $parentName,
+            $section->name,
+            $this->placedAtTopLevel($section),
+        );
+    }
+
+    private function placedAtTopLevel(Section $section): string
+    {
+        return "The entry will be placed at the top level of the \"$section->name\" section.";
     }
 
     private function duplicateWarning(ImportLogEntry $import): string

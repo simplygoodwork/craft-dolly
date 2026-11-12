@@ -6,6 +6,7 @@ use Craft;
 use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
+use craft\services\Structures;
 use Throwable;
 use yii\db\Transaction;
 
@@ -22,10 +23,31 @@ final class Importer
      */
     public function import(ImportPlan $plan): array
     {
-        return array_map(fn(RootPlan $root) => $this->importRoot($root), $plan->roots);
+        $results = [];
+
+        return array_map(fn(RootPlan $root) => $this->importOnce($root, $results), $plan->roots);
     }
 
-    private function importRoot(RootPlan $plan): RootResult
+    /**
+     * Imports a Root element, once, after the Root element it will be placed under, and returns its result.
+     *
+     * @param array<int, RootResult> $results the Root elements imported so far, by plan object ID
+     */
+    private function importOnce(RootPlan $plan, array &$results): RootResult
+    {
+        $id = spl_object_id($plan);
+        if (!isset($results[$id])) {
+            $parentRoot = $plan->placement?->parentRoot;
+            $results[$id] = $this->importRoot($plan, $parentRoot ? $this->importOnce($parentRoot, $results) : null);
+        }
+
+        return $results[$id];
+    }
+
+    /**
+     * @param RootResult|null $parentRootResult the result of the Root element the entry will be placed under, if any
+     */
+    private function importRoot(RootPlan $plan, ?RootResult $parentRootResult): RootResult
     {
         $result = RootResult::fromPlan($plan);
         if ($plan->overwrite) {
@@ -39,11 +61,20 @@ final class Importer
         }
 
         $created = [];
+        $parentId = null;
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             $error = $this->saveStubs($plan, $result, $created);
+            // After the Stubs, as the parent may be one.
+            $parentId = $plan->placement?->parentId($parentRootResult);
+            if ($parentId) {
+                $entry->setParentId($parentId);
+            }
             if ($error === null && !Craft::$app->getElements()->saveElement($entry)) {
                 $error = 'Craft couldn\'t save the entry: ' . implode(' ', $entry->getFirstErrors());
+            }
+            if ($error === null && $plan->placement?->moveToEnd) {
+                $this->moveToEnd($entry, $parentId);
             }
             foreach ($plan->sites as $site) {
                 if ($error !== null) {
@@ -65,8 +96,30 @@ final class Importer
         }
 
         $result->elementId = $entry->id;
+        if ($plan->placement?->parentRoot && !$parentId) {
+            $result->warnings[] = sprintf(
+                'The parent entry %s couldn\'t be imported. The entry was placed at the top level of the "%s" section.',
+                $plan->placement->parentName,
+                $entry->getSection()?->name,
+            );
+        }
 
         return $result;
+    }
+
+    /**
+     * Moves a new Structure entry after its siblings, in a section where Craft places new entries first.
+     */
+    private function moveToEnd(Entry $entry, ?int $parentId): void
+    {
+        $structureId = (int)$entry->getSection()?->structureId;
+        $structures = Craft::$app->getStructures();
+
+        if ($parentId) {
+            $structures->append($structureId, $entry, $parentId, Structures::MODE_UPDATE);
+        } else {
+            $structures->appendToRoot($structureId, $entry, Structures::MODE_UPDATE);
+        }
     }
 
     /**

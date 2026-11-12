@@ -39,8 +39,13 @@ final class ExportContext
      */
     private ?array $siteIds = null;
 
-    public function __construct(private readonly FieldAdapterRegistry $adapters)
-    {
+    /**
+     * @param array<string, true> $rootUids UIDs of the Root elements being exported, which are never Referenced as a parent
+     */
+    public function __construct(
+        private readonly FieldAdapterRegistry $adapters,
+        private readonly array $rootUids = [],
+    ) {
     }
 
     /**
@@ -65,10 +70,12 @@ final class ExportContext
     }
 
     /**
-     * The slugs of a saved Structure entry's ancestors, which are part of its Natural key on Import (Overwrite finds
-     * the entry by section, slug and this path).
+     * A saved Structure entry's place in its structure: the slugs of its ancestors, which are part of its Natural key
+     * on Import (Overwrite finds the entry by section, slug and this path), and the UID of its parent, which the Import
+     * places it under. The parent is a Reference, unless it's a Root element of the same Payload. An entry at the top
+     * level has no parent.
      *
-     * @return array{path?: list<string>}
+     * @return array{path?: list<string>, parent?: string|null}
      */
     private function structurePath(Entry $entry): array
     {
@@ -77,8 +84,13 @@ final class ExportContext
         }
 
         $path = NaturalKey::of($entry)['path'] ?? [];
+        $parent = $entry->getParent();
+        $parentUid = $parent && !isset($this->rootUids[$parent->uid]) ? $this->addReference($parent) : $parent?->uid;
 
-        return ['path' => is_array($path) ? array_values($path) : []];
+        return [
+            'path' => is_array($path) ? array_values($path) : [],
+            'parent' => $parentUid,
+        ];
     }
 
     /**
