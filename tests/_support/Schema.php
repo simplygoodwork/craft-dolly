@@ -70,9 +70,18 @@ final class Schema
     }
 
     /**
+     * Wraps a field for `entryType()` so that it's required in the entry type's field layout.
+     */
+    public static function required(FieldInterface $field): CustomField
+    {
+        return new CustomField($field, ['required' => true]);
+    }
+
+    /**
      * Saves an entry type with a title field (unless `hasTitleField` is false) followed by the given custom fields.
+     * Pass a field through `required()` to make it required.
      *
-     * @param FieldInterface[] $fields
+     * @param array<FieldInterface|CustomField> $fields
      * @param array<string, mixed> $config
      */
     public static function entryType(string $handle, array $fields = [], array $config = []): EntryType
@@ -89,7 +98,7 @@ final class Schema
                 'layout' => $layout,
                 'elements' => [
                     ...($entryType->hasTitleField ? [new EntryTitleField()] : []),
-                    ...array_map(fn(FieldInterface $field) => new CustomField($field), $fields),
+                    ...array_map(fn(FieldInterface|CustomField $field) => $field instanceof CustomField ? $field : new CustomField($field), $fields),
                 ],
             ]),
         ]);
@@ -105,7 +114,7 @@ final class Schema
     /**
      * Saves an entry type without a title field, the usual shape for Matrix block types.
      *
-     * @param FieldInterface[] $fields
+     * @param array<FieldInterface|CustomField> $fields
      * @param array<string, mixed> $config
      */
     public static function blockType(string $handle, array $fields = [], array $config = []): EntryType
@@ -143,6 +152,47 @@ final class Schema
         }
 
         return $section;
+    }
+
+    /**
+     * Changes a field's type, keeping its UID, name and handle, then refreshes the schema caches.
+     *
+     * @param class-string<FieldInterface> $class
+     */
+    public static function changeFieldType(string $fieldUid, string $class): FieldInterface
+    {
+        $fields = Craft::$app->getFields();
+        $old = $fields->getFieldByUid($fieldUid) ?? throw new RuntimeException("No field with UID $fieldUid");
+        $new = $fields->createField([
+            'type' => $class,
+            'id' => $old->id,
+            'uid' => $old->uid,
+            'name' => $old->name,
+            'handle' => $old->handle,
+        ]);
+
+        if (!$fields->saveField($new)) {
+            self::fail("field \"$old->handle\" as $class", $new->getErrors());
+        }
+        self::refresh();
+
+        return $new;
+    }
+
+    /**
+     * Clears Craft's in-memory schema caches, as a new request in the Target environment would.
+     *
+     * Call it after changing the install between Export and Import, so the Import doesn't see stale fields or
+     * entry types.
+     */
+    public static function refresh(): void
+    {
+        // Fields, entry types, sections and field layouts are all memoized, some privately, so swap in fresh
+        // services built from the same definitions.
+        $definitions = Craft::$app->getComponents();
+        foreach (['fields', 'entries'] as $id) {
+            Craft::$app->set($id, $definitions[$id]);
+        }
     }
 
     /**

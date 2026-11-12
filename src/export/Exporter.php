@@ -7,6 +7,7 @@ use craft\elements\Entry;
 use DateTimeInterface;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\schema\SchemaManifest;
 
 /**
  * Builds a Payload envelope from Root elements.
@@ -33,7 +34,7 @@ final class Exporter
             'craftVersion' => Craft::$app->getVersion(),
             'pluginVersion' => Plugin::getInstance()->getVersion(),
             'source' => $this->source(),
-            'schema' => $context->schema(),
+            'schema' => (new SchemaManifest())->describe($context->schema()),
             'roots' => $rootData,
             'references' => $context->references(),
         ];

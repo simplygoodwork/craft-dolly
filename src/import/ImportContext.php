@@ -3,12 +3,17 @@
 namespace simplygoodwork\craftportage\import;
 
 use craft\base\FieldInterface;
-use craft\models\FieldLayout;
+use craft\models\EntryType;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\references\ReferenceResolver;
+use simplygoodwork\craftportage\schema\Drift;
+use simplygoodwork\craftportage\schema\DriftReport;
 
 /**
- * State for importing one Root element. Field adapters receive it to rebuild Owned content and resolve References.
+ * State for planning one Root element. Field adapters receive it to rebuild Owned content and resolve References.
+ *
+ * Planning only reads the Target environment; everything that will be skipped or imported imperfectly is
+ * recorded on the Root element's plan.
  */
 final class ImportContext
 {
@@ -20,7 +25,8 @@ final class ImportContext
         private readonly ReferenceResolver $resolver,
         private readonly array $references,
         private readonly UidClaims $uids,
-        public readonly RootResult $result,
+        public readonly DriftReport $drift,
+        public readonly RootPlan $plan,
     ) {
     }
 
@@ -36,7 +42,7 @@ final class ImportContext
             return $resolution->elementId;
         }
 
-        $this->result->addUnresolvedReference(
+        $this->plan->addUnresolvedReference(
             $uid,
             is_string($reference['elementType'] ?? null) ? $reference['elementType'] : null,
             is_string($reference['title'] ?? null) ? $reference['title'] : null,
@@ -55,26 +61,53 @@ final class ImportContext
     }
 
     /**
-     * Converts portable field values into `setFieldValues()` input for the given layout, keyed by handle.
+     * Warns about a Schema reference the Root element depends on, unless it's matched.
+     */
+    public function noteDrift(string $kind, mixed $uid): ?Drift
+    {
+        $drift = $this->drift->get($kind, $uid);
+        if ($drift?->message !== null) {
+            $this->plan->warn($drift->message);
+        }
+
+        return $drift;
+    }
+
+    /**
+     * Converts portable field values into `setFieldValues()` input for an entry type, keyed by handle.
      *
-     * Values for fields that aren't in the layout, or whose type has no adapter, are left out.
+     * Values for missing or type-changed fields, and for fields that aren't in the entry type's field layout, are
+     * skipped with a warning. Values for drifted fields are imported with a warning.
      *
-     * @param array<string, mixed> $portable field UID => portable value
+     * @param array<mixed> $portable field UID => portable value
      * @return array<string, mixed>
      */
-    public function fieldValues(FieldLayout $layout, array $portable): array
+    public function fieldValues(EntryType $entryType, array $portable): array
     {
-        $values = [];
+        $layoutFields = [];
+        foreach ($entryType->getFieldLayout()->getCustomFields() as $field) {
+            $layoutFields[$field->uid] = $field;
+        }
 
-        foreach ($layout->getCustomFields() as $field) {
-            if (!array_key_exists($field->uid, $portable)) {
+        $values = [];
+        foreach ($portable as $uid => $value) {
+            $drift = $this->noteDrift('fields', $uid);
+            if ($drift?->isSkipped()) {
                 continue;
             }
+
+            $field = $layoutFields[$uid] ?? null;
+            if (!$field) {
+                if ($drift) {
+                    $this->plan->warn("The field \"$drift->name\" isn't in the \"$entryType->name\" entry type's field layout in this environment. Its values will be skipped.");
+                }
+                continue;
+            }
+
             $adapter = $this->adapters->adapterFor($field);
-            if (!$adapter) {
-                continue;
+            if ($adapter) {
+                $values[$field->handle] = $adapter->import($field, $value, $this);
             }
-            $values[$field->handle] = $adapter->import($field, $portable[$field->uid], $this);
         }
 
         return $values;

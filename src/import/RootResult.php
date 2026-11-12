@@ -29,9 +29,27 @@ final class RootResult
      */
     public array $unresolvedReferences = [];
 
+    /**
+     * @var list<string> names of required fields left empty
+     */
+    public array $incompleteFields = [];
+
     public function __construct(
         public readonly ?string $sourceUid,
     ) {
+    }
+
+    /**
+     * Starts a result with everything the plan says will be skipped or imported imperfectly.
+     */
+    public static function fromPlan(RootPlan $plan): self
+    {
+        $result = new self($plan->sourceUid);
+        $result->warnings = $plan->warnings;
+        $result->unresolvedReferences = $plan->unresolvedReferences;
+        $result->incompleteFields = $plan->incompleteFields;
+
+        return $result;
     }
 
     public function fail(string $error): void
@@ -39,21 +57,6 @@ final class RootResult
         $this->status = self::STATUS_FAILED;
         $this->elementId = null;
         $this->errors[] = $error;
-    }
-
-    public function addUnresolvedReference(string $uid, ?string $elementType, ?string $title, string $field): void
-    {
-        $this->unresolvedReferences[] = [
-            'uid' => $uid,
-            'elementType' => $elementType,
-            'title' => $title,
-            'field' => $field,
-        ];
-    }
-
-    public function warn(string $warning): void
-    {
-        $this->warnings[] = $warning;
     }
 
     /**
@@ -68,6 +71,7 @@ final class RootResult
             'errors' => $this->errors,
             'warnings' => $this->warnings,
             'unresolvedReferences' => $this->unresolvedReferences,
+            'incompleteFields' => $this->incompleteFields,
         ];
     }
 }

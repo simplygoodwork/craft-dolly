@@ -46,6 +46,14 @@ php craft portage/import --file=page.portage
 php craft portage/import < page.portage
 ```
 
+Add `--dry-run` to print the Preview and write nothing, not even an Import log entry. The Preview lists the Drift of every field, entry type, section and site that changed since Export, what will be skipped, and the required fields that will be left empty:
+
+```bash
+php craft portage/import --file=page.portage --dry-run
+```
+
+Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.
+
 ## Development
 
 ### Running tests

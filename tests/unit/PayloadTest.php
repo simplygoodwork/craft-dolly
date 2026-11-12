@@ -41,10 +41,10 @@ class PayloadTest extends Unit
         $this->assertNotFalse(strtotime($envelope['source']['exportedAt']));
 
         $site = Craft::$app->getSites()->getPrimarySite();
-        $this->assertSame([$site->uid], $envelope['schema']['sites']);
-        $this->assertSame([$news->uid], $envelope['schema']['sections']);
-        $this->assertSame([$article->uid], $envelope['schema']['entryTypes']);
-        $this->assertEqualsCanonicalizing([$summary->uid, $related->uid], $envelope['schema']['fields']);
+        $this->assertSame([$site->uid], array_keys($envelope['schema']['sites']));
+        $this->assertSame([$news->uid], array_keys($envelope['schema']['sections']));
+        $this->assertSame([$article->uid], array_keys($envelope['schema']['entryTypes']));
+        $this->assertEqualsCanonicalizing([$summary->uid, $related->uid], array_keys($envelope['schema']['fields']));
 
         $this->assertCount(1, $envelope['roots']);
         $this->assertSame($source->uid, $envelope['roots'][0]['uid']);

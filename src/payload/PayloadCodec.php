@@ -5,11 +5,19 @@ namespace simplygoodwork\craftportage\payload;
 use JsonException;
 
 /**
- * Converts between Payload text (`portage:v1:<base64(gzip(JSON))>`) and the envelope array.
+ * Converts between Payload text (`portage:v1:<base64(gzip(JSON))>`) and the envelope array, refusing Payloads
+ * from a different Craft major.
  */
 final class PayloadCodec
 {
     public const PREFIX = 'portage:v1:';
+
+    /**
+     * @param string $craftVersion the Target environment's Craft version; Payloads from another major are refused (ADR-0001)
+     */
+    public function __construct(private readonly string $craftVersion)
+    {
+    }
 
     /**
      * @param array<string, mixed> $envelope
@@ -52,6 +60,24 @@ final class PayloadCodec
             throw new InvalidPayloadException('The Payload is damaged: it has no Root elements.');
         }
 
+        $this->checkCraftMajor($envelope['craftVersion'] ?? null);
+
         return new DecodedPayload($envelope, hash('sha256', $json));
+    }
+
+    /**
+     * @throws InvalidPayloadException
+     */
+    private function checkCraftMajor(mixed $sourceVersion): void
+    {
+        if (!is_string($sourceVersion) || !preg_match('/^(\d+)\./', $sourceVersion, $match)) {
+            throw new InvalidPayloadException('The Payload is damaged: it doesn\'t say which Craft version it was exported from.');
+        }
+
+        $sourceMajor = (int)$match[1];
+        $targetMajor = (int)explode('.', $this->craftVersion)[0];
+        if ($sourceMajor !== $targetMajor) {
+            throw new InvalidPayloadException("This Payload was exported from Craft $sourceMajor, but this environment runs Craft $targetMajor. Payloads can't move between Craft major versions.");
+        }
     }
 }

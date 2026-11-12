@@ -63,6 +63,22 @@ class ConsoleCommandsTest extends ConsoleTest
         $this->assertNotNull(Entry::find()->uid($source->uid)->status(null)->one());
     }
 
+    public function testDryRunPrintsThePreviewAndWritesNothing(): void
+    {
+        $source = $this->sourceEntry('Dry run');
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Craft::$app->getElements()->deleteElement($source, true);
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout("Would create a disabled entry \"Dry run\" from $source->uid." . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $this->assertNull(Entry::find()->uid($source->uid)->status(null)->one());
+        $this->assertSame([], Plugin::getInstance()->getImportLog()->getEntries());
+    }
+
     public function testRefusesAMalformedPayload(): void
     {
         $this->consoleCommand('portage/import', ['not a payload'], true)
