@@ -41,6 +41,8 @@
                 <li>
                     {% if choice.choice == 'stub' %}
                         {{ '{name}: a Stub was created'|t('portage', { name: name }) }}
+                    {% elseif choice.choice == 'fetch' %}
+                        {{ '{name}: fetched from its source URL'|t('portage', { name: name }) }}
                     {% elseif choice.choice == 'replace' %}
                         {{ '{name}: replaced with {replacement}'|t('portage', { name: name, replacement: choice.replacementTitle ?? ('#' ~ choice.replacementId) }) }}
                     {% else %}
@@ -71,13 +73,16 @@
             <p class="light">
                 {{ (result.mode ?? 'create') == 'overwrite' ? 'Overwrite'|t('portage') : 'Create new'|t('portage') }}{% if section %}, {{ 'in the "{section}" section'|t('portage', { section: section.name }) }}{% endif %}
             </p>
-            {% if result.errors ?? [] or result.stubs ?? [] %}
+            {% if result.errors ?? [] or result.stubs ?? [] or result.fetchedAssets ?? [] %}
                 <ul class="bullets">
                     {% for error in result.errors ?? [] %}
                         <li class="error">{{ error }}</li>
                     {% endfor %}
                     {% for stub in result.stubs ?? [] %}
                         <li>{{ 'Created a disabled Stub for {name}.'|t('portage', { name: stub.title is not null ? '"' ~ stub.title ~ '"' : stub.uid }) }}</li>
+                    {% endfor %}
+                    {% for asset in result.fetchedAssets ?? [] %}
+                        <li>{{ 'Fetched the asset {name} from its source URL.'|t('portage', { name: asset.title is not null ? '"' ~ asset.title ~ '"' : asset.uid }) }}</li>
                     {% endfor %}
                 </ul>
             {% endif %}

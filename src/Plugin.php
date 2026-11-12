@@ -10,6 +10,7 @@ use craft\events\RegisterUserPermissionsEvent;
 use craft\services\UserPermissions;
 use craft\services\Utilities;
 use craft\web\UrlManager;
+use simplygoodwork\craftportage\models\Settings;
 use simplygoodwork\craftportage\services\ImportLog;
 use simplygoodwork\craftportage\services\Portage;
 use simplygoodwork\craftportage\utilities\PortageUtility;
@@ -63,6 +64,19 @@ class Plugin extends BasePlugin
     public function getImportLog(): ImportLog
     {
         return $this->get('importLog');
+    }
+
+    public function getSettings(): Settings
+    {
+        /** @var Settings $settings */
+        $settings = parent::getSettings();
+
+        return $settings;
+    }
+
+    protected function createSettingsModel(): Settings
+    {
+        return new Settings();
     }
 
     public function init(): void

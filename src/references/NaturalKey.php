@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\references;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
@@ -11,6 +12,8 @@ use craft\elements\Tag;
 use craft\elements\User;
 use craft\helpers\Db;
 use craft\models\Section;
+use craft\models\Volume;
+use craft\models\VolumeFolder;
 
 /**
  * The Natural key of each element type: built from an element on Export, and matched in the Target environment on
@@ -20,6 +23,7 @@ use craft\models\Section;
  * - category: group UID + slug, plus the parent slug path
  * - tag: group UID + title
  * - user: email, then username
+ * - asset: volume UID + folder path + filename
  *
  * A Natural key that matches more than one element matches none, so a Reference is never related to the wrong one.
  */
@@ -35,6 +39,7 @@ final class NaturalKey
             $element instanceof Category => self::ofCategory($element),
             $element instanceof Tag => ['group' => $element->getGroup()->uid, 'title' => $element->title],
             $element instanceof User => ['email' => $element->email, 'username' => $element->username],
+            $element instanceof Asset => self::ofAsset($element),
             default => null,
         };
     }
@@ -55,6 +60,7 @@ final class NaturalKey
             Category::class => self::findCategory($key),
             Tag::class => self::findTag($key),
             User::class => self::findUser($key),
+            Asset::class => self::findAsset($key),
             default => null,
         };
     }
@@ -175,6 +181,66 @@ final class NaturalKey
         }
 
         return null;
+    }
+
+    /**
+     * @return array{volume: string, folder: string, filename: string}
+     */
+    private static function ofAsset(Asset $asset): array
+    {
+        $volume = $asset->getVolume();
+        $folder = $asset->getFolder();
+
+        return [
+            'volume' => $volume->uid,
+            // The root folder's path is empty; every other folder's ends in a slash, like "blog/2026/".
+            'folder' => (string)$folder->path,
+            'filename' => $asset->getFilename(),
+        ];
+    }
+
+    /**
+     * @param array<mixed> $key
+     */
+    private static function findAsset(array $key): ?int
+    {
+        $volume = is_string($key['volume'] ?? null) ? Craft::$app->getVolumes()->getVolumeByUid($key['volume']) : null;
+        $folder = $key['folder'] ?? null;
+        $filename = $key['filename'] ?? null;
+        if (!$volume || !is_string($folder) || !is_string($filename) || $filename === '') {
+            return null;
+        }
+
+        $folder = self::folder($volume, $folder);
+        if (!$folder) {
+            return null;
+        }
+
+        $ids = Asset::find()
+            ->volumeId($volume->id)
+            ->folderId($folder->id)
+            ->filename(Db::escapeParam($filename))
+            ->status(null)
+            ->site('*')
+            ->unique()
+            ->limit(2)
+            ->ids();
+
+        return count($ids) === 1 ? (int)$ids[0] : null;
+    }
+
+    /**
+     * Returns a volume's folder by its path ("" for the root folder, "blog/2026/" for a subfolder), or null if there's
+     * no such folder.
+     */
+    public static function folder(Volume $volume, string $path): ?VolumeFolder
+    {
+        $assets = Craft::$app->getAssets();
+        $path = trim($path, '/');
+
+        return $path === ''
+            ? $assets->getRootFolderByVolumeId($volume->id)
+            : $assets->findFolder(['volumeId' => $volume->id, 'path' => "$path/"]);
     }
 
     /**

@@ -59,6 +59,18 @@ final class RootResult
      */
     public array $stubs = [];
 
+    /**
+     * @var list<array{uid: string, title: string|null, elementId: int}> assets fetched from their source URL for this
+     * Root element's Unresolved references
+     */
+    public array $fetchedAssets = [];
+
+    /**
+     * @var list<array{uid: string, title: string|null, url: string, reason: string}> assets that couldn't be fetched,
+     * whose relations were skipped
+     */
+    public array $fetchFailures = [];
+
     public function __construct(
         public readonly ?string $sourceUid,
         public readonly ?string $title = null,
@@ -86,6 +98,7 @@ final class RootResult
         $this->elementId = null;
         $this->draftId = null;
         $this->stubs = [];
+        $this->fetchedAssets = [];
         $this->errors[] = $error;
     }
 
@@ -107,6 +120,8 @@ final class RootResult
             'unresolvedReferences' => $this->unresolvedReferences,
             'incompleteFields' => $this->incompleteFields,
             'stubs' => $this->stubs,
+            'fetchedAssets' => $this->fetchedAssets,
+            'fetchFailures' => $this->fetchFailures,
         ];
     }
 }

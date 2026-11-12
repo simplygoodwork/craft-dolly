@@ -5,7 +5,9 @@ namespace simplygoodwork\craftportage\import;
 use Craft;
 use craft\base\Element;
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\Entry;
+use craft\helpers\FileHelper;
 use craft\services\Structures;
 use Throwable;
 use yii\db\Transaction;
@@ -14,10 +16,15 @@ use yii\db\Transaction;
  * Executes an ImportPlan, one transaction per Root element.
  *
  * New entries are saved disabled, so required fields left empty by skipped values don't fail the save. A Root
- * element that is blocked or can't be saved fails on its own without affecting the others.
+ * element that is blocked or can't be saved fails on its own without affecting the others. An asset that can't be
+ * fetched is reported, and its relations skipped, without failing the Root element.
  */
 final class Importer
 {
+    public function __construct(private readonly AssetFetcher $fetcher = new AssetFetcher())
+    {
+    }
+
     /**
      * @return list<RootResult>
      */
@@ -65,6 +72,9 @@ final class Importer
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             $error = $this->saveStubs($plan, $result, $created);
+            if ($error === null) {
+                $this->fetchAssets($plan, $result, $created);
+            }
             // After the Stubs, as the parent may be one.
             $parentId = $plan->placement?->parentId($parentRootResult);
             if ($parentId) {
@@ -152,6 +162,84 @@ final class Importer
     }
 
     /**
+     * Fetches the assets the Root element's relations point at and saves them with the metadata they carry, after the
+     * Stubs their own fields relate to. A failed fetch is recorded on the result, and the relations to the asset are
+     * dropped from the Root element's values.
+     *
+     * @param ElementInterface[] $created collects the assets this saved, so a rollback can forget them
+     */
+    private function fetchAssets(RootPlan $plan, RootResult $result, array &$created): void
+    {
+        foreach ($plan->fetches as $reference) {
+            $fetch = $reference->fetch;
+            // An asset fetched for an earlier Root element is already saved.
+            if (!$fetch || $fetch->asset->id !== null) {
+                continue;
+            }
+            if ($fetch->failure === null) {
+                $fetch->failure = $this->fetchAsset($fetch);
+                if ($fetch->failure === null) {
+                    $created[] = $fetch->asset;
+                    $result->fetchedAssets[] = [
+                        'uid' => $reference->uid,
+                        'title' => $reference->title,
+                        'elementId' => (int)$fetch->asset->id,
+                    ];
+                    continue;
+                }
+            }
+            $result->fetchFailures[] = [
+                'uid' => $reference->uid,
+                'title' => $reference->title,
+                'url' => $fetch->url,
+                'reason' => $fetch->failure,
+            ];
+            $result->warnings[] = "The asset {$reference->name()} couldn't be fetched from $fetch->url: $fetch->failure. Its relations were skipped.";
+        }
+
+        if ($result->fetchFailures) {
+            foreach ($plan->relations as $related) {
+                $related->dropUnsaved();
+            }
+        }
+    }
+
+    /**
+     * Downloads an asset's file and saves the asset into its folder, creating the folder if needed.
+     *
+     * @return string|null why it failed, or null if it was saved
+     */
+    private function fetchAsset(AssetFetch $fetch): ?string
+    {
+        $asset = $fetch->asset;
+        try {
+            $tempPath = $this->fetcher->download($fetch->url, $asset->getFilename());
+        } catch (AssetFetchFailedException $e) {
+            return $e->getMessage();
+        }
+
+        // The assets this one's fields relate to were fetched first; drop those that failed.
+        foreach ($fetch->fieldPlan->relations as $related) {
+            $related->dropUnsaved();
+        }
+        $folder = Craft::$app->getAssets()->ensureFolderByFullPathAndVolume($fetch->folderPath, $fetch->volume, false);
+        $asset->tempFilePath = $tempPath;
+        $asset->newFolderId = $folder->id;
+        // A file with the same name may already be in the folder, as a different asset.
+        $asset->avoidFilenameConflicts = true;
+        $asset->setScenario(Asset::SCENARIO_CREATE);
+
+        if (!Craft::$app->getElements()->saveElement($asset)) {
+            FileHelper::unlink($tempPath);
+            $asset->id = null;
+
+            return 'Craft couldn\'t save it: ' . implode(' ', $asset->getFirstErrors());
+        }
+
+        return null;
+    }
+
+    /**
      * Creates a draft on the matched entry and applies the Payload's content to it, in one transaction with the Stubs
      * its relations need. The canonical entry is never changed.
      */
@@ -162,6 +250,9 @@ final class Importer
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             $error = $this->saveStubs($root, $result, $created);
+            if ($error === null) {
+                $this->fetchAssets($root, $result, $created);
+            }
             $draft = null;
             if ($error === null) {
                 $draft = Craft::$app->getDrafts()->createDraft(
@@ -256,16 +347,30 @@ final class Importer
     }
 
     /**
-     * Rolls back a Root element's transaction, and forgets the IDs of the Stubs it created so that a later Root
-     * element relating to the same Reference creates the Stub again.
+     * Rolls back a Root element's transaction, and forgets the IDs of the Stubs and assets it created so that a later
+     * Root element relating to the same Reference creates them again. The files of the assets it fetched are deleted.
      *
-     * @param ElementInterface[] $stubs
+     * @param ElementInterface[] $created
      */
-    private function rollBack(Transaction $transaction, array $stubs): void
+    private function rollBack(Transaction $transaction, array $created): void
     {
         $transaction->rollBack();
-        foreach ($stubs as $stub) {
-            $stub->id = null;
+        foreach ($created as $element) {
+            if ($element instanceof Asset) {
+                $this->deleteFile($element);
+            }
+            $element->id = null;
         }
+    }
+
+    private function deleteFile(Asset $asset): void
+    {
+        try {
+            $asset->getVolume()->deleteFile($asset->getPath());
+        } catch (Throwable $e) {
+            Craft::$app->getErrorHandler()->logException($e);
+        }
+        $asset->tempFilePath = null;
+        $asset->newFolderId = null;
     }
 }

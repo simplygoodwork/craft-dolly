@@ -77,6 +77,10 @@ _Avoid_: Fallback key, fuzzy match
 A Reference that neither its UID nor its Natural key matched in the Target environment.
 _Avoid_: Missing relation, broken link
 
+**Fetch**:
+The choice for an unresolved asset that downloads its file from the source URL its Reference carries during Import, creating the asset in the Target environment with the Reference's title, alt text, focal point and custom field values.
+_Avoid_: Download, pull, sync
+
 **Stub**:
 A disabled, minimal element created during Import to satisfy an Unresolved reference, populated only from the Reference's identifying information.
 _Avoid_: Placeholder, shell entry

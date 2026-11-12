@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\import;
 
 use craft\elements\Entry;
 use craft\models\Section;
+use simplygoodwork\craftportage\fields\RelatedElements;
 use simplygoodwork\craftportage\references\Resolution;
 
 /**
@@ -46,6 +47,23 @@ final class RootPlan
      * @var array<string, ReferencePlan> References the Root element relates to that will be Stubbed, by UID
      */
     public array $stubs = [];
+
+    /**
+     * @var array<string, ReferencePlan> unresolved assets the Root element relates to that will be fetched, by UID, in
+     * the order they're saved: an asset after the assets its own fields relate to
+     */
+    public array $fetches = [];
+
+    /**
+     * @var list<RelatedElements> the values of the relation fields being imported, which the Importer drops unsaved
+     * elements from when an asset's fetch fails
+     */
+    public array $relations = [];
+
+    /**
+     * @var array<string, true> the assets `addFetch()` is adding, by UID
+     */
+    private array $addingFetches = [];
 
     public const MODE_CREATE = 'create';
     public const MODE_OVERWRITE = 'overwrite';
@@ -130,6 +148,34 @@ final class RootPlan
         if (!in_array($warning, $this->warnings, true)) {
             $this->warnings[] = $warning;
         }
+    }
+
+    /**
+     * Adds an asset the Root element relates to that will be fetched, with the Stubs and assets its own field values
+     * need, and what they skip.
+     */
+    public function addFetch(ReferencePlan $reference): void
+    {
+        $fetch = $reference->fetch;
+        // A loop of assets relating to each other ends at the asset already being added.
+        if (!$fetch || isset($this->fetches[$reference->uid]) || isset($this->addingFetches[$reference->uid])) {
+            return;
+        }
+        $this->addingFetches[$reference->uid] = true;
+
+        $fields = $fetch->fieldPlan;
+        $this->stubs += $fields->stubs;
+        foreach ($fields->fetches as $nested) {
+            $this->addFetch($nested);
+        }
+        foreach ($fields->warnings as $warning) {
+            $this->warn($warning);
+        }
+        foreach ($fields->unresolvedReferences as $unresolved) {
+            $this->addUnresolvedReference($unresolved['uid'], $unresolved['elementType'], $unresolved['title'], $unresolved['field']);
+        }
+        unset($this->addingFetches[$reference->uid]);
+        $this->fetches[$reference->uid] = $reference;
     }
 
     /**

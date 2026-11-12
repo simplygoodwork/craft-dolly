@@ -22,6 +22,7 @@ final class SchemaManifest
         'sections' => ['sections', 'section'],
         'entryTypes' => ['entryTypes', 'entry type'],
         'fields' => ['fields', 'field'],
+        'volumes' => ['volumes', 'volume'],
     ];
 
     /**
@@ -92,6 +93,7 @@ final class SchemaManifest
                 'sections' => "The $subject doesn't exist in this environment. Root elements in it can't be imported.",
                 'sites' => "The $subject doesn't exist in this environment. Content for that site will be skipped.",
                 'entryTypes' => "The $subject doesn't exist in this environment. Content of that type will be skipped.",
+                'volumes' => "The $subject doesn't exist in this environment. Its assets can only be fetched into another volume.",
                 default => "The $subject doesn't exist in this environment. Its values will be skipped.",
             });
         }

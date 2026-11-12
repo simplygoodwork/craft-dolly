@@ -6,8 +6,11 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\elements\User;
+use craft\fields\Assets as AssetsField;
+use craft\helpers\Assets as AssetsHelper;
 use craft\helpers\StringHelper;
 use craft\models\EntryType;
+use craft\models\Volume;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\schema\Drift;
 use simplygoodwork\craftportage\schema\DriftReport;
@@ -60,8 +63,34 @@ final class ImportContext
         if ($reference->stub) {
             $this->plan->stubs[$uid] = $reference;
         }
+        if ($reference->fetch) {
+            if (!$this->allowsKind($field, $reference->fetch)) {
+                return null;
+            }
+            $this->plan->addFetch($reference);
+        }
 
         return $target;
+    }
+
+    /**
+     * Returns whether an Assets field allows the kind of file being fetched, warning when it doesn't.
+     */
+    private function allowsKind(FieldInterface $field, AssetFetch $fetch): bool
+    {
+        $kind = (string)$fetch->asset->kind;
+        if (!$field instanceof AssetsField || !$field->restrictFiles || in_array($kind, $field->allowedKinds ?? [], true)) {
+            return true;
+        }
+
+        $this->plan->warn(sprintf(
+            'The asset "%s" is a file of the kind "%s", which the field "%s" doesn\'t allow. It won\'t be related there.',
+            $fetch->asset->title ?? $fetch->asset->getFilename(),
+            AssetsHelper::getFileKindLabel($kind),
+            $field->name,
+        ));
+
+        return false;
     }
 
     /**
@@ -144,7 +173,8 @@ final class ImportContext
     }
 
     /**
-     * Converts portable field values into `setFieldValues()` input for an entry type, keyed by handle.
+     * Converts portable field values into `setFieldValues()` input for an entry type, or a volume's assets, keyed by
+     * handle.
      *
      * Values for missing or type-changed fields, and for fields that aren't in the entry type's field layout, are
      * skipped with a warning. Values for drifted fields are imported with a warning.
@@ -152,10 +182,10 @@ final class ImportContext
      * @param array<mixed> $portable field UID => portable value
      * @return array<string, mixed>
      */
-    public function fieldValues(EntryType $entryType, array $portable): array
+    public function fieldValues(EntryType|Volume $owner, array $portable): array
     {
         $layoutFields = [];
-        foreach ($entryType->getFieldLayout()->getCustomFields() as $field) {
+        foreach ($owner->getFieldLayout()->getCustomFields() as $field) {
             $layoutFields[$field->uid] = $field;
         }
 
@@ -169,7 +199,12 @@ final class ImportContext
             $field = $layoutFields[$uid] ?? null;
             if (!$field) {
                 if ($drift) {
-                    $this->plan->warn("The field \"$drift->name\" isn't in the \"$entryType->name\" entry type's field layout in this environment. Its values will be skipped.");
+                    $this->plan->warn(sprintf(
+                        'The field "%s" isn\'t in the "%s" %s\'s field layout in this environment. Its values will be skipped.',
+                        $drift->name,
+                        $owner->name,
+                        $owner instanceof Volume ? 'volume' : 'entry type',
+                    ));
                 }
                 continue;
             }

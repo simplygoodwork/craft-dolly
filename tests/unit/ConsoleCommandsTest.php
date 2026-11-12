@@ -3,12 +3,15 @@
 namespace simplygoodwork\craftportage\tests\unit;
 
 use Craft;
+use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\fields\Assets;
 use craft\fields\Entries;
 use craft\fields\Users;
 use craft\test\console\ConsoleTest;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\tests\support\FileServer;
 use simplygoodwork\craftportage\tests\support\Schema;
 use yii\console\ExitCode;
 
@@ -252,6 +255,34 @@ class ConsoleCommandsTest extends ConsoleTest
     }
 
     private string $sourceUid = '';
+
+    public function testFetchOptionFetchesAnUnresolvedAsset(): void
+    {
+        $server = FileServer::start();
+        $photos = Schema::volume('photos', "$server/files");
+        $photo = Schema::asset($photos, 'photo.png', '', ['title' => 'Photo']);
+        $uid = $photo->uid;
+        $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
+        $source = Schema::entry(Schema::section('news', [$article]), $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::deleteElement($photo);
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'fetch' => $uid, 'user' => $this->importerEmail()], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be fetched from $server/files/photo.png into the \"Photos\" volume. Choices: skip, fetch, replace." . PHP_EOL)
+            ->stdout('Would create a disabled entry "Pictured" from ' . $source->uid . '.' . PHP_EOL)
+            ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
+            ->stdout('  Target section: "News".' . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
+        $this->assertNull(Asset::find()->uid($uid)->one());
+
+        $this->consoleCommand('portage/import', [$payload, 'fetch' => $uid, 'user' => $this->importerEmail()], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+        $this->assertNotNull(Asset::find()->uid($uid)->one());
+    }
 
     /**
      * Exports an entry related to two topics, then hard-deletes the entry and the second topic.

@@ -3,10 +3,12 @@
 namespace simplygoodwork\craftportage\fields;
 
 use craft\base\FieldInterface;
+use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\Entry;
 use craft\elements\Tag;
 use craft\elements\User;
+use craft\fields\Assets;
 use craft\fields\Categories;
 use craft\fields\Entries;
 use craft\fields\Matrix;
@@ -33,6 +35,7 @@ final class FieldAdapterRegistry
             Categories::class => new RelationFieldAdapter(Category::class),
             Tags::class => new RelationFieldAdapter(Tag::class),
             Users::class => new RelationFieldAdapter(User::class),
+            Assets::class => new RelationFieldAdapter(Asset::class),
         ];
     }
 

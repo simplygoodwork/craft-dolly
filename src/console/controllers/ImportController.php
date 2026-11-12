@@ -17,7 +17,7 @@ use yii\console\ExitCode;
 
 /**
  * Imports a Payload, or previews it with --dry-run, as the user given with --user. New entries are created disabled.
- * Unresolved references are skipped unless --stub, --replace or --choices say otherwise. A Root element that matches an
+ * Unresolved references are skipped unless --stub, --replace, --fetch or --choices say otherwise. A Root element that matches an
  * existing entry is created as a new entry unless --overwrite chooses the overwrite Import mode, and goes to its own section unless --section chooses a Target section.
  */
 class ImportController extends Controller
@@ -43,8 +43,15 @@ class ImportController extends Controller
     public ?string $replace = null;
 
     /**
+     * @var string|null Comma-separated UIDs of unresolved assets to fetch from their source URL into their own volume
+     * and folder. To fetch into another volume or folder, use --choices.
+     */
+    public ?string $fetch = null;
+
+    /**
      * @var string|null Read choices for Unresolved references from this JSON file: an object of Reference UID =>
-     * "skip", "stub" or a replacement element ID. --stub and --replace override it.
+     * "skip", "stub", "fetch", a replacement element ID, or `{"choice": "fetch", "volume": "<handle>", "folder":
+     * "<path>"}` to fetch an asset into another volume or folder. --stub, --replace and --fetch override it.
      */
     public ?string $choices = null;
 
@@ -68,7 +75,7 @@ class ImportController extends Controller
 
     public function options($actionID): array
     {
-        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'choices', 'overwrite', 'section', 'user'];
+        return [...parent::options($actionID), 'file', 'dryRun', 'stub', 'replace', 'fetch', 'choices', 'overwrite', 'section', 'user'];
     }
 
     /**
@@ -136,7 +143,7 @@ class ImportController extends Controller
     }
 
     /**
-     * @param array<string, string|int> $choices
+     * @param array<string, string|int|array<string, string>> $choices
      * @param array<string, array{mode?: string, section?: string}> $rootChoices
      */
     private function preview(string $payload, array $choices, array $rootChoices): int
@@ -215,9 +222,17 @@ class ImportController extends Controller
         $outcome = match ($reference->choice) {
             ReferencePlan::CHOICE_STUB => 'will be Stubbed',
             ReferencePlan::CHOICE_REPLACE => "will be replaced with #{$reference->replacement?->id}",
-            default => $reference->elementType === 'user'
-                ? sprintf('will be skipped in user fields; as an author, "%s" is credited instead', Craft::$app->getUser()->getIdentity()?->getName())
-                : 'will be skipped',
+            ReferencePlan::CHOICE_FETCH => $reference->fetch
+                ? "will be fetched from {$reference->fetch->url} into {$reference->fetch->location()}"
+                : 'will be fetched',
+            default => match (true) {
+                $reference->elementType === 'user' => sprintf(
+                    'will be skipped in user fields; as an author, "%s" is credited instead',
+                    Craft::$app->getUser()->getIdentity()?->getName(),
+                ),
+                $reference->fetchUnavailable !== null => "will be skipped. $reference->fetchUnavailable",
+                default => 'will be skipped',
+            },
         };
         $this->stdout(
             "Unresolved reference $what: $outcome. Choices: " . implode(', ', $reference->availableChoices) . '.' . PHP_EOL,
@@ -228,7 +243,7 @@ class ImportController extends Controller
     /**
      * Returns the choices from --choices, --stub and --replace, or null if they can't be read.
      *
-     * @return array<string, string|int>|null
+     * @return array<string, string|int|array<string, string>>|null
      */
     private function readChoices(): ?array
     {
@@ -242,7 +257,7 @@ class ImportController extends Controller
                 return null;
             }
             foreach ($decoded as $uid => $choice) {
-                if (is_string($choice) || is_int($choice)) {
+                if (is_string($choice) || is_int($choice) || is_array($choice)) {
                     $choices[(string)$uid] = $choice;
                 }
             }
@@ -250,6 +265,10 @@ class ImportController extends Controller
 
         foreach ($this->split($this->stub) as $uid) {
             $choices[$uid] = ReferencePlan::CHOICE_STUB;
+        }
+
+        foreach ($this->split($this->fetch) as $uid) {
+            $choices[$uid] = ReferencePlan::CHOICE_FETCH;
         }
 
         foreach ($this->split($this->replace) as $pair) {
@@ -334,6 +353,10 @@ class ImportController extends Controller
             foreach ($root->stubs as $stub) {
                 $title = $stub['title'] ?? $stub['uid'];
                 $this->stdout("  Created a disabled Stub #{$stub['elementId']} for $title ({$stub['uid']})." . PHP_EOL);
+            }
+            foreach ($root->fetchedAssets as $asset) {
+                $title = $asset['title'] ?? $asset['uid'];
+                $this->stdout("  Fetched asset #{$asset['elementId']} for $title ({$asset['uid']})." . PHP_EOL);
             }
 
             $this->details($root->unresolvedReferences, $root->warnings, $root->incompleteFields);

@@ -37,8 +37,9 @@ class Portage extends Component
      * element, and the Resolution of every Reference with the choice for each Unresolved reference. Writes nothing.
      * A Payload that can't be decoded, or a choice that can't be carried out, is refused.
      *
-     * @param array<string, string|int> $choices for Unresolved references, by Reference UID: "skip" (the default),
-     * "stub", or the ID of a replacement element
+     * @param array<string, string|int|array<string, string>> $choices for Unresolved references, by Reference UID: "skip" (the default),
+     * "stub", the ID of a replacement element, or for an asset "fetch" (from its source URL into its own volume and
+     * folder) or `['choice' => 'fetch', 'volume' => volume UID or handle, 'folder' => folder path]`
      * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, by Root element UID:
      * the `mode` ("create", the default, or "overwrite" the matching entry) and the target `section` (a UID or handle;
      * the default is the Payload's own section)
@@ -58,7 +59,7 @@ class Portage extends Component
      * Imports Payload text by executing its Preview, and records the Import in the Import log. A refused Payload
      * imports nothing and isn't logged.
      *
-     * @param array<string, string|int> $choices for Unresolved references, as for `preview()`
+     * @param array<string, string|int|array<string, string>> $choices for Unresolved references, as for `preview()`
      * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, as for `preview()`
      */
     public function import(string $payload, array $choices = [], array $rootChoices = []): ImportResult

@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\export;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\Section;
@@ -27,6 +28,7 @@ final class ExportContext
         'sections' => [],
         'entryTypes' => [],
         'fields' => [],
+        'volumes' => [],
     ];
 
     /**
@@ -110,6 +112,10 @@ final class ExportContext
 
     /**
      * Records a related, not owned, element as a Reference and returns its UID (ADR-0002).
+     *
+     * An asset Reference also carries the asset's alt text, focal point and custom field values (the deliberate
+     * exception in ADR-0002), so an asset fetched during Import keeps its metadata. Its `url` is the public URL its
+     * file is fetched from, or null when its volume has none.
      */
     public function addReference(ElementInterface $element): string
     {
@@ -117,8 +123,11 @@ final class ExportContext
         if ($elementType === null) {
             throw new InvalidArgumentException('Unsupported element type for a Reference: ' . $element::class);
         }
+        if (isset($this->references[$element->uid])) {
+            return $element->uid;
+        }
 
-        $this->references[$element->uid] ??= [
+        $this->references[$element->uid] = [
             'elementType' => $elementType,
             'uid' => $element->uid,
             // Users have no title, so they're named by their full name or username.
@@ -126,8 +135,27 @@ final class ExportContext
             'url' => $element->getUrl(),
             'naturalKey' => NaturalKey::of($element),
         ];
+        if ($element instanceof Asset) {
+            // After the Reference is recorded, so an asset whose fields relate back to it doesn't loop.
+            $this->references[$element->uid]['asset'] = $this->assetMetadata($element);
+        }
 
         return $element->uid;
+    }
+
+    /**
+     * @return array{alt: string|null, focalPoint: array{x: float, y: float}|null, fields: array<string, mixed>}
+     */
+    private function assetMetadata(Asset $asset): array
+    {
+        $this->schema['volumes'][$asset->getVolume()->uid] = true;
+        $focalPoint = $asset->getHasFocalPoint() ? $asset->getFocalPoint() : null;
+
+        return [
+            'alt' => $asset->alt,
+            'focalPoint' => is_array($focalPoint) ? $focalPoint : null,
+            'fields' => $this->fields($asset, translatable: null),
+        ];
     }
 
     /**
@@ -214,15 +242,16 @@ final class ExportContext
     }
 
     /**
+     * @param bool|null $translatable whether to export the translatable fields or the others, or null for all of them
      * @return array<string, mixed> field UID => portable value
      */
-    private function fields(ElementInterface $element, bool $translatable): array
+    private function fields(ElementInterface $element, ?bool $translatable): array
     {
         $fields = [];
 
         foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
             $adapter = $this->adapters->adapterFor($field);
-            if (!$adapter || $field->getIsTranslatable($element) !== $translatable) {
+            if (!$adapter || ($translatable !== null && $field->getIsTranslatable($element) !== $translatable)) {
                 continue;
             }
             $this->schema['fields'][$field->uid] = true;

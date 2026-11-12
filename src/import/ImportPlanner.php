@@ -4,11 +4,13 @@ namespace simplygoodwork\craftportage\import;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\enums\PropagationMethod;
 use craft\helpers\ArrayHelper;
+use craft\helpers\Assets as AssetsHelper;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\ElementHelper;
 use craft\helpers\Json;
@@ -20,7 +22,9 @@ use simplygoodwork\craftportage\models\ImportLogEntry;
 use simplygoodwork\craftportage\payload\DecodedPayload;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftportage\references\NaturalKey;
 use simplygoodwork\craftportage\references\ReferenceResolver;
+use simplygoodwork\craftportage\schema\DriftReport;
 use simplygoodwork\craftportage\schema\SchemaManifest;
 
 /**
@@ -37,8 +41,9 @@ final class ImportPlanner
     }
 
     /**
-     * @param array<mixed> $choices for Unresolved references, by Reference UID: "skip", "stub", or the ID of a
-     * replacement element. Omitted choices are "skip".
+     * @param array<mixed> $choices for Unresolved references, by Reference UID: "skip", "stub", the ID of a
+     * replacement element, or for an asset "fetch" (into its own volume and folder) or `['choice' => 'fetch',
+     * 'volume' => volume UID or handle, 'folder' => folder path]`. Omitted choices are "skip".
      * @param array<mixed> $rootChoices for Root elements, by Root element UID: `['mode' => 'create'|'overwrite',
      * 'section' => section UID or handle]`. Omitted choices are "create" in the Payload's own section. The key `*`
      * is the default for every Root element: Root elements that can't be overwritten are created instead, while an
@@ -52,7 +57,8 @@ final class ImportPlanner
         $references = $this->planReferences($envelope['references'] ?? null);
 
         try {
-            $this->applyChoices($references, $choices, new Stubs($uids, $this->rootUids($envelope['roots'])));
+            $this->applyChoices($references, $choices, new Stubs($uids, $this->rootUids($envelope['roots'])), $uids);
+            $this->planFetchedAssetFields($references, $uids, $drift);
             $rootChoices = $this->parseRootChoices($rootChoices, $this->rootUids($envelope['roots']));
         } catch (InvalidChoiceException $e) {
             return ImportPlan::refused($e->getMessage());
@@ -311,13 +317,14 @@ final class ImportPlanner
     }
 
     /**
-     * Sets what happens to each Unresolved reference: skip it unless the user chose a Stub or a replacement.
+     * Sets what happens to each Unresolved reference: skip it unless the user chose a Stub, a replacement or, for an
+     * asset, to fetch it.
      *
      * @param array<string, ReferencePlan> $references
      * @param array<mixed> $choices
      * @throws InvalidChoiceException if a choice names an unknown Reference or can't be carried out
      */
-    private function applyChoices(array $references, array $choices, Stubs $stubs): void
+    private function applyChoices(array $references, array $choices, Stubs $stubs, UidClaims $uids): void
     {
         foreach ($choices as $uid => $choice) {
             if (!isset($references[$uid])) {
@@ -330,9 +337,13 @@ final class ImportPlanner
                 continue;
             }
 
+            $isAsset = $reference->elementType === 'asset';
+            $whyNoFetch = $isAsset ? $this->whyNoFetch($reference) : null;
+            $reference->fetchUnavailable = $whyNoFetch !== null ? "It can't be fetched: $whyNoFetch." : null;
             $reference->availableChoices = [
                 ReferencePlan::CHOICE_SKIP,
                 ...($stubs->canStub($reference) ? [ReferencePlan::CHOICE_STUB] : []),
+                ...($isAsset && $whyNoFetch === null ? [ReferencePlan::CHOICE_FETCH] : []),
                 ReferencePlan::CHOICE_REPLACE,
             ];
             $choice = $choices[$uid] ?? ReferencePlan::CHOICE_SKIP;
@@ -342,13 +353,17 @@ final class ImportPlanner
             } elseif ($choice === ReferencePlan::CHOICE_STUB) {
                 $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference, $stubs));
                 $reference->choice = ReferencePlan::CHOICE_STUB;
+            } elseif ($choice === ReferencePlan::CHOICE_FETCH || (is_array($choice) && ($choice['choice'] ?? null) === ReferencePlan::CHOICE_FETCH)) {
+                $reference->fetch = $this->planFetch($reference, is_array($choice) ? $choice : [], $whyNoFetch, $uids);
+                $reference->choice = ReferencePlan::CHOICE_FETCH;
             } elseif (is_int($choice) || (is_string($choice) && ctype_digit($choice))) {
                 $reference->replacement = $this->replacement($reference, (int)$choice);
                 $reference->choice = ReferencePlan::CHOICE_REPLACE;
             } else {
                 throw new InvalidChoiceException(sprintf(
-                    'The choice for the Reference %s isn\'t valid. Choose "skip", "stub" or the ID of a replacement element.',
+                    'The choice for the Reference %s isn\'t valid. Choose %s.',
                     $reference->name(),
+                    $isAsset ? '"skip", "fetch" or the ID of a replacement asset' : '"skip", "stub" or the ID of a replacement element',
                 ));
             }
         }
@@ -356,6 +371,14 @@ final class ImportPlanner
 
     private function whyNoStub(ReferencePlan $reference, Stubs $stubs): string
     {
+        if ($reference->elementType === 'asset') {
+            return sprintf(
+                'The asset %s can\'t be Stubbed: Portage never Stubs assets. %s',
+                $reference->name(),
+                $reference->fetchUnavailable === null ? 'Skip it, fetch it or choose a replacement.' : 'Skip it or choose a replacement.',
+            );
+        }
+
         if ($stubs->isRoot($reference)) {
             return "The Reference {$reference->name()} can't be Stubbed: this Payload imports it as a Root element. Skip it or choose a replacement.";
         }
@@ -370,6 +393,145 @@ final class ImportPlanner
         }
 
         return "The Reference {$reference->name()} can't be Stubbed: its section or group doesn't exist in this environment. Skip it or choose a replacement.";
+    }
+
+    /**
+     * Returns why an unresolved asset's file can't be fetched from its source URL, or null if it can.
+     */
+    private function whyNoFetch(ReferencePlan $reference): ?string
+    {
+        $url = $reference->reference['url'] ?? null;
+        if (!is_string($url) || $url === '') {
+            return 'its volume has no public URL in the Source environment';
+        }
+        if (!AssetFetcher::isFetchableUrl($url)) {
+            return 'only http and https URLs can be fetched';
+        }
+        $filename = $this->assetFilename($reference);
+        if ($filename === null) {
+            return 'the Payload doesn\'t carry its filename';
+        }
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (!in_array($extension, Craft::$app->getConfig()->getGeneral()->allowedFileExtensions, true)) {
+            return "this environment doesn't allow \".$extension\" files";
+        }
+
+        return null;
+    }
+
+    private function assetFilename(ReferencePlan $reference): ?string
+    {
+        $filename = $reference->reference['naturalKey']['filename'] ?? null;
+
+        // A filename is never a path.
+        return is_string($filename) && $filename !== '' && basename($filename) === $filename ? $filename : null;
+    }
+
+    /**
+     * Plans fetching an unresolved asset into the chosen volume and folder, or else its own: an unsaved asset with
+     * the title, alt text and focal point the Reference carries. Its custom field values are planned afterwards, once
+     * every Reference's choice is known.
+     *
+     * @param array<mixed> $choice
+     * @throws InvalidChoiceException if the asset can't be fetched there
+     */
+    private function planFetch(ReferencePlan $reference, array $choice, ?string $whyNoFetch, UidClaims $uids): AssetFetch
+    {
+        $name = $reference->name();
+        if ($reference->elementType !== 'asset') {
+            throw new InvalidChoiceException("The Reference $name isn't an asset, so it can't be fetched. Choose \"skip\", \"stub\" or the ID of a replacement element.");
+        }
+        if ($whyNoFetch !== null) {
+            throw new InvalidChoiceException("The asset $name can't be fetched: $whyNoFetch. Skip it or choose a replacement.");
+        }
+
+        $key = $reference->reference['naturalKey'];
+        $volumes = Craft::$app->getVolumes();
+        $chosenVolume = $choice['volume'] ?? null;
+        if ($chosenVolume !== null) {
+            $volume = is_string($chosenVolume) ? ($volumes->getVolumeByUid($chosenVolume) ?? $volumes->getVolumeByHandle($chosenVolume)) : null;
+            if (!$volume) {
+                throw new InvalidChoiceException(sprintf(
+                    'The volume %s chosen for the asset %s doesn\'t exist in this environment.',
+                    Json::encode($chosenVolume),
+                    $name,
+                ));
+            }
+        } else {
+            $volume = is_string($key['volume'] ?? null) ? $volumes->getVolumeByUid($key['volume']) : null;
+            if (!$volume) {
+                throw new InvalidChoiceException("The asset $name can't be fetched into its own volume: it doesn't exist in this environment. Choose a volume to fetch it into.");
+            }
+        }
+
+        $folderPath = $choice['folder'] ?? $key['folder'] ?? '';
+        $segments = is_string($folderPath) ? array_filter(explode('/', $folderPath), fn(string $segment) => $segment !== '') : null;
+        if ($segments === null || array_intersect($segments, ['.', '..']) || str_contains((string)$folderPath, '\\')) {
+            throw new InvalidChoiceException(sprintf('The folder %s chosen for the asset %s isn\'t a valid folder path.', Json::encode($folderPath), $name));
+        }
+        $folderPath = $segments ? implode('/', $segments) . '/' : '';
+
+        $filename = (string)$this->assetFilename($reference);
+        $asset = new Asset();
+        $asset->setVolumeId($volume->id);
+        $asset->setFilename($filename);
+        $asset->kind = AssetsHelper::getFileKindByExtension($filename);
+        $asset->title = $reference->title;
+        $metadata = is_array($reference->reference['asset'] ?? null) ? $reference->reference['asset'] : [];
+        if (is_string($metadata['alt'] ?? null)) {
+            $asset->alt = $metadata['alt'];
+        }
+        $focalPoint = $metadata['focalPoint'] ?? null;
+        if (is_array($focalPoint) && is_numeric($focalPoint['x'] ?? null) && is_numeric($focalPoint['y'] ?? null)) {
+            $asset->setFocalPoint(['x' => (float)$focalPoint['x'], 'y' => (float)$focalPoint['y']]);
+        }
+
+        $fetch = new AssetFetch((string)$reference->reference['url'], $volume, $folderPath, $asset);
+        $this->checkFetchPermission($fetch, $name);
+        $asset->uid = $uids->claim($reference->uid);
+
+        return $fetch;
+    }
+
+    /**
+     * @throws InvalidChoiceException if the user running the Import may not save assets in the volume, or create
+     * the folder when it doesn't exist
+     */
+    private function checkFetchPermission(AssetFetch $fetch, string $name): void
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+        if (!$user) {
+            return;
+        }
+
+        $volume = $fetch->volume;
+        $folder = NaturalKey::folder($volume, $fetch->folderPath);
+        $fetch->asset->folderId = $folder->id ?? Craft::$app->getAssets()->getRootFolderByVolumeId($volume->id)?->id;
+        if (!Craft::$app->getElements()->canSave($fetch->asset, $user)) {
+            throw new InvalidChoiceException("The asset $name can't be fetched: you don't have permission to save assets in the \"$volume->name\" volume. Skip it or choose a replacement.");
+        }
+        if (!$folder && !$user->can("createFolders:$volume->uid")) {
+            throw new InvalidChoiceException("The asset $name can't be fetched into {$fetch->location()}: the folder doesn't exist here, and you don't have permission to create folders in the \"$volume->name\" volume. Choose another folder.");
+        }
+    }
+
+    /**
+     * Plans the custom field values each fetched asset carries, in its volume's field layout. Their relations may
+     * point at any Reference, so this runs once every Reference's choice is known.
+     *
+     * @param array<string, ReferencePlan> $references
+     */
+    private function planFetchedAssetFields(array $references, UidClaims $uids, DriftReport $drift): void
+    {
+        foreach ($references as $reference) {
+            $fetch = $reference->fetch;
+            $fields = $reference->reference['asset']['fields'] ?? null;
+            if (!$fetch || !is_array($fields) || !$fields) {
+                continue;
+            }
+            $context = new ImportContext($this->adapters, $references, $uids, $drift, $fetch->fieldPlan);
+            $fetch->asset->setFieldValues($context->fieldValues($fetch->volume, $fields));
+        }
     }
 
     /**

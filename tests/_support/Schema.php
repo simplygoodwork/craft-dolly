@@ -6,6 +6,7 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\db\Table;
+use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
@@ -15,7 +16,9 @@ use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
+use craft\fs\Local;
 use craft\helpers\Db;
+use craft\helpers\FileHelper;
 use craft\helpers\StringHelper;
 use craft\models\CategoryGroup;
 use craft\models\CategoryGroup_SiteSettings;
@@ -26,7 +29,9 @@ use craft\models\Section;
 use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use craft\models\TagGroup;
+use craft\models\Volume;
 use RuntimeException;
+use simplygoodwork\craftportage\Plugin;
 
 /**
  * Builds schema (fields, entry types, sections) and entries inside tests, and changes the install between Export
@@ -476,6 +481,137 @@ final class Schema
     {
         $date = new \DateTime($dateTime, new \DateTimeZone(Craft::$app->getTimeZone()));
         Db::update('{{%portage_importlog}}', ['dateCreated' => Db::prepareDateForDb($date)], ['id' => $logId]);
+    }
+
+    /**
+     * Saves a volume on its own local filesystem, in a fresh temp directory. With a `url`, the filesystem has public
+     * URLs there, e.g. the file server's `FileServer::start() . '/files'`; without one, it has none. The volume's field
+     * layout holds the given custom fields.
+     *
+     * @param FieldInterface[] $fields
+     * @param array<string, mixed> $config
+     */
+    public static function volume(string $handle, ?string $url = null, array $fields = [], array $config = []): Volume
+    {
+        $path = sys_get_temp_dir() . '/portage-volumes/' . $handle . '-' . StringHelper::randomString(8);
+        FileHelper::createDirectory($path);
+
+        $fs = new Local([
+            'name' => self::nameFor($handle) . ' files',
+            'handle' => $handle . 'Fs',
+            'path' => $path,
+            'hasUrls' => $url !== null,
+            'url' => $url,
+        ]);
+        if (!Craft::$app->getFs()->saveFilesystem($fs)) {
+            self::fail("filesystem \"{$handle}Fs\"", $fs->getErrors());
+        }
+
+        $volume = new Volume(array_merge([
+            'name' => self::nameFor($handle),
+            'handle' => $handle,
+            'fsHandle' => $fs->handle,
+        ], $config));
+        $layout = new FieldLayout(['type' => Asset::class]);
+        $layout->setTabs([
+            new FieldLayoutTab([
+                'name' => 'Content',
+                'layout' => $layout,
+                'elements' => array_map(fn(FieldInterface $field) => new CustomField($field), $fields),
+            ]),
+        ]);
+        $volume->setFieldLayout($layout);
+
+        if (!Craft::$app->getVolumes()->saveVolume($volume)) {
+            self::fail("volume \"$handle\"", $volume->getErrors());
+        }
+
+        return $volume;
+    }
+
+    /**
+     * Saves an asset from one of the files in `tests/_data/files`, in a folder of the volume (created if needed, e.g.
+     * `"blog/2026"`). Keys of `$values` that aren't asset attributes are set as custom field values.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function asset(Volume $volume, string $fixture, string $folderPath = '', array $values = []): Asset
+    {
+        $source = dirname(__DIR__) . '/_data/files/' . $fixture;
+        if (!is_file($source)) {
+            throw new RuntimeException("No fixture file \"$fixture\" in tests/_data/files.");
+        }
+        $tempPath = Craft::$app->getPath()->getTempPath() . '/' . StringHelper::randomString(12) . '-' . $fixture;
+        copy($source, $tempPath);
+
+        $folder = Craft::$app->getAssets()->ensureFolderByFullPathAndVolume($folderPath, $volume, false);
+        $asset = new Asset();
+        $asset->tempFilePath = $tempPath;
+        $asset->setFilename($values['filename'] ?? $fixture);
+        unset($values['filename']);
+        $asset->newFolderId = $folder->id;
+        $asset->setVolumeId($volume->id);
+        $asset->setScenario(Asset::SCENARIO_CREATE);
+        self::saveElement($asset, $values);
+
+        return $asset;
+    }
+
+    /**
+     * Runs a callback with Craft's general config changed, as in a Target environment configured differently, e.g.
+     * `['maxUploadFileSize' => 50]`, then restores it.
+     *
+     * @template T
+     * @param array<string, mixed> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withGeneralConfig(array $values, callable $callback): mixed
+    {
+        return self::withProperties(Craft::$app->getConfig()->getGeneral(), $values, $callback);
+    }
+
+    /**
+     * Runs a callback with Portage's plugin settings changed, e.g. `['fetchTimeout' => 2]`, then restores them.
+     *
+     * @template T
+     * @param array<string, mixed> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withPortageSettings(array $values, callable $callback): mixed
+    {
+        return self::withProperties(Plugin::getInstance()->getSettings(), $values, $callback);
+    }
+
+    /**
+     * @template T
+     * @param array<string, mixed> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    private static function withProperties(object $object, array $values, callable $callback): mixed
+    {
+        $original = [];
+        foreach ($values as $name => $value) {
+            $original[$name] = $object->$name;
+            $object->$name = $value;
+        }
+        try {
+            return $callback();
+        } finally {
+            foreach ($original as $name => $value) {
+                $object->$name = $value;
+            }
+        }
+    }
+
+    public static function deleteVolume(Volume $volume): void
+    {
+        if (!Craft::$app->getVolumes()->deleteVolume($volume)) {
+            throw new RuntimeException("Couldn't delete volume \"$volume->handle\".");
+        }
+        self::refresh();
     }
 
     /**

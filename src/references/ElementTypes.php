@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\references;
 
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\Entry;
 use craft\elements\Tag;
@@ -21,6 +22,7 @@ final class ElementTypes
         'category' => Category::class,
         'tag' => Tag::class,
         'user' => User::class,
+        'asset' => Asset::class,
     ];
 
     /**
