@@ -1,0 +1,6 @@
+/_output/*
+!/_output/.gitkeep
+/_craft/storage/*
+!/_craft/storage/.gitkeep
+/_craft/config/project/
+/_support/_generated/

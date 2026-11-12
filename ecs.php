@@ -8,6 +8,9 @@ use Symplify\EasyCodingStandard\Config\ECSConfig;
 return static function(ECSConfig $ecsConfig): void {
     $ecsConfig->paths([
         __DIR__ . '/src',
+        __DIR__ . '/tests/_bootstrap.php',
+        __DIR__ . '/tests/_support/Schema.php',
+        __DIR__ . '/tests/unit',
         __FILE__,
     ]);
 
