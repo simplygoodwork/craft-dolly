@@ -6,6 +6,7 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\elements\User;
+use craft\helpers\StringHelper;
 use craft\models\EntryType;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\schema\Drift;
@@ -19,6 +20,17 @@ use simplygoodwork\craftportage\schema\DriftReport;
  */
 final class ImportContext
 {
+    /**
+     * @var string|null UID of the Payload site whose content is being planned
+     */
+    public ?string $siteUid = null;
+
+    /**
+     * @var array<string, string> source UID => UID in the Target environment, for nested entries, so the same nested
+     * entry is matched in every site
+     */
+    private array $nestedUids = [];
+
     /**
      * @param array<string, ReferencePlan> $references the plan for each of the Payload's References, by UID
      */
@@ -79,6 +91,43 @@ final class ImportContext
     public function claimUid(mixed $sourceUid): ?string
     {
         return $this->uids->claim($sourceUid);
+    }
+
+    /**
+     * Returns the UID a nested entry will have in the Target environment: its source UID if that's free, otherwise a
+     * new one (ADR-0003). It's the same in every site, so each site's content goes to the same nested entry.
+     */
+    public function nestedUid(mixed $sourceUid): string
+    {
+        if (!is_string($sourceUid)) {
+            return StringHelper::UUID();
+        }
+
+        return $this->nestedUids[$sourceUid] ??= $this->uids->claim($sourceUid) ?? StringHelper::UUID();
+    }
+
+    /**
+     * Returns an element's content for the site being planned: its title, slug and translatable field values for that
+     * site, plus the values of its non-translatable fields. An element with no content for that site gets its
+     * first site's content.
+     *
+     * @param array<mixed> $element a Root element or nested entry from the Payload
+     * @return array{title: string|null, slug: string|null, fields: array<mixed>}
+     */
+    public function content(array $element): array
+    {
+        $sites = is_array($element['sites'] ?? null) ? $element['sites'] : [];
+        $site = ($this->siteUid !== null ? $sites[$this->siteUid] ?? null : null) ?? reset($sites);
+        $site = is_array($site) ? $site : [];
+
+        return [
+            'title' => is_string($site['title'] ?? null) ? $site['title'] : null,
+            'slug' => is_string($site['slug'] ?? null) ? $site['slug'] : null,
+            'fields' => array_replace(
+                is_array($element['fields'] ?? null) ? $element['fields'] : [],
+                is_array($site['fields'] ?? null) ? $site['fields'] : [],
+            ),
+        ];
     }
 
     /**

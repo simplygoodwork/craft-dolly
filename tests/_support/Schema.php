@@ -24,6 +24,7 @@ use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 use craft\models\Section;
 use craft\models\Section_SiteSettings;
+use craft\models\Site;
 use craft\models\TagGroup;
 use RuntimeException;
 
@@ -166,6 +167,58 @@ final class Schema
     }
 
     /**
+     * Saves a site without URLs, in the primary site's group. Create sites before the sections that use them.
+     *
+     * @param array<string, mixed> $config
+     */
+    public static function site(string $handle, array $config = []): Site
+    {
+        $site = new Site(array_merge([
+            'groupId' => Craft::$app->getSites()->getPrimarySite()->groupId,
+            'name' => self::nameFor($handle),
+            'handle' => $handle,
+            'language' => 'en-US',
+            'hasUrls' => false,
+        ], $config));
+
+        if (!Craft::$app->getSites()->saveSite($site)) {
+            self::fail("site \"$handle\"", $site->getErrors());
+        }
+        self::refresh();
+
+        return $site;
+    }
+
+    /**
+     * Deletes a site, as if it had never existed in the Target environment.
+     */
+    public static function deleteSite(Site $site): void
+    {
+        if (!Craft::$app->getSites()->deleteSite($site)) {
+            throw new RuntimeException("Couldn't delete site \"$site->handle\".");
+        }
+        self::refresh();
+    }
+
+    /**
+     * Saves an existing element's content in another site it exists in. Keys of `$values` that aren't element
+     * attributes are set as custom field values.
+     *
+     * @template T of ElementInterface
+     * @param T $element
+     * @param array<string, mixed> $values
+     * @return T
+     */
+    public static function translate(ElementInterface $element, Site $site, array $values): ElementInterface
+    {
+        $translation = $element::find()->id($element->id)->siteId($site->id)->status(null)->one()
+            ?? throw new RuntimeException("The element $element->id doesn't exist in the site \"$site->handle\".");
+        self::saveElement($translation, $values);
+
+        return $translation;
+    }
+
+    /**
      * Saves a category group enabled for every site, without URLs.
      *
      * @param array<string, mixed> $config
@@ -284,6 +337,38 @@ final class Schema
         self::refresh();
     }
 
+    /**
+     * Sets properties on an existing section and saves it, e.g. `['propagationMethod' => PropagationMethod::All]`.
+     *
+     * @param array<string, mixed> $properties
+     */
+    public static function updateSection(Section $section, array $properties): Section
+    {
+        $entries = Craft::$app->getEntries();
+        $section = $entries->getSectionById($section->id) ?? throw new RuntimeException("No section with ID $section->id");
+        foreach ($properties as $name => $value) {
+            $section->$name = $value;
+        }
+
+        if (!$entries->saveSection($section)) {
+            self::fail("section \"$section->handle\"", $section->getErrors());
+        }
+        self::refresh();
+
+        return $section;
+    }
+
+    /**
+     * Stops a section from being enabled for a site.
+     */
+    public static function disableSectionForSite(Section $section, Site $site): Section
+    {
+        $section = Craft::$app->getEntries()->getSectionById($section->id) ?? throw new RuntimeException("No section with ID $section->id");
+        $siteSettings = array_filter($section->getSiteSettings(), fn(Section_SiteSettings $settings) => $settings->siteId !== $site->id);
+
+        return self::updateSection($section, ['siteSettings' => $siteSettings]);
+    }
+
     public static function deleteSection(Section $section): void
     {
         if (!Craft::$app->getEntries()->deleteSection($section)) {
@@ -331,6 +416,9 @@ final class Schema
         foreach (['fields', 'entries'] as $id) {
             Craft::$app->set($id, $definitions[$id]);
         }
+        // Element queries only apply their site param once Craft knows the install is multi-site.
+        Craft::$app->getIsMultiSite(true);
+        Craft::$app->getIsMultiSite(true, true);
     }
 
     /**

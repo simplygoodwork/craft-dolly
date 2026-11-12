@@ -32,13 +32,15 @@ final class MatrixAdapter implements FieldAdapter
     }
 
     /**
-     * Returns Matrix's serialized form (`['new1' => ['type' => …, 'fields' => …]]`), with source UIDs where they're free.
+     * Returns Matrix's serialized form keyed by UID (`['entries' => ['uid:…' => […]], 'sortOrder' => […]]`), for the
+     * site being planned. Keying by UID matches the nested entries the first site's save created, so each site's
+     * content goes to the same nested entries.
      */
     public function import(FieldInterface $field, mixed $portable, ImportContext $context): mixed
     {
         /** @var Matrix $field */
         $entryTypes = ArrayHelper::index($field->getEntryTypes(), 'uid');
-        $value = [];
+        $entries = [];
 
         foreach (is_array($portable) ? $portable : [] as $nested) {
             if (!is_array($nested)) {
@@ -54,25 +56,29 @@ final class MatrixAdapter implements FieldAdapter
                 continue;
             }
 
+            $content = $context->content($nested);
             $data = [
                 'type' => $entryType->handle,
                 'enabled' => (bool)($nested['enabled'] ?? true),
-                'fields' => $context->fieldValues($entryType, is_array($nested['fields'] ?? null) ? $nested['fields'] : []),
+                'fields' => $context->fieldValues($entryType, $content['fields']),
             ];
-            if ($entryType->hasTitleField && is_string($nested['title'] ?? null)) {
-                $data['title'] = $nested['title'];
+            if ($entryType->hasTitleField && $content['title'] !== null) {
+                $data['title'] = $content['title'];
             }
-            if ($entryType->showSlugField && is_string($nested['slug'] ?? null)) {
-                $data['slug'] = $nested['slug'];
-            }
-            $uid = $context->claimUid($nested['uid'] ?? null);
-            if ($uid) {
-                $data['uid'] = $uid;
+            if ($entryType->showSlugField && $content['slug'] !== null) {
+                $data['slug'] = $content['slug'];
             }
 
-            $value['new' . (count($value) + 1)] = $data;
+            $entries[$context->nestedUid($nested['uid'] ?? null)] = $data;
         }
 
-        return $value;
+        if (!$entries) {
+            return [];
+        }
+
+        return [
+            'entries' => array_combine(array_map(fn(string $uid) => "uid:$uid", array_keys($entries)), $entries),
+            'sortOrder' => array_keys($entries),
+        ];
     }
 }

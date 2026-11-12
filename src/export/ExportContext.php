@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\export;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
 use craft\elements\User;
@@ -32,18 +33,23 @@ final class ExportContext
      */
     private array $references = [];
 
+    /**
+     * @var list<int>|null IDs of the sites being exported, which limit the sites Owned content is exported in
+     */
+    private ?array $siteIds = null;
+
     public function __construct(private readonly FieldAdapterRegistry $adapters)
     {
     }
 
     /**
+     * Exports a Root element with its content for every site it exists in.
+     *
      * @return array<string, mixed>
      */
     public function exportRoot(Entry $entry): array
     {
-        $site = $entry->getSite();
         $section = $entry->getSection();
-        $this->schema['sites'][$site->uid] = true;
         $this->schema['sections'][$section->uid] = true;
 
         return [
@@ -52,14 +58,12 @@ final class ExportContext
             'section' => $section->uid,
             'type' => $this->entryTypeUid($entry),
             'authors' => array_map(fn(User $author) => $this->addReference($author), $entry->getAuthors()),
-            'sites' => [
-                $site->uid => $this->content($entry),
-            ],
+            ...$this->content($this->inEverySite($entry)),
         ];
     }
 
     /**
-     * Exports a nested entry (Owned content) in its owner's site.
+     * Exports a nested entry (Owned content) with its content for every site its owner's value is being exported in.
      *
      * @return array<string, mixed>
      */
@@ -68,7 +72,8 @@ final class ExportContext
         return [
             'uid' => $entry->uid,
             'type' => $this->entryTypeUid($entry),
-            ...$this->content($entry),
+            'enabled' => $entry->enabled,
+            ...$this->content($this->inEverySite($entry)),
         ];
     }
 
@@ -119,28 +124,74 @@ final class ExportContext
     }
 
     /**
-     * @return array<string, mixed>
+     * Returns the element in every site it exists in, limited to the sites being exported, in site order. The given
+     * element stands for its own site, so unsaved changes on it are exported.
+     *
+     * @return non-empty-list<Entry>
      */
-    private function content(Entry $entry): array
+    private function inEverySite(Entry $entry): array
     {
-        return [
-            'title' => $entry->title,
-            'slug' => $entry->slug,
-            'enabled' => $entry->enabled,
-            'fields' => $this->fields($entry),
-        ];
+        $bySite = $entry->id === null ? [] : Entry::find()
+            ->id($entry->id)
+            ->site('*')
+            ->status(null)
+            ->drafts(null)
+            ->provisionalDrafts(null)
+            ->indexBy('siteId')
+            ->all();
+        $bySite[$entry->siteId] = $entry;
+
+        $instances = [];
+        foreach (Craft::$app->getSites()->getAllSiteIds(true) as $siteId) {
+            if (isset($bySite[$siteId]) && ($this->siteIds === null || in_array($siteId, $this->siteIds, true))) {
+                $instances[] = $bySite[$siteId];
+            }
+        }
+
+        return $instances ?: [$entry];
+    }
+
+    /**
+     * Exports an element's content: the values of non-translatable fields once, then the title, slug and
+     * translatable field values for each site.
+     *
+     * @param non-empty-list<Entry> $instances the element in each site being exported
+     * @return array{fields: array<string, mixed>, sites: array<string, array<string, mixed>>}
+     */
+    private function content(array $instances): array
+    {
+        $outerSiteIds = $this->siteIds;
+
+        $this->siteIds = array_map(fn(Entry $instance) => (int)$instance->siteId, $instances);
+        $fields = $this->fields($instances[0], translatable: false);
+
+        $sites = [];
+        foreach ($instances as $instance) {
+            $site = $instance->getSite();
+            $this->schema['sites'][$site->uid] = true;
+            $this->siteIds = [(int)$instance->siteId];
+            $sites[$site->uid] = [
+                'title' => $instance->title,
+                'slug' => $instance->slug,
+                'fields' => $this->fields($instance, translatable: true),
+            ];
+        }
+
+        $this->siteIds = $outerSiteIds;
+
+        return ['fields' => $fields, 'sites' => $sites];
     }
 
     /**
      * @return array<string, mixed> field UID => portable value
      */
-    private function fields(ElementInterface $element): array
+    private function fields(ElementInterface $element, bool $translatable): array
     {
         $fields = [];
 
         foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
             $adapter = $this->adapters->adapterFor($field);
-            if (!$adapter) {
+            if (!$adapter || $field->getIsTranslatable($element) !== $translatable) {
                 continue;
             }
             $this->schema['fields'][$field->uid] = true;

@@ -11,6 +11,11 @@ use craft\elements\Entry;
 final class RootPlan
 {
     /**
+     * @var list<SitePlan> the entry's content for each of its other sites, saved after the entry
+     */
+    public array $sites = [];
+
+    /**
      * @var string|null why the Root element can't be imported, or null if it can
      */
     public ?string $blockedBy = null;
@@ -50,6 +55,7 @@ final class RootPlan
     {
         $this->blockedBy = $reason;
         $this->entry = null;
+        $this->sites = [];
     }
 
     public function isBlocked(): bool
@@ -67,8 +73,17 @@ final class RootPlan
         }
     }
 
+    /**
+     * Adds an Unresolved reference that will be skipped, once for each field.
+     */
     public function addUnresolvedReference(string $uid, ?string $elementType, ?string $title, string $field): void
     {
+        foreach ($this->unresolvedReferences as $reference) {
+            if ($reference['uid'] === $uid && $reference['field'] === $field) {
+                return;
+            }
+        }
+
         $this->unresolvedReferences[] = [
             'uid' => $uid,
             'elementType' => $elementType,

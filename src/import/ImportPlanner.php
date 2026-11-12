@@ -7,7 +7,9 @@ use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\enums\PropagationMethod;
 use craft\helpers\ArrayHelper;
+use craft\helpers\ElementHelper;
 use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
@@ -220,32 +222,129 @@ final class ImportPlanner
         }
         $context->noteDrift('entryTypes', $entryType->uid);
 
-        [$site, $content] = $this->firstAvailableSite($root['sites'] ?? null, $context);
-        if (!$site) {
-            $plan->block('None of the entry\'s sites exist in this environment.');
+        $sites = $this->targetSites($root['sites'] ?? null, $section, $context);
+        if (!$sites) {
+            $plan->block("None of the entry's sites exist in this environment, or the \"$section->name\" section isn't enabled for them.");
             return;
         }
 
         $entry = new Entry([
             'sectionId' => $section->id,
             'typeId' => $entryType->id,
-            'siteId' => $site->id,
+            'siteId' => $sites[0]['site']->id,
         ]);
+        if ($section->propagationMethod === PropagationMethod::Custom) {
+            // The entry is created only in the Payload's sites.
+            $entry->setEnabledForSite(array_fill_keys(array_map(fn(array $site) => $site['site']->id, $sites), true));
+        }
+        $sites = $this->propagatedSites($entry, $sites, $section, $plan);
+
         $entry->uid = $context->claimUid($root['uid'] ?? null);
         $entry->enabled = false;
-        if (is_string($content['title'] ?? null)) {
+        $context->siteUid = $sites[0]['uid'];
+        $content = $context->content($root);
+        if ($content['title'] !== null) {
             $entry->title = $content['title'];
         }
-        if (is_string($content['slug'] ?? null)) {
+        if ($content['slug'] !== null) {
             $entry->slug = $content['slug'];
         }
-        $entry->setFieldValues($context->fieldValues($entryType, is_array($content['fields'] ?? null) ? $content['fields'] : []));
+        $entry->setFieldValues($context->fieldValues($entryType, $content['fields']));
         if ($section->type !== Section::TYPE_SINGLE) {
             $entry->setAuthors($this->authors($root['authors'] ?? null, $section, $context));
         }
 
+        foreach (array_slice($sites, 1) as $site) {
+            $context->siteUid = $site['uid'];
+            $content = $context->content($root);
+            $plan->sites[] = new SitePlan(
+                $site['site'],
+                $content['title'],
+                $content['slug'],
+                $context->fieldValues($entryType, $content['fields']),
+            );
+        }
+
         $plan->entry = $entry;
         $plan->incompleteFields = $this->incompleteFields($entry);
+    }
+
+    /**
+     * Returns the Payload sites the entry can be imported into: those that exist in this environment and that the
+     * section is enabled for, in Payload order. The others are skipped with a warning.
+     *
+     * @return list<array{site: Site, uid: string}>
+     */
+    private function targetSites(mixed $sites, Section $section, ImportContext $context): array
+    {
+        $targetSites = ArrayHelper::index(Craft::$app->getSites()->getAllSites(), 'uid');
+        $sectionSites = ArrayHelper::index($section->getSiteSettings(), 'siteId');
+        $found = [];
+
+        foreach (is_array($sites) ? $sites : [] as $siteUid => $content) {
+            if (!is_string($siteUid) || !is_array($content)) {
+                continue;
+            }
+            $context->noteDrift('sites', $siteUid);
+            $site = $targetSites[$siteUid] ?? null;
+            if (!$site) {
+                continue;
+            }
+            if (!isset($sectionSites[$site->id])) {
+                $context->plan->warn(sprintf(
+                    'The "%s" section isn\'t enabled for the site "%s" in this environment. Content for that site will be skipped.',
+                    $section->name,
+                    $site->getName(),
+                ));
+                continue;
+            }
+            $found[] = ['site' => $site, 'uid' => $siteUid];
+        }
+
+        return $found;
+    }
+
+    /**
+     * Applies the section's propagation method to the Payload sites: the sites the entry won't be saved in are skipped,
+     * and sites the entry will be saved in without content in the Payload get the first site's content. Both warn.
+     *
+     * @param non-empty-list<array{site: Site, uid: string}> $sites
+     * @return non-empty-list<array{site: Site, uid: string}>
+     */
+    private function propagatedSites(Entry $entry, array $sites, Section $section, RootPlan $plan): array
+    {
+        $propagated = array_map(fn(array $site) => (int)$site['siteId'], ElementHelper::supportedSitesForElement($entry));
+        $first = $sites[0]['site'];
+        $kept = [];
+
+        foreach ($sites as $site) {
+            if (in_array($site['site']->id, $propagated, true)) {
+                $kept[] = $site;
+                continue;
+            }
+            $plan->warn(sprintf(
+                'The "%s" section doesn\'t propagate entries from the site "%s" to "%s" in this environment. Content for "%s" will be skipped.',
+                $section->name,
+                $first->getName(),
+                $site['site']->getName(),
+                $site['site']->getName(),
+            ));
+        }
+
+        $payloadSiteIds = array_map(fn(array $site) => $site['site']->id, $sites);
+        foreach ($propagated as $siteId) {
+            if (!in_array($siteId, $payloadSiteIds, true)) {
+                $plan->warn(sprintf(
+                    'The "%s" section propagates entries to the site "%s" in this environment, so the entry will be created there too, with the content from "%s".',
+                    $section->name,
+                    Craft::$app->getSites()->getSiteById($siteId)?->getName() ?? (string)$siteId,
+                    $first->getName(),
+                ));
+            }
+        }
+
+        /** @var non-empty-list<array{site: Site, uid: string}> $kept the first site always propagates */
+        return $kept;
     }
 
     /**
@@ -299,28 +398,6 @@ final class ImportPlanner
         }
 
         return array_values(array_unique($incomplete));
-    }
-
-    /**
-     * @return array{0: Site|null, 1: array<mixed>}
-     */
-    private function firstAvailableSite(mixed $sites, ImportContext $context): array
-    {
-        if (!is_array($sites)) {
-            return [null, []];
-        }
-
-        $targetSites = ArrayHelper::index(Craft::$app->getSites()->getAllSites(), 'uid');
-        $found = [null, []];
-        foreach ($sites as $siteUid => $content) {
-            $context->noteDrift('sites', $siteUid);
-            $site = $targetSites[$siteUid] ?? null;
-            if (!$found[0] && $site && is_array($content)) {
-                $found = [$site, $content];
-            }
-        }
-
-        return $found;
     }
 
     /**

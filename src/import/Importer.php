@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\import;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\elements\Entry;
 use Throwable;
 use yii\db\Transaction;
 
@@ -61,6 +62,15 @@ final class Importer
                 $result->fail('Craft couldn\'t save the entry: ' . implode(' ', $entry->getFirstErrors()));
                 return $result;
             }
+
+            foreach ($plan->sites as $site) {
+                $error = $this->saveSite($entry, $site);
+                if ($error !== null) {
+                    $this->rollBack($transaction, $created);
+                    $result->fail($error);
+                    return $result;
+                }
+            }
             $transaction->commit();
         } catch (Throwable $e) {
             $this->rollBack($transaction, $created);
@@ -72,6 +82,34 @@ final class Importer
         $result->elementId = $entry->id;
 
         return $result;
+    }
+
+    /**
+     * Saves the entry's content for one of its other sites, which the first save propagated it to.
+     *
+     * @return string|null the error, or null if it saved
+     */
+    private function saveSite(Entry $entry, SitePlan $plan): ?string
+    {
+        $siteName = $plan->site->getName();
+        $translation = Entry::find()->id($entry->id)->siteId($plan->site->id)->status(null)->one();
+        if (!$translation) {
+            return "Craft didn't create the entry in the site \"$siteName\".";
+        }
+
+        if ($plan->title !== null) {
+            $translation->title = $plan->title;
+        }
+        if ($plan->slug !== null) {
+            $translation->slug = $plan->slug;
+        }
+        $translation->setFieldValues($plan->fieldValues);
+
+        if (!Craft::$app->getElements()->saveElement($translation)) {
+            return "Craft couldn't save the entry's content for the site \"$siteName\": " . implode(' ', $translation->getFirstErrors());
+        }
+
+        return null;
     }
 
     /**
