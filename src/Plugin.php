@@ -4,11 +4,15 @@ namespace simplygoodwork\craftportage;
 
 use Craft;
 use craft\base\Plugin as BasePlugin;
+use simplygoodwork\craftportage\services\ImportLog;
+use simplygoodwork\craftportage\services\Portage;
 
 /**
  * Portage plugin
  *
  * @method static Plugin getInstance()
+ * @property-read Portage $portage
+ * @property-read ImportLog $importLog
  * @author Good Work <dev@simplygoodwork.com>
  * @copyright Good Work
  * @license https://craftcms.github.io/license/ Craft License
@@ -21,9 +25,26 @@ class Plugin extends BasePlugin
     {
         return [
             'components' => [
-                // Define component configs here...
+                'portage' => Portage::class,
+                'importLog' => ImportLog::class,
             ],
         ];
+    }
+
+    /**
+     * The core service: Export and Import of Payloads.
+     */
+    public function getPortage(): Portage
+    {
+        return $this->get('portage');
+    }
+
+    /**
+     * The Import log.
+     */
+    public function getImportLog(): ImportLog
+    {
+        return $this->get('importLog');
     }
 
     public function init(): void

@@ -1,0 +1,56 @@
+<?php
+
+namespace simplygoodwork\craftportage\export;
+
+use Craft;
+use craft\elements\Entry;
+use DateTimeInterface;
+use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftportage\Plugin;
+
+/**
+ * Builds a Payload envelope from Root elements.
+ */
+final class Exporter
+{
+    public const FORMAT_VERSION = 1;
+
+    public function __construct(private readonly FieldAdapterRegistry $adapters)
+    {
+    }
+
+    /**
+     * @param Entry[] $roots
+     * @return array<string, mixed>
+     */
+    public function export(array $roots): array
+    {
+        $context = new ExportContext($this->adapters);
+        $rootData = array_map(fn(Entry $entry) => $context->exportRoot($entry), array_values($roots));
+
+        return [
+            'formatVersion' => self::FORMAT_VERSION,
+            'craftVersion' => Craft::$app->getVersion(),
+            'pluginVersion' => Plugin::getInstance()->getVersion(),
+            'source' => $this->source(),
+            'schema' => $context->schema(),
+            'roots' => $rootData,
+            'references' => $context->references(),
+        ];
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function source(): array
+    {
+        $primarySite = Craft::$app->getSites()->getPrimarySite();
+
+        return [
+            'siteUrl' => $primarySite->getBaseUrl(),
+            'environment' => Craft::$app->env,
+            'exportedAt' => (new \DateTimeImmutable())->format(DateTimeInterface::ATOM),
+            'exportedBy' => Craft::$app->getUser()->getIdentity()?->username,
+        ];
+    }
+}

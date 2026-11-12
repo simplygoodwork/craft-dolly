@@ -29,6 +29,23 @@ composer require simplygoodwork/craft-portage
 ./craft plugin/install portage
 ```
 
+## Command line
+
+Export entries (comma-separated IDs) as a Payload, to stdout or a file:
+
+```bash
+php craft portage/export 123
+php craft portage/export 123,456 --output=page.portage
+```
+
+Import a Payload passed as an argument, from a file, or on stdin. New entries are created disabled, Unresolved references are skipped and listed, and the Import is recorded in the Import log:
+
+```bash
+php craft portage/import 'portage:v1:H4sI…'
+php craft portage/import --file=page.portage
+php craft portage/import < page.portage
+```
+
 ## Development
 
 ### Running tests
