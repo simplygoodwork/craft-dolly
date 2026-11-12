@@ -14,10 +14,12 @@ final class ImportPlan
     /**
      * @param list<RootPlan> $roots
      * @param array<string, mixed> $source the Payload's Source environment metadata
+     * @param array<string, ReferencePlan> $references by Reference UID
      */
     public function __construct(
         public readonly DriftReport $drift = new DriftReport(),
         public readonly array $roots = [],
+        public readonly array $references = [],
         public readonly ?string $refusal = null,
         public readonly ?string $payloadIdentity = null,
         public readonly array $source = [],

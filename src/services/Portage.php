@@ -34,9 +34,13 @@ class Portage extends Component
 
     /**
      * Previews the Import of Payload text: the Drift of every Schema reference and what will happen to every Root
-     * element. Writes nothing. A Payload that can't be decoded is refused.
+     * element, and the Resolution of every Reference with the choice for each Unresolved reference. Writes nothing.
+     * A Payload that can't be decoded, or a choice that can't be carried out, is refused.
+     *
+     * @param array<string, string|int> $choices for Unresolved references, by Reference UID: "skip" (the default),
+     * "stub", or the ID of a replacement element
      */
-    public function preview(string $payload): ImportPlan
+    public function preview(string $payload, array $choices = []): ImportPlan
     {
         try {
             $decoded = $this->codec()->decode($payload);
@@ -44,16 +48,18 @@ class Portage extends Component
             return ImportPlan::refused($e->getMessage());
         }
 
-        return (new ImportPlanner($this->adapters()))->plan($decoded);
+        return (new ImportPlanner($this->adapters()))->plan($decoded, $choices);
     }
 
     /**
      * Imports Payload text by executing its Preview, and records the Import in the Import log. A refused Payload
      * imports nothing and isn't logged.
+     *
+     * @param array<string, string|int> $choices for Unresolved references, as for `preview()`
      */
-    public function import(string $payload): ImportResult
+    public function import(string $payload, array $choices = []): ImportResult
     {
-        $plan = $this->preview($payload);
+        $plan = $this->preview($payload, $choices);
         if ($plan->isRefused()) {
             return ImportResult::refused((string)$plan->refusal);
         }

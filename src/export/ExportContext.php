@@ -4,9 +4,11 @@ namespace simplygoodwork\craftportage\export;
 
 use craft\base\ElementInterface;
 use craft\elements\Entry;
+use craft\elements\User;
 use InvalidArgumentException;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftportage\references\NaturalKey;
 
 /**
  * State for one Export: turns elements into portable data and collects the Schema references and References they touch.
@@ -49,6 +51,7 @@ final class ExportContext
             'uid' => $entry->uid,
             'section' => $section->uid,
             'type' => $this->entryTypeUid($entry),
+            'authors' => array_map(fn(User $author) => $this->addReference($author), $entry->getAuthors()),
             'sites' => [
                 $site->uid => $this->content($entry),
             ],
@@ -82,8 +85,10 @@ final class ExportContext
         $this->references[$element->uid] ??= [
             'elementType' => $elementType,
             'uid' => $element->uid,
-            'title' => $element->title,
+            // Users have no title, so they're named by their full name or username.
+            'title' => $element->title ?? ((string)$element ?: null),
             'url' => $element->getUrl(),
+            'naturalKey' => NaturalKey::of($element),
         ];
 
         return $element->uid;

@@ -35,6 +35,11 @@ final class RootPlan
      */
     public array $incompleteFields = [];
 
+    /**
+     * @var array<string, ReferencePlan> References the Root element relates to that will be Stubbed, by UID
+     */
+    public array $stubs = [];
+
     public function __construct(
         public readonly ?string $sourceUid,
         public readonly ?string $title = null,

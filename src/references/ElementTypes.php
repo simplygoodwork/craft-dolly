@@ -3,7 +3,10 @@
 namespace simplygoodwork\craftportage\references;
 
 use craft\base\ElementInterface;
+use craft\elements\Category;
 use craft\elements\Entry;
+use craft\elements\Tag;
+use craft\elements\User;
 
 /**
  * The whitelist of element types a Payload may name. The Payload never decides which PHP class is used.
@@ -15,6 +18,9 @@ final class ElementTypes
      */
     private const CLASSES = [
         'entry' => Entry::class,
+        'category' => Category::class,
+        'tag' => Tag::class,
+        'user' => User::class,
     ];
 
     /**

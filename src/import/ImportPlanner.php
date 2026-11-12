@@ -6,9 +6,11 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
+use craft\elements\User;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Json;
 use craft\models\EntryType;
+use craft\models\Section;
 use craft\models\Site;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\payload\DecodedPayload;
@@ -29,13 +31,23 @@ final class ImportPlanner
     {
     }
 
-    public function plan(DecodedPayload $payload): ImportPlan
+    /**
+     * @param array<mixed> $choices for Unresolved references, by Reference UID: "skip", "stub", or the ID of a
+     * replacement element. Omitted choices are "skip".
+     */
+    public function plan(DecodedPayload $payload, array $choices = []): ImportPlan
     {
         $envelope = $payload->envelope;
         $drift = (new SchemaManifest())->classify($envelope['schema'] ?? null);
         $uids = new UidClaims();
-        $resolver = new ReferenceResolver();
-        $references = is_array($envelope['references'] ?? null) ? $envelope['references'] : [];
+        $references = $this->planReferences($envelope['references'] ?? null);
+
+        try {
+            $this->applyChoices($references, $choices, new Stubs($uids, $this->rootUids($envelope['roots'])));
+        } catch (InvalidChoiceException $e) {
+            return ImportPlan::refused($e->getMessage());
+        }
+
         $plans = [];
 
         foreach ($envelope['roots'] as $root) {
@@ -50,15 +62,126 @@ final class ImportPlanner
                 continue;
             }
 
-            $this->planRoot($root, new ImportContext($this->adapters, $resolver, $references, $uids, $drift, $plan));
+            $this->planRoot($root, new ImportContext($this->adapters, $references, $uids, $drift, $plan));
         }
 
         return new ImportPlan(
             drift: $drift,
             roots: $plans,
+            references: $references,
             payloadIdentity: $payload->identity,
             source: is_array($envelope['source'] ?? null) ? $envelope['source'] : [],
         );
+    }
+
+    /**
+     * Resolves every Reference in the Payload.
+     *
+     * @return array<string, ReferencePlan> by Reference UID
+     */
+    private function planReferences(mixed $references): array
+    {
+        $resolver = new ReferenceResolver();
+        $plans = [];
+
+        foreach (is_array($references) ? $references : [] as $uid => $reference) {
+            if (!is_string($uid) || !is_array($reference)) {
+                continue;
+            }
+            $plans[$uid] = new ReferencePlan(
+                $uid,
+                is_string($reference['elementType'] ?? null) ? $reference['elementType'] : null,
+                is_string($reference['title'] ?? null) ? $reference['title'] : null,
+                $resolver->resolve($reference),
+                $reference,
+            );
+        }
+
+        return $plans;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function rootUids(mixed $roots): array
+    {
+        $uids = [];
+        foreach (is_array($roots) ? $roots : [] as $root) {
+            if (is_array($root) && is_string($root['uid'] ?? null)) {
+                $uids[$root['uid']] = true;
+            }
+        }
+
+        return $uids;
+    }
+
+    /**
+     * Sets what happens to each Unresolved reference: skip it unless the user chose a Stub or a replacement.
+     *
+     * @param array<string, ReferencePlan> $references
+     * @param array<mixed> $choices
+     * @throws InvalidChoiceException if a choice names an unknown Reference or can't be carried out
+     */
+    private function applyChoices(array $references, array $choices, Stubs $stubs): void
+    {
+        foreach ($choices as $uid => $choice) {
+            if (!isset($references[$uid])) {
+                throw new InvalidChoiceException("The Payload has no Reference with the UID $uid, so its choice can't be applied.");
+            }
+        }
+
+        foreach ($references as $uid => $reference) {
+            if ($reference->resolution->isResolved()) {
+                continue;
+            }
+
+            $reference->availableChoices = [
+                ReferencePlan::CHOICE_SKIP,
+                ...(Stubs::canStub($reference) ? [ReferencePlan::CHOICE_STUB] : []),
+                ReferencePlan::CHOICE_REPLACE,
+            ];
+            $choice = $choices[$uid] ?? ReferencePlan::CHOICE_SKIP;
+
+            if ($choice === ReferencePlan::CHOICE_SKIP) {
+                $reference->choice = ReferencePlan::CHOICE_SKIP;
+            } elseif ($choice === ReferencePlan::CHOICE_STUB) {
+                $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference));
+                $reference->choice = ReferencePlan::CHOICE_STUB;
+            } elseif (is_int($choice) || (is_string($choice) && ctype_digit($choice))) {
+                $reference->replacement = $this->replacement($reference, (int)$choice);
+                $reference->choice = ReferencePlan::CHOICE_REPLACE;
+            } else {
+                throw new InvalidChoiceException(sprintf(
+                    'The choice for the Reference %s isn\'t valid. Choose "skip", "stub" or the ID of a replacement element.',
+                    $reference->name(),
+                ));
+            }
+        }
+    }
+
+    private function whyNoStub(ReferencePlan $reference): string
+    {
+        if ($reference->elementType === 'user') {
+            return "The user {$reference->name()} can't be Stubbed: Portage never creates users. Skip it or choose a replacement user.";
+        }
+
+        return "The Reference {$reference->name()} can't be Stubbed: its section or group doesn't exist in this environment. Skip it or choose a replacement.";
+    }
+
+    /**
+     * @throws InvalidChoiceException if there's no element of the Reference's type with that ID
+     */
+    private function replacement(ReferencePlan $reference, int $id): ElementInterface
+    {
+        $class = ElementTypes::classFor($reference->elementType);
+        $element = $class ? $class::find()->id($id)->status(null)->site('*')->unique()->one() : null;
+
+        return $element ?? throw new InvalidChoiceException(sprintf(
+            'The replacement for the Reference %s doesn\'t exist: there\'s no %s with the ID %d in this environment.',
+            $reference->name(),
+            $reference->elementType ?? 'element',
+            $id,
+        ));
     }
 
     /**
@@ -113,9 +236,31 @@ final class ImportPlanner
             $entry->slug = $content['slug'];
         }
         $entry->setFieldValues($context->fieldValues($entryType, is_array($content['fields'] ?? null) ? $content['fields'] : []));
+        if ($section->type !== Section::TYPE_SINGLE) {
+            $entry->setAuthors($this->authors($root['authors'] ?? null, $section, $context));
+        }
 
         $plan->entry = $entry;
         $plan->incompleteFields = $this->incompleteFields($entry);
+    }
+
+    /**
+     * Resolves the Root entry's authors, each unresolved one falling back to the user running the Import, up to the
+     * section's author limit.
+     *
+     * @return User[]
+     */
+    private function authors(mixed $uids, Section $section, ImportContext $context): array
+    {
+        $authors = [];
+        foreach (is_array($uids) ? $uids : [] as $uid) {
+            $author = is_string($uid) ? $context->resolveAuthor($uid) : null;
+            if ($author) {
+                $authors[$author->id] = $author;
+            }
+        }
+
+        return array_slice(array_values($authors), 0, $section->maxAuthors ?? null);
     }
 
     /**

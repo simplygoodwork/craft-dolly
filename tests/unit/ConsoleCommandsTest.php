@@ -4,6 +4,8 @@ namespace simplygoodwork\craftportage\tests\unit;
 
 use Craft;
 use craft\elements\Entry;
+use craft\fields\Entries;
+use craft\fields\Users;
 use craft\test\console\ConsoleTest;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\tests\support\Schema;
@@ -93,6 +95,93 @@ class ConsoleCommandsTest extends ConsoleTest
             ->stderr('No entry found with ID 999999.' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
+    }
+
+    public function testDryRunPrintsTheResolutionOfEachReferenceAndTheChoiceForUnresolvedOnes(): void
+    {
+        [$payload, $kept, $gone] = $this->payloadRelatingTo('Kept', 'Gone');
+
+        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'stub' => $gone], false)
+            ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+            ->stdout("Reference \"Kept\" (entry, $kept) matched by UID." . PHP_EOL)
+            ->stdout("Unresolved reference \"Gone\" (entry, $gone): will be Stubbed. Choices: skip, stub, replace." . PHP_EOL)
+            ->stdout('Would create a disabled entry "Related" from ' . $this->sourceUid . '.' . PHP_EOL)
+            ->exitCode(ExitCode::OK)
+            ->run();
+    }
+
+    public function testImportTakesChoicesFromOptionsAndFromAChoicesFile(): void
+    {
+        [$payload, $kept, $gone] = $this->payloadRelatingTo('Kept', 'Gone');
+        $keptId = Entry::find()->uid($kept)->one()->id;
+        $topics = Craft::$app->getEntries()->getSectionByHandle('topics');
+        $instead = Schema::entry($topics, $topics->getEntryTypes()[0], ['title' => 'Instead']);
+        file_put_contents($this->file, json_encode([$gone => $instead->id]));
+
+        $this->consoleCommand('portage/import', [$payload, 'choices' => $this->file], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+        $this->assertSame([$keptId, $instead->id], $this->relatedIds());
+
+        Craft::$app->getElements()->deleteElement(Entry::find()->uid($this->sourceUid)->status(null)->one(), true);
+        $this->consoleCommand('portage/import', [$payload, 'stub' => $gone], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+        $stub = Entry::find()->uid($gone)->status(null)->one();
+        $this->assertNotNull($stub);
+        $this->assertSame([$keptId, $stub->id], $this->relatedIds());
+    }
+
+    public function testRefusesAStubForAUser(): void
+    {
+        $user = Schema::user('gone');
+        $entryType = Schema::entryType('article', [Schema::field(Users::class, 'contacts')]);
+        $section = Schema::section('news', [$entryType]);
+        $source = Schema::entry($section, $entryType, ['title' => 'Contacts', 'contacts' => [$user->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Craft::$app->getElements()->deleteElement($source, true);
+        Craft::$app->getElements()->deleteElement($user, true);
+
+        $this->consoleCommand('portage/import', [$payload, 'stub' => $user->uid], true)
+            ->stderr('Payload refused: The user "gone" can\'t be Stubbed: Portage never creates users. Skip it or choose a replacement user.' . PHP_EOL)
+            ->exitCode(ExitCode::DATAERR)
+            ->run();
+    }
+
+    private string $sourceUid = '';
+
+    /**
+     * Exports an entry related to two topics, then hard-deletes the entry and the second topic.
+     *
+     * @return array{0: string, 1: string, 2: string} the Payload, and the UIDs of the kept and the deleted topic
+     */
+    private function payloadRelatingTo(string $kept, string $gone): array
+    {
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $keptTopic = Schema::entry($topics, $topic, ['title' => $kept]);
+        $goneTopic = Schema::entry($topics, $topic, ['title' => $gone]);
+        $entryType = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
+        $section = Schema::section('news', [$entryType]);
+        $source = Schema::entry($section, $entryType, ['title' => 'Related', 'relatedTopics' => [$keptTopic->id, $goneTopic->id]]);
+        $this->sourceUid = $source->uid;
+
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Craft::$app->getElements()->deleteElement($source, true);
+        Craft::$app->getElements()->deleteElement($goneTopic, true);
+
+        return [$payload, $keptTopic->uid, $goneTopic->uid];
+    }
+
+    /**
+     * @return int[] IDs related by the imported entry, including disabled Stubs
+     */
+    private function relatedIds(): array
+    {
+        $imported = Entry::find()->uid($this->sourceUid)->status(null)->one();
+        $this->assertNotNull($imported);
+
+        return $imported->getFieldValue('relatedTopics')->status(null)->ids();
     }
 
     private function sourceEntry(string $title): Entry

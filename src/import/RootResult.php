@@ -34,6 +34,12 @@ final class RootResult
      */
     public array $incompleteFields = [];
 
+    /**
+     * @var list<array{uid: string, elementType: string|null, title: string|null, elementId: int}> Stubs created for this
+     * Root element's Unresolved references
+     */
+    public array $stubs = [];
+
     public function __construct(
         public readonly ?string $sourceUid,
     ) {
@@ -56,6 +62,7 @@ final class RootResult
     {
         $this->status = self::STATUS_FAILED;
         $this->elementId = null;
+        $this->stubs = [];
         $this->errors[] = $error;
     }
 
@@ -72,6 +79,7 @@ final class RootResult
             'warnings' => $this->warnings,
             'unresolvedReferences' => $this->unresolvedReferences,
             'incompleteFields' => $this->incompleteFields,
+            'stubs' => $this->stubs,
         ];
     }
 }

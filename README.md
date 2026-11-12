@@ -52,6 +52,15 @@ Add `--dry-run` to print the Preview and write nothing, not even an Import log e
 php craft portage/import --file=page.portage --dry-run
 ```
 
+Related entries, categories, tags and users (including authors) are matched by UID, then by their Natural key: section + slug (plus the parent slug path in Structures) for entries, group + slug (plus parent path) for categories, group + title for tags, and email, then username, for users. The Preview shows the rule that matched each Reference.
+
+An Unresolved reference is skipped by default. Choose to create a disabled Stub in its original section or group with `--stub`, or to relate an existing element instead with `--replace`, or put the choices in a JSON file for `--choices`. Users are never Stubbed: an unresolved author is replaced by the user running the Import, and unresolved users in user fields are skipped.
+
+```bash
+php craft portage/import --file=page.portage --stub=<uid>,<uid> --replace=<uid>=123
+php craft portage/import --file=page.portage --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
+```
+
 Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.
 
 ## Development
@@ -107,9 +116,9 @@ $entry = Schema::entry($section, $page, [
 ]);
 ```
 
-Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
+`Schema::categoryGroup()`, `Schema::category()`, `Schema::tagGroup()`, `Schema::tag()` and `Schema::user()` build related elements. Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
 
-To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()` and `Schema::deleteSection()`:
+To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()` and `Schema::deleteSection()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
 $payload = Plugin::getInstance()->getPortage()->export([$entry]);

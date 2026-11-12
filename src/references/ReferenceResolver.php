@@ -5,7 +5,7 @@ namespace simplygoodwork\craftportage\references;
 use craft\helpers\StringHelper;
 
 /**
- * Matches References to elements in the Target environment. Only by UID for now.
+ * Matches References to elements in the Target environment: by UID, then by Natural key.
  */
 final class ReferenceResolver
 {
@@ -15,20 +15,27 @@ final class ReferenceResolver
     public function resolve(array $reference): Resolution
     {
         $class = ElementTypes::classFor($reference['elementType'] ?? null);
-        $uid = $reference['uid'] ?? null;
-
-        if (!$class || !is_string($uid) || !StringHelper::isUUID($uid)) {
+        if (!$class) {
             return Resolution::unresolved();
         }
 
-        // Trashed elements are excluded, so a Reference to one is unresolved.
-        $id = $class::find()
-            ->uid($uid)
-            ->status(null)
-            ->site('*')
-            ->unique()
-            ->ids()[0] ?? null;
+        $uid = $reference['uid'] ?? null;
+        if (is_string($uid) && StringHelper::isUUID($uid)) {
+            // Trashed elements are excluded, so a Reference to one is unresolved.
+            $id = $class::find()
+                ->uid($uid)
+                ->status(null)
+                ->site('*')
+                ->unique()
+                ->ids()[0] ?? null;
 
-        return $id ? Resolution::matched((int)$id, Resolution::RULE_UID) : Resolution::unresolved();
+            if ($id) {
+                return Resolution::matched((int)$id, Resolution::RULE_UID);
+            }
+        }
+
+        $id = NaturalKey::find($class, $reference['naturalKey'] ?? null);
+
+        return $id ? Resolution::matched($id, Resolution::RULE_NATURAL_KEY) : Resolution::unresolved();
     }
 }

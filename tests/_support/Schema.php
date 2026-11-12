@@ -5,17 +5,26 @@ namespace simplygoodwork\craftportage\tests\support;
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\db\Table;
+use craft\elements\Category;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
+use craft\elements\Tag;
+use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
+use craft\helpers\Db;
+use craft\helpers\StringHelper;
+use craft\models\CategoryGroup;
+use craft\models\CategoryGroup_SiteSettings;
 use craft\models\EntryType;
 use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 use craft\models\Section;
 use craft\models\Section_SiteSettings;
+use craft\models\TagGroup;
 use RuntimeException;
 
 /**
@@ -157,6 +166,95 @@ final class Schema
     }
 
     /**
+     * Saves a category group enabled for every site, without URLs.
+     *
+     * @param array<string, mixed> $config
+     */
+    public static function categoryGroup(string $handle, array $config = []): CategoryGroup
+    {
+        $group = new CategoryGroup(array_merge([
+            'name' => self::nameFor($handle),
+            'handle' => $handle,
+        ], $config));
+
+        $siteSettings = [];
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            $siteSettings[$site->id] = new CategoryGroup_SiteSettings([
+                'siteId' => $site->id,
+                'hasUrls' => false,
+            ]);
+        }
+        $group->setSiteSettings($siteSettings);
+        $group->setFieldLayout(new FieldLayout(['type' => Category::class]));
+
+        if (!Craft::$app->getCategories()->saveGroup($group)) {
+            self::fail("category group \"$handle\"", $group->getErrors());
+        }
+
+        return $group;
+    }
+
+    /**
+     * Saves a category. Pass `parentId` in `$values` to nest it under another category.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function category(CategoryGroup $group, array $values = []): Category
+    {
+        $category = new Category(['groupId' => $group->id]);
+        self::saveElement($category, $values);
+
+        return $category;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public static function tagGroup(string $handle, array $config = []): TagGroup
+    {
+        $group = new TagGroup(array_merge([
+            'name' => self::nameFor($handle),
+            'handle' => $handle,
+        ], $config));
+        $group->setFieldLayout(new FieldLayout(['type' => Tag::class]));
+
+        if (!Craft::$app->getTags()->saveTagGroup($group)) {
+            self::fail("tag group \"$handle\"", $group->getErrors());
+        }
+
+        return $group;
+    }
+
+    public static function tag(TagGroup $group, string $title): Tag
+    {
+        $tag = new Tag(['groupId' => $group->id]);
+        self::saveElement($tag, ['title' => $title]);
+
+        return $tag;
+    }
+
+    /**
+     * Saves an active user.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function user(string $username, array $values = []): User
+    {
+        $user = new User(['username' => $username, 'email' => "$username@example.com", 'active' => true]);
+        self::saveElement($user, $values);
+
+        return $user;
+    }
+
+    /**
+     * Changes a user's email and username, as if the same person had a different account in the Target environment.
+     */
+    public static function changeUserIdentity(User $user, ?string $email, ?string $username = null): void
+    {
+        self::saveElement($user, array_filter(['email' => $email, 'username' => $username]));
+    }
+
+    /**
      * Sets properties on an existing field and saves it, e.g. `['charLimit' => 42]` or `['entryTypes' => [$text]]`
      * for a Matrix field. With no properties, re-saves the field unchanged.
      *
@@ -233,6 +331,19 @@ final class Schema
         foreach (['fields', 'entries'] as $id) {
             Craft::$app->set($id, $definitions[$id]);
         }
+    }
+
+    /**
+     * Gives an existing element a new UID, as if it had been created separately in the Target environment, and
+     * returns the new UID.
+     */
+    public static function changeUid(ElementInterface $element): string
+    {
+        $uid = StringHelper::UUID();
+        Db::update(Table::ELEMENTS, ['uid' => $uid], ['id' => $element->id]);
+        $element->uid = $uid;
+
+        return $uid;
     }
 
     /**

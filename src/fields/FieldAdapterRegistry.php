@@ -3,9 +3,16 @@
 namespace simplygoodwork\craftportage\fields;
 
 use craft\base\FieldInterface;
+use craft\elements\Category;
+use craft\elements\Entry;
+use craft\elements\Tag;
+use craft\elements\User;
+use craft\fields\Categories;
 use craft\fields\Entries;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
+use craft\fields\Tags;
+use craft\fields\Users;
 
 /**
  * Maps field classes to their Field adapters.
@@ -22,7 +29,10 @@ final class FieldAdapterRegistry
         $this->adapters = [
             PlainText::class => new PlainTextAdapter(),
             Matrix::class => new MatrixAdapter(),
-            Entries::class => new EntriesAdapter(),
+            Entries::class => new RelationFieldAdapter(Entry::class),
+            Categories::class => new RelationFieldAdapter(Category::class),
+            Tags::class => new RelationFieldAdapter(Tag::class),
+            Users::class => new RelationFieldAdapter(User::class),
         ];
     }
 

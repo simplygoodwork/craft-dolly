@@ -3,7 +3,9 @@
 namespace simplygoodwork\craftportage\import;
 
 use Craft;
+use craft\base\ElementInterface;
 use Throwable;
+use yii\db\Transaction;
 
 /**
  * Executes an ImportPlan, one transaction per Root element.
@@ -31,16 +33,37 @@ final class Importer
             return $result;
         }
 
+        $created = [];
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
+            foreach ($plan->stubs as $reference) {
+                $stub = $reference->stub;
+                // A Stub shared with an earlier Root element is already saved.
+                if (!$stub || $stub->id !== null) {
+                    continue;
+                }
+                if (!Craft::$app->getElements()->saveElement($stub)) {
+                    $this->rollBack($transaction, $created);
+                    $result->fail("Craft couldn't create the Stub for {$reference->name()}: " . implode(' ', $stub->getFirstErrors()));
+                    return $result;
+                }
+                $created[] = $stub;
+                $result->stubs[] = [
+                    'uid' => $reference->uid,
+                    'elementType' => $reference->elementType,
+                    'title' => $reference->title,
+                    'elementId' => (int)$stub->id,
+                ];
+            }
+
             if (!Craft::$app->getElements()->saveElement($entry)) {
-                $transaction->rollBack();
+                $this->rollBack($transaction, $created);
                 $result->fail('Craft couldn\'t save the entry: ' . implode(' ', $entry->getFirstErrors()));
                 return $result;
             }
             $transaction->commit();
         } catch (Throwable $e) {
-            $transaction->rollBack();
+            $this->rollBack($transaction, $created);
             Craft::$app->getErrorHandler()->logException($e);
             $result->fail('Couldn\'t import the entry: ' . $e->getMessage());
             return $result;
@@ -49,5 +72,19 @@ final class Importer
         $result->elementId = $entry->id;
 
         return $result;
+    }
+
+    /**
+     * Rolls back a Root element's transaction, and forgets the IDs of the Stubs it created so that a later Root
+     * element relating to the same Reference creates the Stub again.
+     *
+     * @param ElementInterface[] $stubs
+     */
+    private function rollBack(Transaction $transaction, array $stubs): void
+    {
+        $transaction->rollBack();
+        foreach ($stubs as $stub) {
+            $stub->id = null;
+        }
     }
 }

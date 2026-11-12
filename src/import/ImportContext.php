@@ -2,10 +2,12 @@
 
 namespace simplygoodwork\craftportage\import;
 
+use Craft;
+use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\elements\User;
 use craft\models\EntryType;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\references\ReferenceResolver;
 use simplygoodwork\craftportage\schema\Drift;
 use simplygoodwork\craftportage\schema\DriftReport;
 
@@ -18,11 +20,10 @@ use simplygoodwork\craftportage\schema\DriftReport;
 final class ImportContext
 {
     /**
-     * @param array<string, mixed> $references the Payload's References, by UID
+     * @param array<string, ReferencePlan> $references the plan for each of the Payload's References, by UID
      */
     public function __construct(
         private readonly FieldAdapterRegistry $adapters,
-        private readonly ReferenceResolver $resolver,
         private readonly array $references,
         private readonly UidClaims $uids,
         public readonly DriftReport $drift,
@@ -31,25 +32,45 @@ final class ImportContext
     }
 
     /**
-     * Returns the Target environment ID for a Reference, or null after reporting it as an Unresolved reference.
+     * Returns the element a relation to a Reference will point at (matched, replacement or Stub), or null after
+     * reporting it as a skipped Unresolved reference.
      */
-    public function resolveReference(string $uid, FieldInterface $field): ?int
+    public function resolveReference(string $uid, FieldInterface $field): ?ElementInterface
     {
         $reference = $this->references[$uid] ?? null;
-        $resolution = is_array($reference) ? $this->resolver->resolve($reference) : null;
+        $target = $reference?->target();
 
-        if ($resolution?->isResolved()) {
-            return $resolution->elementId;
+        if (!$reference || !$target) {
+            $this->plan->addUnresolvedReference($uid, $reference?->elementType, $reference?->title, $field->name);
+            return null;
         }
 
-        $this->plan->addUnresolvedReference(
-            $uid,
-            is_string($reference['elementType'] ?? null) ? $reference['elementType'] : null,
-            is_string($reference['title'] ?? null) ? $reference['title'] : null,
-            $field->name,
-        );
+        if ($reference->stub) {
+            $this->plan->stubs[$uid] = $reference;
+        }
 
-        return null;
+        return $target;
+    }
+
+    /**
+     * Returns the author a Reference will credit: the matched user or the replacement. An unresolved author falls
+     * back to the user running the Import, with a warning; with nobody logged in, it's dropped.
+     */
+    public function resolveAuthor(string $uid): ?User
+    {
+        $reference = $this->references[$uid] ?? null;
+        $target = $reference?->target();
+        if ($target instanceof User) {
+            return $target;
+        }
+
+        $name = $reference ? $reference->name() : 'An author';
+        $currentUser = Craft::$app->getUser()->getIdentity();
+        $this->plan->warn($currentUser
+            ? sprintf('The author %s doesn\'t exist in this environment. "%s" will be credited instead.', $name, $currentUser->getName())
+            : sprintf('The author %s doesn\'t exist in this environment, and nobody is logged in to credit instead. The entry won\'t credit them.', $name));
+
+        return $currentUser;
     }
 
     /**

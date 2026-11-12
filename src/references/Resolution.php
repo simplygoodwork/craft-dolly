@@ -8,6 +8,7 @@ namespace simplygoodwork\craftportage\references;
 final class Resolution
 {
     public const RULE_UID = 'uid';
+    public const RULE_NATURAL_KEY = 'naturalKey';
 
     private function __construct(
         public readonly ?int $elementId,
