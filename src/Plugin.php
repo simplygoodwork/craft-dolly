@@ -40,6 +40,8 @@ class Plugin extends BasePlugin
 
     public string $schemaVersion = '1.0.1';
 
+    public bool $hasCpSettings = true;
+
     public static function config(): array
     {
         return [
@@ -77,6 +79,13 @@ class Plugin extends BasePlugin
     protected function createSettingsModel(): Settings
     {
         return new Settings();
+    }
+
+    protected function settingsHtml(): ?string
+    {
+        return Craft::$app->getView()->renderTemplate('portage/_settings.twig', [
+            'settings' => $this->getSettings(),
+        ]);
     }
 
     public function init(): void

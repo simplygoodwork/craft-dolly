@@ -6,6 +6,7 @@ use craft\console\Controller;
 use craft\elements\Entry;
 use craft\helpers\Console;
 use simplygoodwork\craftportage\Plugin;
+use yii\base\InvalidConfigException;
 use yii\console\ExitCode;
 
 /**
@@ -40,7 +41,12 @@ class ExportController extends Controller
             $entries[] = $entry;
         }
 
-        $payload = Plugin::getInstance()->getPortage()->export($entries);
+        try {
+            $payload = Plugin::getInstance()->getPortage()->export($entries);
+        } catch (InvalidConfigException $e) {
+            $this->stderr($e->getMessage() . PHP_EOL, Console::FG_RED);
+            return ExitCode::CONFIG;
+        }
 
         if ($this->output === null) {
             $this->stdout($payload . PHP_EOL);

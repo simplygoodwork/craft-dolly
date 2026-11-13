@@ -585,6 +585,76 @@ final class Schema
     }
 
     /**
+     * Runs a callback in an environment configured with a Shared key, read from the env var `PORTAGE_TEST_SHARED_KEY`
+     * as a real environment would, or with no Shared key when `$key` is null. Restores both afterwards.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withSharedKey(?string $key, callable $callback): mixed
+    {
+        return self::withEnv(
+            ['PORTAGE_TEST_SHARED_KEY' => $key],
+            fn() => self::withPortageSettings(['sharedKey' => $key === null ? null : '$PORTAGE_TEST_SHARED_KEY'], $callback),
+        );
+    }
+
+    /**
+     * Runs a callback in an environment whose Shared key setting refers to the env var `PORTAGE_MISSING_KEY`, which
+     * isn't set, as in an environment someone forgot to configure.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withSharedKeyEnvVarUnset(callable $callback): mixed
+    {
+        return self::withEnv(
+            ['PORTAGE_MISSING_KEY' => null],
+            fn() => self::withPortageSettings(['sharedKey' => '$PORTAGE_MISSING_KEY'], $callback),
+        );
+    }
+
+    /**
+     * Runs a callback with env vars set, or unset when null, then restores them.
+     *
+     * @template T
+     * @param array<string, string|null> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withEnv(array $values, callable $callback): mixed
+    {
+        $original = [];
+        foreach ($values as $name => $value) {
+            $original[$name] = [$_SERVER[$name] ?? null, getenv($name)];
+            self::setEnv($name, $value);
+        }
+        try {
+            return $callback();
+        } finally {
+            foreach ($original as $name => [$server, $env]) {
+                self::setEnv($name, $env === false ? null : $env);
+                if ($server !== null) {
+                    $_SERVER[$name] = $server;
+                }
+            }
+        }
+    }
+
+    private static function setEnv(string $name, ?string $value): void
+    {
+        if ($value === null) {
+            unset($_SERVER[$name]);
+            putenv($name);
+        } else {
+            $_SERVER[$name] = $value;
+            putenv("$name=$value");
+        }
+    }
+
+    /**
      * @template T
      * @param array<string, mixed> $values
      * @param callable(): T $callback

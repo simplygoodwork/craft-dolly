@@ -72,6 +72,24 @@ When the Import log already holds the Payload, the Preview warns who imported it
 
 Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.
 
+## Shared key
+
+Set a Shared key to encrypt and authenticate every Payload. In **Settings → Plugins → Portage**, set **Shared key** to an env var, such as `$PORTAGE_SHARED_KEY`, and give that env var the same secret in every environment. Saving the setting only accepts an env var reference, so the secret itself never reaches project config. (A `sharedKey` set in `config/portage.php` isn't checked, so keep it an env var reference there too.)
+
+With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted with Craft's authenticated encryption, and an Import only accepts Payloads encrypted with the same key: an unencrypted Payload, one encrypted with a different key and one changed after Export are all refused. Without a Shared key, an encrypted Payload is refused. If the setting names an env var that isn't set, Export and Import both fail rather than fall back to unencrypted Payloads.
+
+## Limits
+
+An Import refuses a Payload larger than `maxPayloadSize` bytes (8 MB by default), whether as text or decompressed, and stops decompressing as soon as it passes the limit, so a small Payload that decompresses to gigabytes can't exhaust memory. Raise it in `config/portage.php`:
+
+```php
+return [
+    'maxPayloadSize' => 32 * 1024 * 1024,
+];
+```
+
+The envelope is validated before anything is planned: a Payload with an unknown format version, a malformed section, or a Root element or Reference whose element type isn't an entry, category, tag, user or asset is refused.
+
 ## Development
 
 ### Running tests

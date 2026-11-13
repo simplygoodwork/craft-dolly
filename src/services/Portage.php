@@ -14,6 +14,7 @@ use simplygoodwork\craftportage\payload\InvalidPayloadException;
 use simplygoodwork\craftportage\payload\PayloadCodec;
 use simplygoodwork\craftportage\Plugin;
 use yii\base\Component;
+use yii\base\InvalidConfigException;
 
 /**
  * The core service: Export, Preview and Import of Payload text. The CLI, the control panel and the tests all go through here.
@@ -26,6 +27,7 @@ class Portage extends Component
      * Exports Root elements as Payload text.
      *
      * @param Entry[] $roots
+     * @throws InvalidConfigException if the Shared key's env var isn't set in this environment
      */
     public function export(array $roots): string
     {
@@ -48,7 +50,7 @@ class Portage extends Component
     {
         try {
             $decoded = $this->codec()->decode($payload);
-        } catch (InvalidPayloadException $e) {
+        } catch (InvalidPayloadException|InvalidConfigException $e) {
             return ImportPlan::refused($e->getMessage());
         }
 
@@ -75,9 +77,14 @@ class Portage extends Component
         return new ImportResult($roots, payloadIdentity: $plan->payloadIdentity, logId: $logId);
     }
 
+    /**
+     * @throws InvalidConfigException if the Shared key's env var isn't set in this environment
+     */
     private function codec(): PayloadCodec
     {
-        return new PayloadCodec(Craft::$app->getVersion());
+        $settings = Plugin::getInstance()->getSettings();
+
+        return new PayloadCodec(Craft::$app->getVersion(), $settings->resolveSharedKey(), $settings->maxPayloadSize);
     }
 
     private function adapters(): FieldAdapterRegistry

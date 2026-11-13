@@ -95,6 +95,16 @@ class ConsoleCommandsTest extends ConsoleTest
             ->run();
     }
 
+    public function testExportFailsWhenTheSharedKeyEnvVarIsNotSet(): void
+    {
+        $source = $this->sourceEntry('Secret');
+
+        Schema::withSharedKeyEnvVarUnset(fn() => $this->consoleCommand('portage/export', [(string)$source->id], true)
+            ->stderr('The Shared key setting refers to the env var "PORTAGE_MISSING_KEY", which isn\'t set in this environment. Set it to the same Shared key as every other environment.' . PHP_EOL)
+            ->exitCode(ExitCode::CONFIG)
+            ->run());
+    }
+
     public function testExportFailsForAnUnknownEntryId(): void
     {
         $this->consoleCommand('portage/export', ['999999'], true)
