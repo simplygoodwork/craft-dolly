@@ -20,6 +20,8 @@ modules:
           handle: portage
         - class: '\craft\ckeditor\Plugin'
           handle: ckeditor
+        - class: '\benf\neo\Plugin'
+          handle: neo
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

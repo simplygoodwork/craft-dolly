@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\fields;
 
+use benf\neo\Field as NeoField;
 use craft\base\FieldInterface;
 use craft\ckeditor\Field as CkEditorField;
 use craft\elements\Asset;
@@ -35,6 +36,7 @@ final class FieldAdapterRegistry
             Link::class => new LinkAdapter(),
             Matrix::class => new MatrixAdapter(),
             CkEditorField::class => new CkEditorAdapter(),
+            NeoField::class => new NeoAdapter(),
             Entries::class => new RelationFieldAdapter(Entry::class),
             Categories::class => new RelationFieldAdapter(Category::class),
             Tags::class => new RelationFieldAdapter(Tag::class),

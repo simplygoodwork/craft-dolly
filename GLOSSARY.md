@@ -54,6 +54,7 @@ _Exception_: "the top level" of a Structure section is the position of an entry 
 Elements that belong to a Root element and travel with full content: its blocks, nested entries and CKEditor nested entries, recursively.
 _Avoid_: Children, descendants
 _Exception_: an entry's parent, children and siblings in a Structure section, which aren't ownership. A Structure entry's parent is a Reference (or a Root element of the same Payload), never Owned content.
+_Exception_: a Neo block's "child blocks": the blocks nested under it, at deeper levels of the same Neo field, following Neo's own term. They are Owned content like every other block of the field.
 
 **Reference**:
 A pointer in a Payload to an element that is related but not owned. It carries identifying information but no content.

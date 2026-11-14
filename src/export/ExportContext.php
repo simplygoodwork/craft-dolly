@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\export;
 
+use benf\neo\elements\Block;
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
@@ -27,6 +28,7 @@ final class ExportContext
         'sites' => [],
         'sections' => [],
         'entryTypes' => [],
+        'neoBlockTypes' => [],
         'fields' => [],
         'volumes' => [],
     ];
@@ -96,17 +98,19 @@ final class ExportContext
     }
 
     /**
-     * Exports a nested entry (Owned content) with its content for every site its owner's value is being exported in.
+     * Exports a nested entry or Neo block (Owned content) with its content for every site its owner's value is being
+     * exported in. A Neo block also carries its level in the field's hierarchy, 1 being the top.
      *
      * @return array<string, mixed>
      */
-    public function exportNested(Entry $entry): array
+    public function exportNested(Entry|Block $nested): array
     {
         return [
-            'uid' => $entry->uid,
-            'type' => $this->entryTypeUid($entry),
-            'enabled' => $entry->enabled,
-            ...$this->content($this->inEverySite($entry)),
+            'uid' => $nested->uid,
+            'type' => $nested instanceof Block ? $this->blockTypeUid($nested) : $this->entryTypeUid($nested),
+            'enabled' => $nested->enabled,
+            ...($nested instanceof Block ? ['level' => (int)$nested->level] : []),
+            ...$this->content($this->inEverySite($nested)),
         ];
     }
 
@@ -196,23 +200,31 @@ final class ExportContext
         return $uid;
     }
 
+    private function blockTypeUid(Block $block): string
+    {
+        $uid = $block->getType()->uid;
+        $this->schema['neoBlockTypes'][$uid] = true;
+
+        return $uid;
+    }
+
     /**
      * Returns the element in every site it exists in, limited to the sites being exported, in site order. The given
      * element stands for its own site, so unsaved changes on it are exported.
      *
-     * @return non-empty-list<Entry>
+     * @return non-empty-list<Entry|Block>
      */
-    private function inEverySite(Entry $entry): array
+    private function inEverySite(Entry|Block $element): array
     {
-        $bySite = $entry->id === null ? [] : Entry::find()
-            ->id($entry->id)
+        $bySite = $element->id === null ? [] : $element::find()
+            ->id($element->id)
             ->site('*')
             ->status(null)
             ->drafts(null)
             ->provisionalDrafts(null)
             ->indexBy('siteId')
             ->all();
-        $bySite[$entry->siteId] = $entry;
+        $bySite[$element->siteId] = $element;
 
         $instances = [];
         foreach (Craft::$app->getSites()->getAllSiteIds(true) as $siteId) {
@@ -221,21 +233,21 @@ final class ExportContext
             }
         }
 
-        return $instances ?: [$entry];
+        return $instances ?: [$element];
     }
 
     /**
      * Exports an element's content: the values of non-translatable fields once, then the title, slug and
      * translatable field values for each site.
      *
-     * @param non-empty-list<Entry> $instances the element in each site being exported
+     * @param non-empty-list<Entry|Block> $instances the element in each site being exported
      * @return array{fields: array<string, mixed>, sites: array<string, array<string, mixed>>}
      */
     private function content(array $instances): array
     {
         $outerSiteIds = $this->siteIds;
 
-        $this->siteIds = array_map(fn(Entry $instance) => (int)$instance->siteId, $instances);
+        $this->siteIds = array_map(fn(Entry|Block $instance) => (int)$instance->siteId, $instances);
         $fields = $this->fields($instances[0], translatable: false);
 
         $sites = [];

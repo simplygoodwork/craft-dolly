@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\import;
 
+use benf\neo\models\BlockType;
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
@@ -131,8 +132,9 @@ final class ImportContext
     }
 
     /**
-     * Returns the UID a nested entry will have in the Target environment: its source UID if that's free, otherwise a
-     * new one (ADR-0003). It's the same in every site, so each site's content goes to the same nested entry.
+     * Returns the UID a nested entry or Neo block will have in the Target environment: its source UID if that's free,
+     * otherwise a new one (ADR-0003). It's the same in every site, so each site's content goes to the same nested
+     * entry or block.
      */
     public function nestedUid(mixed $sourceUid): string
     {
@@ -148,7 +150,7 @@ final class ImportContext
      * site, plus the values of its non-translatable fields. An element with no content for that site gets its
      * first site's content.
      *
-     * @param array<mixed> $element a Root element or nested entry from the Payload
+     * @param array<mixed> $element a Root element, nested entry or Neo block from the Payload
      * @return array{title: string|null, slug: string|null, fields: array<mixed>}
      */
     public function content(array $element): array
@@ -176,15 +178,38 @@ final class ImportContext
      */
     public function allowedEntryType(FieldInterface $field, array $allowed, mixed $typeUid, string $subject, string $pronoun): ?EntryType
     {
+        return $this->allowedType('entryTypes', $field, $allowed, $typeUid, fn(string $ofType) => "$subject$ofType in \"$field->name\" will be skipped: $pronoun entry type isn't allowed in that field in this environment.");
+    }
+
+    /**
+     * Returns the block type of a Neo block if the field has it, or null after warning that the block and the blocks
+     * nested under it will be skipped.
+     *
+     * @param array<string, BlockType> $allowed the field's block types, by UID
+     */
+    public function allowedBlockType(FieldInterface $field, array $allowed, mixed $typeUid): ?BlockType
+    {
+        return $this->allowedType('neoBlockTypes', $field, $allowed, $typeUid, fn(string $ofType) => "A block$ofType in \"$field->name\" will be skipped, with the blocks nested under it: its block type doesn't exist in that field in this environment.");
+    }
+
+    /**
+     * Returns the field's type with the given UID, noting its Drift, or null after warning that it will be skipped.
+     *
+     * @template T of EntryType|BlockType
+     * @param array<string, T> $allowed the field's types, by UID
+     * @param callable(string): string $skipWarning builds the warning from " of type "Name"", or an empty string
+     * @return T|null
+     */
+    private function allowedType(string $kind, FieldInterface $field, array $allowed, mixed $typeUid, callable $skipWarning): EntryType|BlockType|null
+    {
         $typeUid = is_string($typeUid) ? $typeUid : null;
-        $drift = $this->noteDrift('entryTypes', $typeUid);
-        $entryType = $typeUid !== null ? ($allowed[$typeUid] ?? null) : null;
-        if (!$entryType) {
-            $ofType = $drift ? " of type \"$drift->name\"" : '';
-            $this->plan->warn("$subject$ofType in \"$field->name\" will be skipped: $pronoun entry type isn't allowed in that field in this environment.");
+        $drift = $this->noteDrift($kind, $typeUid);
+        $type = $typeUid !== null ? ($allowed[$typeUid] ?? null) : null;
+        if (!$type) {
+            $this->plan->warn($skipWarning($drift ? " of type \"$drift->name\"" : ''));
         }
 
-        return $entryType;
+        return $type;
     }
 
     /**
@@ -225,16 +250,16 @@ final class ImportContext
     }
 
     /**
-     * Converts portable field values into `setFieldValues()` input for an entry type, or a volume's assets, keyed by
-     * handle.
+     * Converts portable field values into `setFieldValues()` input for an entry type, a Neo block type, or a volume's
+     * assets, keyed by handle.
      *
-     * Values for missing or type-changed fields, and for fields that aren't in the entry type's field layout, are
+     * Values for missing or type-changed fields, and for fields that aren't in the field layout of the entry type or block type, are
      * skipped with a warning. Values for drifted fields are imported with a warning.
      *
      * @param array<mixed> $portable field UID => portable value
      * @return array<string, mixed>
      */
-    public function fieldValues(EntryType|Volume $owner, array $portable): array
+    public function fieldValues(EntryType|Volume|BlockType $owner, array $portable): array
     {
         $layoutFields = [];
         foreach ($owner->getFieldLayout()->getCustomFields() as $field) {
@@ -255,7 +280,11 @@ final class ImportContext
                         'The field "%s" isn\'t in the "%s" %s\'s field layout in this environment. Its values will be skipped.',
                         $drift->name,
                         $owner->name,
-                        $owner instanceof Volume ? 'volume' : 'entry type',
+                        match (true) {
+                            $owner instanceof Volume => 'volume',
+                            $owner instanceof BlockType => 'block type',
+                            default => 'entry type',
+                        },
                     ));
                 }
                 continue;

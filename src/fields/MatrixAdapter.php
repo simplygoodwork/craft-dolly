@@ -3,7 +3,6 @@
 namespace simplygoodwork\craftportage\fields;
 
 use craft\base\FieldInterface;
-use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\fields\Matrix;
 use craft\helpers\ArrayHelper;
@@ -17,18 +16,7 @@ final class MatrixAdapter implements FieldAdapter
 {
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
-        if ($value instanceof ElementQueryInterface) {
-            $value = (clone $value)->status(null)->all();
-        }
-
-        $nested = [];
-        foreach (is_iterable($value) ? $value : [] as $entry) {
-            if ($entry instanceof Entry) {
-                $nested[] = $context->exportNested($entry);
-            }
-        }
-
-        return $nested;
+        return NestedElements::export(Entry::class, $value, $context);
     }
 
     /**
@@ -57,13 +45,6 @@ final class MatrixAdapter implements FieldAdapter
             $entries[$context->nestedUid($nested['uid'] ?? null)] = $data;
         }
 
-        if (!$entries) {
-            return [];
-        }
-
-        return [
-            'entries' => array_combine(array_map(fn(string $uid) => "uid:$uid", array_keys($entries)), $entries),
-            'sortOrder' => array_keys($entries),
-        ];
+        return NestedElements::serialized('entries', $entries);
     }
 }

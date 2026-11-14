@@ -8,6 +8,7 @@ use craft\web\Controller;
 use craft\web\UploadedFile;
 use simplygoodwork\craftportage\import\ImportPlan;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\schema\SchemaManifest;
 use yii\web\Response;
 
 /**
@@ -42,6 +43,7 @@ class ImportController extends Controller
         return $this->renderTemplate('portage/_preview', [
             'plan' => $plan,
             'payload' => $payload,
+            'driftKinds' => $this->driftKinds(),
         ]);
     }
 
@@ -60,6 +62,7 @@ class ImportController extends Controller
             return $this->renderTemplate('portage/_preview', [
                 'plan' => ImportPlan::refused((string)$result->refusal),
                 'payload' => $payload,
+                'driftKinds' => $this->driftKinds(),
             ]);
         }
 
@@ -70,6 +73,16 @@ class ImportController extends Controller
         }
 
         return $this->redirect(UrlHelper::cpUrl("portage/log/$result->logId"));
+    }
+
+    /**
+     * Returns the Preview's label for each kind of Schema reference, from the manifest that defines the kinds.
+     *
+     * @return array<string, string>
+     */
+    private function driftKinds(): array
+    {
+        return array_map(fn(array $kind) => Craft::t('portage', ucfirst($kind[1])), SchemaManifest::KINDS);
     }
 
     /**

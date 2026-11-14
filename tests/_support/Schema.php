@@ -2,6 +2,12 @@
 
 namespace simplygoodwork\craftportage\tests\support;
 
+use benf\neo\elements\Block as NeoBlock;
+use benf\neo\Field as NeoField;
+use benf\neo\helpers\Memoize as NeoMemoize;
+use benf\neo\models\BlockType as NeoBlockType;
+use benf\neo\Plugin as Neo;
+use benf\neo\services\BlockTypes;
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
@@ -130,6 +136,107 @@ final class Schema
         return self::field(Matrix::class, $handle, array_merge([
             'entryTypes' => $entryTypes,
         ], $config));
+    }
+
+    /**
+     * Saves a Neo field with the given block types, built with `neoBlockType()`. Block types allow every block type as
+     * children.
+     *
+     * @param NeoBlockType[] $blockTypes
+     * @param array<string, mixed> $config
+     */
+    public static function neo(string $handle, array $blockTypes, array $config = []): NeoField
+    {
+        foreach (array_values($blockTypes) as $i => $blockType) {
+            $blockType->sortOrder = $i + 1;
+        }
+
+        $field = self::field(NeoField::class, $handle, array_merge([
+            'blockTypes' => $blockTypes,
+        ], $config));
+        // The field keeps the block types it was saved with, which have no IDs, so load it again.
+        self::refresh();
+
+        $saved = Craft::$app->getFields()->getFieldByUid($field->uid);
+        assert($saved instanceof NeoField);
+
+        return $saved;
+    }
+
+    /**
+     * Builds a Neo block type with the given custom fields, to pass to `neo()`.
+     *
+     * @param array<FieldInterface|CustomField> $fields
+     * @param array<string, mixed> $config
+     */
+    public static function neoBlockType(string $handle, array $fields = [], array $config = []): NeoBlockType
+    {
+        $blockType = new NeoBlockType(array_merge([
+            'name' => self::nameFor($handle),
+            'handle' => $handle,
+            'childBlocks' => '*',
+        ], $config));
+
+        $layout = new FieldLayout(['type' => NeoBlock::class]);
+        $layout->setTabs([
+            new FieldLayoutTab([
+                'name' => 'Content',
+                'layout' => $layout,
+                'elements' => array_map(fn(FieldInterface|CustomField $field) => $field instanceof CustomField ? $field : new CustomField($field), $fields),
+            ]),
+        ]);
+        // @phpstan-ignore method.notFound (a behavior)
+        $blockType->setFieldLayout($layout);
+
+        return $blockType;
+    }
+
+    /**
+     * Sets properties on an existing Neo block type and saves it, e.g. `['name' => 'Renamed']`.
+     *
+     * @param array<string, mixed> $properties
+     */
+    public static function updateNeoBlockType(NeoField $field, string $handle, array $properties): void
+    {
+        $blockType = self::neoBlockTypeByHandle($field, $handle);
+        foreach ($properties as $name => $value) {
+            $blockType->$name = $value;
+        }
+        if (!self::neoBlockTypes()->save($blockType)) {
+            self::fail("Neo block type \"$handle\"", $blockType->getErrors());
+        }
+        self::refresh();
+    }
+
+    /**
+     * Deletes a Neo block type, with the blocks of that type.
+     */
+    public static function deleteNeoBlockType(NeoField $field, string $handle): void
+    {
+        $blockType = self::neoBlockTypeByHandle($field, $handle);
+        if (!self::neoBlockTypes()->delete($blockType)) {
+            throw new RuntimeException("Couldn't delete Neo block type \"$handle\".");
+        }
+        self::refresh();
+    }
+
+    private static function neoBlockTypes(): BlockTypes
+    {
+        $service = Neo::$plugin?->get('blockTypes');
+        assert($service instanceof BlockTypes);
+
+        return $service;
+    }
+
+    private static function neoBlockTypeByHandle(NeoField $field, string $handle): NeoBlockType
+    {
+        foreach (self::neoBlockTypes()->getByFieldId($field->id) as $blockType) {
+            if ($blockType->handle === $handle) {
+                return $blockType;
+            }
+        }
+
+        throw new RuntimeException("No Neo block type \"$handle\" in field \"$field->handle\"");
     }
 
     /**
@@ -513,6 +620,9 @@ final class Schema
         foreach (['fields', 'entries'] as $id) {
             Craft::$app->set($id, $definitions[$id]);
         }
+        // Neo memoizes its block types statically.
+        NeoMemoize::$blockTypesById = NeoMemoize::$blockTypesByHandle = NeoMemoize::$blockTypesByFieldId = [];
+        NeoMemoize::$blockTypeGroupsById = NeoMemoize::$blockTypeGroupsByFieldId = NeoMemoize::$blockTypeRecordsById = [];
         // Element queries only apply their site param once Craft knows the install is multi-site.
         Craft::$app->getIsMultiSite(true);
         Craft::$app->getIsMultiSite(true, true);
@@ -765,11 +875,20 @@ final class Schema
     }
 
     /**
-     * Hard-deletes an element, as if it had never existed in the Target environment.
+     * Hard-deletes an element, as if it had never existed in the Target environment. Neo leaves the blocks of a deleted owner to a queue job, which tests don't run, so its
+     * blocks are deleted here and their UIDs are free again.
      */
     public static function deleteElement(ElementInterface $element): void
     {
-        Craft::$app->getElements()->deleteElement($element, true);
+        $elements = Craft::$app->getElements();
+        if ($element->id !== null) {
+            $blocks = NeoBlock::find()->primaryOwnerId($element->id)->status(null)->site('*')->drafts(null)->inReverse()->all();
+            foreach ($blocks as $block) {
+                $block->deletedWithOwner = true;
+                $elements->deleteElement($block, true);
+            }
+        }
+        $elements->deleteElement($element, true);
     }
 
     /**
