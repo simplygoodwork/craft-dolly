@@ -5,6 +5,7 @@ namespace simplygoodwork\craftportage\tests\support;
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\ckeditor\Field as CkEditorField;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -84,6 +85,40 @@ final class Schema
         return self::field(Matrix::class, $handle, array_merge([
             'entryTypes' => $entryTypes,
         ], $config));
+    }
+
+    /**
+     * Saves a CKEditor field whose nested entries are the given entry types.
+     *
+     * @param EntryType[] $entryTypes
+     * @param array<string, mixed> $config
+     */
+    public static function ckeditor(string $handle, array $entryTypes = [], array $config = []): CkEditorField
+    {
+        return self::field(CkEditorField::class, $handle, array_merge([
+            'entryTypes' => $entryTypes,
+            'toolbar' => ['heading', '|', 'bold', 'italic', 'link', 'createEntry'],
+        ], $config));
+    }
+
+    /**
+     * Saves an entry nested in a CKEditor field of the owner, as the editor's "create entry" button does, and returns
+     * the marker that embeds it in the field's HTML. Set the field's value to HTML containing the marker.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function nestedCkeditorEntry(Entry $owner, CkEditorField $field, EntryType $entryType, array $values = []): string
+    {
+        $entry = new Entry([
+            'typeId' => $entryType->id,
+            'fieldId' => $field->id,
+            'siteId' => $owner->siteId,
+        ]);
+        $entry->setOwner($owner);
+        $entry->setPrimaryOwner($owner);
+        self::saveElement($entry, $values);
+
+        return "<craft-entry data-entry-id=\"$entry->id\">&nbsp;</craft-entry>";
     }
 
     /**
@@ -455,13 +490,13 @@ final class Schema
      * Adds a field to an existing entry type's field layout, as if the Target environment's project config had a
      * field the Source environment's didn't.
      */
-    public static function addFieldToEntryType(EntryType $entryType, FieldInterface $field): EntryType
+    public static function addFieldToEntryType(EntryType $entryType, FieldInterface|CustomField $field): EntryType
     {
         $entries = Craft::$app->getEntries();
         $entryType = $entries->getEntryTypeById($entryType->id) ?? throw new RuntimeException("No entry type with ID $entryType->id");
         $layout = $entryType->getFieldLayout();
         $tab = $layout->getTabs()[0];
-        $tab->setElements([...$tab->getElements(), new CustomField($field)]);
+        $tab->setElements([...$tab->getElements(), $field instanceof CustomField ? $field : new CustomField($field)]);
         $layout->setTabs([$tab]);
         $entryType->setFieldLayout($layout);
 

@@ -67,6 +67,12 @@ final class RootPlan
     public array $pendingRefTags = [];
 
     /**
+     * @var array<string, PendingNestedEntry> CKEditor nested entries the Importer saves once the element holding the
+     * field is saved, by the UID the entry will have
+     */
+    public array $pendingNestedEntries = [];
+
+    /**
      * @var array<string, true> the assets `addFetch()` is adding, by UID
      */
     private array $addingFetches = [];

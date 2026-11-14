@@ -18,6 +18,8 @@ modules:
       plugins:
         - class: '\simplygoodwork\craftportage\Plugin'
           handle: portage
+        - class: '\craft\ckeditor\Plugin'
+          handle: ckeditor
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

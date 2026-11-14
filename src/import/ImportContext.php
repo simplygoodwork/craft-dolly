@@ -168,6 +168,50 @@ final class ImportContext
     }
 
     /**
+     * Returns the entry type of a nested entry if the field allows it, or null after warning that it will be skipped.
+     *
+     * @param array<string, EntryType> $allowed the field's entry types, by UID
+     * @param string $subject what is skipped, in the warning: "Blocks" or "A nested entry"
+     * @param string $pronoun "their" or "its", to match the subject
+     */
+    public function allowedEntryType(FieldInterface $field, array $allowed, mixed $typeUid, string $subject, string $pronoun): ?EntryType
+    {
+        $typeUid = is_string($typeUid) ? $typeUid : null;
+        $drift = $this->noteDrift('entryTypes', $typeUid);
+        $entryType = $typeUid !== null ? ($allowed[$typeUid] ?? null) : null;
+        if (!$entryType) {
+            $ofType = $drift ? " of type \"$drift->name\"" : '';
+            $this->plan->warn("$subject$ofType in \"$field->name\" will be skipped: $pronoun entry type isn't allowed in that field in this environment.");
+        }
+
+        return $entryType;
+    }
+
+    /**
+     * Returns what a nested entry of the given type is imported with, for the site being planned: whether it's
+     * enabled, its title and slug (when its entry type has them) and its `setFieldValues()` input.
+     *
+     * @param array<mixed> $nested a nested entry from the Payload
+     * @return array{enabled: bool, title?: string, slug?: string, fields: array<string, mixed>}
+     */
+    public function nestedEntryData(EntryType $entryType, array $nested): array
+    {
+        $content = $this->content($nested);
+        $data = [
+            'enabled' => (bool)($nested['enabled'] ?? true),
+            'fields' => $this->fieldValues($entryType, $content['fields']),
+        ];
+        if ($entryType->hasTitleField && $content['title'] !== null) {
+            $data['title'] = $content['title'];
+        }
+        if ($entryType->showSlugField && $content['slug'] !== null) {
+            $data['slug'] = $content['slug'];
+        }
+
+        return $data;
+    }
+
+    /**
      * Warns about a Schema reference the Root element depends on, unless it's matched.
      */
     public function noteDrift(string $kind, mixed $uid): ?Drift

@@ -47,27 +47,12 @@ final class MatrixAdapter implements FieldAdapter
                 continue;
             }
 
-            $typeUid = is_string($nested['type'] ?? null) ? $nested['type'] : null;
-            $drift = $context->noteDrift('entryTypes', $typeUid);
-            $entryType = $typeUid !== null ? ($entryTypes[$typeUid] ?? null) : null;
+            $entryType = $context->allowedEntryType($field, $entryTypes, $nested['type'] ?? null, 'Blocks', 'their');
             if (!$entryType) {
-                $ofType = $drift ? " of type \"$drift->name\"" : '';
-                $context->plan->warn("Blocks$ofType in \"$field->name\" will be skipped: their entry type isn't allowed in that field in this environment.");
                 continue;
             }
 
-            $content = $context->content($nested);
-            $data = [
-                'type' => $entryType->handle,
-                'enabled' => (bool)($nested['enabled'] ?? true),
-                'fields' => $context->fieldValues($entryType, $content['fields']),
-            ];
-            if ($entryType->hasTitleField && $content['title'] !== null) {
-                $data['title'] = $content['title'];
-            }
-            if ($entryType->showSlugField && $content['slug'] !== null) {
-                $data['slug'] = $content['slug'];
-            }
+            $data = ['type' => $entryType->handle, ...$context->nestedEntryData($entryType, $nested)];
 
             $entries[$context->nestedUid($nested['uid'] ?? null)] = $data;
         }

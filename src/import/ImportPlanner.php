@@ -667,6 +667,17 @@ final class ImportPlanner
 
         $plan->entry = $entry;
         $plan->incompleteFields = $this->incompleteFields($entry);
+        // CKEditor nested entries aren't part of the entry until the Importer saves them.
+        foreach ($plan->pendingNestedEntries as $pending) {
+            $nested = $pending->contentEntry();
+            if ($nested->enabled) {
+                $fieldName = (string)Craft::$app->getFields()->getFieldById((int)$nested->fieldId)?->name;
+                $plan->incompleteFields = array_values(array_unique([
+                    ...$plan->incompleteFields,
+                    ...$this->incompleteFields($nested, "$fieldName › "),
+                ]));
+            }
+        }
     }
 
     /**

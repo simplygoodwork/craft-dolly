@@ -9,8 +9,10 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\events\ElementEvent;
 use craft\helpers\FileHelper;
+use craft\htmlfield\HtmlFieldData;
 use craft\services\Elements;
 use craft\services\Structures;
+use RuntimeException;
 use Throwable;
 use yii\db\Transaction;
 
@@ -33,15 +35,19 @@ final class Importer
     public function import(ImportPlan $plan): array
     {
         $results = [];
-        $pending = array_merge(...array_map(fn(RootPlan $root) => $root->pendingRefTags, $plan->roots));
-        $completeRefTags = fn(ElementEvent $event) => $this->completeRefTags($event->element, $pending);
+        $pendingRefTags = array_merge(...array_map(fn(RootPlan $root) => $root->pendingRefTags, $plan->roots));
+        $completeRefTags = fn(ElementEvent $event) => $this->completeRefTags($event->element, $pendingRefTags);
+        $pendingNestedEntries = array_merge(...array_map(fn(RootPlan $root) => $root->pendingNestedEntries, $plan->roots));
+        $completeNested = fn(ElementEvent $event) => $this->completeNestedEntries($event->element, $pendingNestedEntries);
 
         $elements = Craft::$app->getElements();
         $elements->on(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
+        $elements->on(Elements::EVENT_AFTER_SAVE_ELEMENT, $completeNested);
         try {
             return array_map(fn(RootPlan $root) => $this->importOnce($root, $results), $plan->roots);
         } finally {
             $elements->off(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
+            $elements->off(Elements::EVENT_AFTER_SAVE_ELEMENT, $completeNested);
         }
     }
 
@@ -59,12 +65,48 @@ final class Importer
 
         foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
             $value = $element->getFieldValue($field->handle);
+            if ($value instanceof HtmlFieldData) {
+                $value = $value->getRawContent();
+            }
             if (is_string($value)) {
                 $completed = PendingRefTag::renderIn($value, $pending);
                 if ($completed !== $value) {
                     $element->setFieldValue($field->handle, $completed);
                 }
             }
+        }
+    }
+
+    /**
+     * Saves the CKEditor nested entries planned for an element's fields, as Owned content of the element, and embeds
+     * them in the field's HTML in place of their tokens. The element is saved again with the finished HTML. A copy
+     * Craft propagates to another site is saved by the Importer in its own turn.
+     *
+     * @param array<string, PendingNestedEntry> $pending by the entry's UID
+     */
+    private function completeNestedEntries(ElementInterface $element, array $pending): void
+    {
+        // Craft's own copies of the element (revisions, duplicates) are saved too, but aren't the element being imported.
+        if (!$pending || $element->propagating || $element->duplicateOf || $element->getIsRevision()) {
+            return;
+        }
+
+        $completed = [];
+        foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
+            $value = $element->getFieldValue($field->handle);
+            if (!$value instanceof HtmlFieldData || !PendingNestedEntry::hasTokens($value->getRawContent())) {
+                continue;
+            }
+            $element->setFieldValue($field->handle, PendingNestedEntry::renderIn($value->getRawContent(), $pending, $element));
+            $completed[] = $field->name;
+        }
+
+        if ($completed && !Craft::$app->getElements()->saveElement($element, false)) {
+            throw new RuntimeException(sprintf(
+                'Craft couldn\'t place the nested entries in the field "%s": %s',
+                implode('", "', $completed),
+                implode(' ', $element->getFirstErrors()),
+            ));
         }
     }
 
@@ -126,13 +168,13 @@ final class Importer
                 $error = $this->saveSite($entry, $site);
             }
             if ($error !== null) {
-                $this->rollBack($transaction, $created);
+                $this->rollBack($transaction, $created, $plan);
                 $result->fail($error);
                 return $result;
             }
             $transaction->commit();
         } catch (Throwable $e) {
-            $this->rollBack($transaction, $created);
+            $this->rollBack($transaction, $created, $plan);
             Craft::$app->getErrorHandler()->logException($e);
             $result->fail('Couldn\'t import the entry: ' . $e->getMessage());
             return $result;
@@ -302,13 +344,13 @@ final class Importer
                 $error = $this->saveDraftSite($draft, $site);
             }
             if ($error !== null || !$draft) {
-                $this->rollBack($transaction, $created);
+                $this->rollBack($transaction, $created, $root);
                 $result->fail($error ?? "Craft couldn't create a draft on the entry $name.");
                 return $result;
             }
             $transaction->commit();
         } catch (Throwable $e) {
-            $this->rollBack($transaction, $created);
+            $this->rollBack($transaction, $created, $root);
             Craft::$app->getErrorHandler()->logException($e);
             $result->fail("Couldn't overwrite the entry $name: " . $e->getMessage());
             return $result;
@@ -382,12 +424,16 @@ final class Importer
     /**
      * Rolls back a Root element's transaction, and forgets the IDs of the Stubs and assets it created so that a later
      * Root element relating to the same Reference creates them again. The files of the assets it fetched are deleted.
+     * The same goes for the CKEditor nested entries it saved.
      *
      * @param ElementInterface[] $created
      */
-    private function rollBack(Transaction $transaction, array $created): void
+    private function rollBack(Transaction $transaction, array $created, RootPlan $plan): void
     {
         $transaction->rollBack();
+        foreach ($plan->pendingNestedEntries as $pending) {
+            $pending->entry->id = null;
+        }
         foreach ($created as $element) {
             if ($element instanceof Asset) {
                 $this->deleteFile($element);

@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\fields;
 
 use craft\base\FieldInterface;
+use craft\ckeditor\Field as CkEditorField;
 use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\Entry;
@@ -31,6 +32,7 @@ final class FieldAdapterRegistry
         $this->adapters = [
             PlainText::class => new PlainTextAdapter(),
             Matrix::class => new MatrixAdapter(),
+            CkEditorField::class => new CkEditorAdapter(),
             Entries::class => new RelationFieldAdapter(Entry::class),
             Categories::class => new RelationFieldAdapter(Category::class),
             Tags::class => new RelationFieldAdapter(Tag::class),

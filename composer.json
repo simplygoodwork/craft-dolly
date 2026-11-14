@@ -18,6 +18,7 @@
     "codeception/codeception": "^5.1",
     "codeception/module-asserts": "^3.0",
     "codeception/module-yii2": "^1.1",
+    "craftcms/ckeditor": "^5.9",
     "craftcms/ecs": "dev-main",
     "craftcms/phpstan": "dev-main",
     "phpstan/phpstan": "^2.1"
