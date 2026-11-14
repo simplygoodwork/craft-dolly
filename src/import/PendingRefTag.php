@@ -31,6 +31,15 @@ final class PendingRefTag
         $this->token = self::TOKEN_PREFIX . StringHelper::randomString(16) . '}';
     }
 
+    /**
+     * A token for a bare element ID (a Hyper link's `linkValue`) rather than a tag, which renders as the ID, or as
+     * nothing if the element isn't saved.
+     */
+    public static function bareId(ElementInterface $target): self
+    {
+        return new self($target, '', '', '');
+    }
+
     public function render(): string
     {
         return $this->target->id !== null ? $this->before . $this->target->id . $this->after : $this->unsaved;

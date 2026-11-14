@@ -20,6 +20,7 @@ use craft\elements\Entry;
 use craft\elements\GlobalSet;
 use craft\elements\Tag;
 use craft\elements\User;
+use craft\events\RegisterComponentTypesEvent;
 use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Link;
@@ -43,6 +44,11 @@ use craft\models\Volume;
 use ReflectionProperty;
 use RuntimeException;
 use simplygoodwork\craftportage\Plugin;
+use verbb\hyper\base\Link as HyperLink;
+use verbb\hyper\fieldlayoutelements\UrlSuffixField;
+use verbb\hyper\fields\HyperField;
+use verbb\hyper\services\Links as HyperLinks;
+use yii\base\Event;
 
 /**
  * Builds schema (fields, entry types, sections) and entries inside tests, and changes the install between Export
@@ -123,6 +129,133 @@ final class Schema
         } finally {
             $property->setValue(null, $original);
         }
+    }
+
+    /**
+     * Saves a Hyper field with the given link types, built with `hyperLinkType()`.
+     *
+     * @param list<array<string, mixed>> $linkTypes
+     * @param array<string, mixed> $config
+     */
+    public static function hyper(string $handle, array $linkTypes, array $config = []): HyperField
+    {
+        $field = self::withConsoleFlagCleared(fn() => self::field(HyperField::class, $handle, array_merge([
+            'linkTypes' => $linkTypes,
+            'multipleLinks' => true,
+            'defaultLinkType' => $linkTypes[0]['handle'] ?? null,
+        ], $config)));
+        self::refresh();
+
+        $saved = Craft::$app->getFields()->getFieldByUid($field->uid);
+        assert($saved instanceof HyperField);
+
+        return $saved;
+    }
+
+    /**
+     * Builds the config of a Hyper link type with the given custom fields, to pass to `hyper()`.
+     *
+     * @param class-string<HyperLink> $class
+     * @param array<FieldInterface|CustomField> $fields
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    public static function hyperLinkType(string $class, string $handle, array $fields = [], array $config = []): array
+    {
+        $layout = $class::getDefaultFieldLayout();
+        // The URL suffix isn't in Hyper's default layout, which drops its value.
+        $advanced = $layout->getTabs()[1];
+        $advanced->setElements([...$advanced->getElements(), new UrlSuffixField()]);
+        $tab = $layout->getTabs()[0];
+        $tab->setElements([
+            ...$tab->getElements(),
+            ...array_map(fn(FieldInterface|CustomField $field) => $field instanceof CustomField ? $field : new CustomField($field), $fields),
+        ]);
+
+        return array_merge([
+            'type' => $class,
+            'handle' => $handle,
+            'label' => self::nameFor($handle),
+            'enabled' => true,
+            'layoutUid' => StringHelper::UUID(),
+            'layoutConfig' => $layout->getConfig(),
+        ], $config);
+    }
+
+    /**
+     * Runs a callback with the request no longer flagged as a console request. `HyperField::getSettings()` calls
+     * `getParams()` when it is, which only Craft's console `Request` has, but the tests run in the console with a web
+     * `Request`.
+     */
+    private static function withConsoleFlagCleared(callable $callback): mixed
+    {
+        $request = Craft::$app->getRequest();
+        $was = $request->getIsConsoleRequest();
+        $request->setIsConsoleRequest(false);
+        try {
+            return $callback();
+        } finally {
+            $request->setIsConsoleRequest($was);
+        }
+    }
+
+    /**
+     * Runs a callback with an extra Hyper link type registered, as a plugin would.
+     *
+     * @param class-string<HyperLink> $class
+     */
+    public static function withHyperLinkType(string $class, callable $callback): mixed
+    {
+        $register = function(RegisterComponentTypesEvent $event) use ($class): void {
+            $event->types[] = $class;
+        };
+        Event::on(HyperLinks::class, HyperLinks::EVENT_REGISTER_LINK_TYPES, $register);
+        try {
+            return $callback();
+        } finally {
+            Event::off(HyperLinks::class, HyperLinks::EVENT_REGISTER_LINK_TYPES, $register);
+        }
+    }
+
+    /**
+     * Changes the link types of an existing Hyper field and saves it. The callback gets the link types' configs, as
+     * `hyperLinkType()` builds them, and returns the new ones.
+     *
+     * @param callable(list<array<string, mixed>>): list<array<string, mixed>> $change
+     */
+    public static function changeHyperLinkTypes(HyperField $field, callable $change): void
+    {
+        $fields = Craft::$app->getFields();
+        $saved = $fields->getFieldByUid($field->uid);
+        assert($saved instanceof HyperField);
+
+        // A field keeps the link types it has already read, so the change is saved on a new instance.
+        $saveChange = function() use ($fields, $saved, $change): ?array {
+            $settings = $saved->getSettings();
+            $updated = new HyperField([
+                ...$settings,
+                'id' => $saved->id,
+                'uid' => $saved->uid,
+                'name' => $saved->name,
+                'handle' => $saved->handle,
+                'linkTypes' => array_values($change($settings['linkTypes'])),
+            ]);
+
+            return $fields->saveField($updated) ? null : $updated->getErrors();
+        };
+        $errors = self::withConsoleFlagCleared($saveChange);
+        if ($errors !== null) {
+            self::fail("field \"$saved->handle\"", $errors);
+        }
+        self::refresh();
+    }
+
+    /**
+     * Removes a link type from an existing Hyper field.
+     */
+    public static function removeHyperLinkType(HyperField $field, string $handle): void
+    {
+        self::changeHyperLinkTypes($field, fn(array $linkTypes) => array_filter($linkTypes, fn(array $config) => $config['handle'] !== $handle));
     }
 
     /**

@@ -12,7 +12,7 @@ use simplygoodwork\craftportage\import\ImportContext;
 /**
  * Matrix: its nested entries are Owned content and travel with full content, recursively.
  */
-final class MatrixAdapter implements FieldAdapter
+final class MatrixAdapter implements RequiresOwner
 {
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {

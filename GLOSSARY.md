@@ -61,7 +61,7 @@ A pointer in a Payload to an element that is related but not owned. It carries i
 _Avoid_: Link, relation stub, dependency
 
 **Schema reference**:
-A pointer in a Payload to a project-config-defined thing (site, section, entry type, field, volume, group, block type), expressed by its UID.
+A pointer in a Payload to a project-config-defined thing (site, section, entry type, field, volume, group, block type, Hyper link type), expressed by its UID.
 _Avoid_: Config ID, handle reference
 
 ### Resolving References

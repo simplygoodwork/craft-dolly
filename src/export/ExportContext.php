@@ -11,6 +11,7 @@ use craft\elements\User;
 use craft\models\Section;
 use InvalidArgumentException;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftportage\fields\RequiresOwner;
 use simplygoodwork\craftportage\references\ElementTypes;
 use simplygoodwork\craftportage\references\NaturalKey;
 
@@ -29,6 +30,7 @@ final class ExportContext
         'sections' => [],
         'entryTypes' => [],
         'neoBlockTypes' => [],
+        'hyperLinkTypes' => [],
         'fields' => [],
         'volumes' => [],
     ];
@@ -145,6 +147,28 @@ final class ExportContext
         }
 
         return $element->uid;
+    }
+
+    /**
+     * Records a Hyper link type, identified by its field layout's UID, as a Schema reference and returns the UID.
+     */
+    public function recordLinkType(string $uid): string
+    {
+        $this->schema['hyperLinkTypes'][$uid] = true;
+
+        return $uid;
+    }
+
+    /**
+     * Exports the custom field values of an element that isn't exported as content of its own (a Hyper link), keyed by
+     * field UID. A field that holds Owned content has no element to own it, so it's exported as null for the Import to
+     * warn about.
+     *
+     * @return array<string, mixed>
+     */
+    public function exportFields(ElementInterface $element): array
+    {
+        return $this->fields($element, translatable: null, ownerless: true);
     }
 
     /**
@@ -269,9 +293,10 @@ final class ExportContext
 
     /**
      * @param bool|null $translatable whether to export the translatable fields or the others, or null for all of them
+     * @param bool $ownerless whether the element is no one's owner, so fields that hold Owned content can't be exported
      * @return array<string, mixed> field UID => portable value
      */
-    private function fields(ElementInterface $element, ?bool $translatable): array
+    private function fields(ElementInterface $element, ?bool $translatable, bool $ownerless = false): array
     {
         $fields = [];
 
@@ -281,7 +306,7 @@ final class ExportContext
                 continue;
             }
             $this->schema['fields'][$field->uid] = true;
-            $fields[$field->uid] = $adapter->export($field, $element->getFieldValue($field->handle), $this);
+            $fields[$field->uid] = $ownerless && $adapter instanceof RequiresOwner ? null : $adapter->export($field, $element->getFieldValue($field->handle), $this);
         }
 
         return $fields;

@@ -4,7 +4,6 @@ namespace simplygoodwork\craftportage\fields;
 
 use Craft;
 use craft\base\FieldInterface;
-use craft\helpers\ArrayHelper;
 use craft\helpers\StringHelper;
 use craft\services\Elements;
 use simplygoodwork\craftportage\export\ExportContext;
@@ -156,15 +155,8 @@ final class RefTags
         $name = "$reference->elementType {$reference->name()}";
 
         if (StringHelper::isUUID($tag['site'])) {
-            $site = ArrayHelper::firstWhere(Craft::$app->getSites()->getAllSites(true), 'uid', $tag['site']);
+            $site = $context->site($tag['site'], sprintf('in a reference tag to the %s in the field "%s"', $name, $field->name), $outcome);
             if (!$site) {
-                $context->plan->warn(sprintf(
-                    'The site "%s" in a reference tag to the %s in the field "%s" doesn\'t exist in this environment. %s',
-                    $context->drift->get('sites', $tag['site'])->name ?? $tag['site'],
-                    $name,
-                    $field->name,
-                    $outcome,
-                ));
                 return false;
             }
             $tag['site'] = (string)$site->id;

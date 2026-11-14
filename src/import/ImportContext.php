@@ -8,13 +8,17 @@ use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\elements\User;
 use craft\fields\Assets as AssetsField;
+use craft\helpers\ArrayHelper;
 use craft\helpers\Assets as AssetsHelper;
 use craft\helpers\StringHelper;
 use craft\models\EntryType;
+use craft\models\Site;
 use craft\models\Volume;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftportage\fields\RequiresOwner;
 use simplygoodwork\craftportage\schema\Drift;
 use simplygoodwork\craftportage\schema\DriftReport;
+use verbb\hyper\base\Link as HyperLink;
 
 /**
  * State for planning one Root element. Field adapters receive it to rebuild Owned content and resolve References.
@@ -72,6 +76,44 @@ final class ImportContext
         }
 
         return $target;
+    }
+
+    /**
+     * Returns the ID of an element a Reference resolved to, for a field value that stores a bare ID (a Hyper link), or
+     * a token the Importer replaces with the ID of the Stub or fetched asset it saves. A token renders as nothing if
+     * the element isn't saved (a failed fetch).
+     */
+    public function elementIdFor(ElementInterface $target): int|string
+    {
+        if ($target->id !== null) {
+            return $target->id;
+        }
+
+        $pending = PendingRefTag::bareId($target);
+        $this->plan->pendingRefTags[$pending->token] = $pending;
+
+        return $pending->token;
+    }
+
+    /**
+     * Returns the site with the given UID in the Target environment, or null after warning that it doesn't exist.
+     *
+     * @param string $subject where the site is named, in the warning: "of a link in the field "Links""
+     * @param string $outcome what happens because it's missing, in the warning
+     */
+    public function site(string $uid, string $subject, string $outcome): ?Site
+    {
+        $site = ArrayHelper::firstWhere(Craft::$app->getSites()->getAllSites(true), 'uid', $uid);
+        if (!$site) {
+            $this->plan->warn(sprintf(
+                'The site "%s" %s doesn\'t exist in this environment. %s',
+                $this->drift->get('sites', $uid)->name ?? $uid,
+                $subject,
+                $outcome,
+            ));
+        }
+
+        return $site;
     }
 
     /**
@@ -193,14 +235,27 @@ final class ImportContext
     }
 
     /**
+     * Returns the link type of a Hyper link if the field has it, or null after warning that the link will be skipped.
+     *
+     * @param array<string, HyperLink> $allowed the field's link types, by field layout UID
+     */
+    public function allowedLinkType(FieldInterface $field, array $allowed, mixed $typeUid): ?HyperLink
+    {
+        $type = $this->allowedType('hyperLinkTypes', $field, $allowed, $typeUid, fn(string $ofType) => "A link$ofType in \"$field->name\" will be skipped: its link type doesn't exist in that field in this environment.");
+
+        // A link type whose type changed is skipped; the Drift has warned about it.
+        return $type && !$this->drift->get('hyperLinkTypes', $typeUid)?->isSkipped() ? $type : null;
+    }
+
+    /**
      * Returns the field's type with the given UID, noting its Drift, or null after warning that it will be skipped.
      *
-     * @template T of EntryType|BlockType
+     * @template T of EntryType|BlockType|HyperLink
      * @param array<string, T> $allowed the field's types, by UID
      * @param callable(string): string $skipWarning builds the warning from " of type "Name"", or an empty string
      * @return T|null
      */
-    private function allowedType(string $kind, FieldInterface $field, array $allowed, mixed $typeUid, callable $skipWarning): EntryType|BlockType|null
+    private function allowedType(string $kind, FieldInterface $field, array $allowed, mixed $typeUid, callable $skipWarning): EntryType|BlockType|HyperLink|null
     {
         $typeUid = is_string($typeUid) ? $typeUid : null;
         $drift = $this->noteDrift($kind, $typeUid);
@@ -250,16 +305,18 @@ final class ImportContext
     }
 
     /**
-     * Converts portable field values into `setFieldValues()` input for an entry type, a Neo block type, or a volume's
-     * assets, keyed by handle.
+     * Converts portable field values into `setFieldValues()` input for an entry type, a Neo block type, a Hyper link type,
+     * or a volume's assets, keyed by handle.
      *
      * Values for missing or type-changed fields, and for fields that aren't in the field layout of the entry type or block type, are
      * skipped with a warning. Values for drifted fields are imported with a warning.
      *
      * @param array<mixed> $portable field UID => portable value
+     * @param bool $ownerless whether nothing owns the values (a Hyper link), so fields that hold Owned content are skipped
+     * with a warning
      * @return array<string, mixed>
      */
-    public function fieldValues(EntryType|Volume|BlockType $owner, array $portable): array
+    public function fieldValues(EntryType|Volume|BlockType|HyperLink $owner, array $portable, bool $ownerless = false): array
     {
         $layoutFields = [];
         foreach ($owner->getFieldLayout()->getCustomFields() as $field) {
@@ -279,10 +336,11 @@ final class ImportContext
                     $this->plan->warn(sprintf(
                         'The field "%s" isn\'t in the "%s" %s\'s field layout in this environment. Its values will be skipped.',
                         $drift->name,
-                        $owner->name,
+                        $owner instanceof HyperLink ? $owner->label : $owner->name,
                         match (true) {
                             $owner instanceof Volume => 'volume',
                             $owner instanceof BlockType => 'block type',
+                            $owner instanceof HyperLink => 'link type',
                             default => 'entry type',
                         },
                     ));
@@ -291,6 +349,14 @@ final class ImportContext
             }
 
             $adapter = $this->adapters->adapterFor($field);
+            if ($ownerless && $adapter instanceof RequiresOwner) {
+                $this->plan->warn(sprintf(
+                    'The field "%s" in the "%s" link type holds nested content, which needs an element to belong to. Its values will be skipped.',
+                    $field->name,
+                    $owner instanceof HyperLink ? $owner->label : $owner->name,
+                ));
+                continue;
+            }
             if ($adapter) {
                 $values[$field->handle] = $adapter->import($field, $value, $this);
             }

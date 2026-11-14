@@ -15,7 +15,7 @@ use simplygoodwork\craftportage\import\ImportContext;
  * Block type level rules (top level, allowed child block types) aren't checked on Import. Neo doesn't enforce them on
  * save, so a drifted block type can produce a nesting that the Target environment's settings wouldn't allow.
  */
-final class NeoAdapter implements FieldAdapter
+final class NeoAdapter implements RequiresOwner
 {
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {

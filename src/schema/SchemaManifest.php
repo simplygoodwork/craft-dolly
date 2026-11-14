@@ -4,6 +4,8 @@ namespace simplygoodwork\craftportage\schema;
 
 use Craft;
 use craft\base\FieldInterface;
+use craft\helpers\ProjectConfig as ProjectConfigHelper;
+use verbb\hyper\fields\HyperField;
 
 /**
  * Describes the Schema references a Payload touches (the envelope's `schema` section), with a Fingerprint for each,
@@ -15,13 +17,15 @@ use craft\base\FieldInterface;
 final class SchemaManifest
 {
     /**
-     * Schema reference kinds => [project config path, label for messages]
+     * Schema reference kinds => [project config path, label for messages]. A kind with no path of its own (a Hyper link
+     * type is part of its field's settings) is looked up by `lookup()`.
      */
     public const KINDS = [
         'sites' => ['sites', 'site'],
         'sections' => ['sections', 'section'],
         'entryTypes' => ['entryTypes', 'entry type'],
         'neoBlockTypes' => ['neo.blockTypes', 'Neo block type'],
+        'hyperLinkTypes' => [null, 'Hyper link type'],
         'fields' => ['fields', 'field'],
         'volumes' => ['volumes', 'volume'],
     ];
@@ -44,12 +48,12 @@ final class SchemaManifest
         foreach (self::KINDS as $kind => [$path]) {
             $schema[$kind] = [];
             foreach ($uidsByKind[$kind] ?? [] as $uid) {
-                $config = $this->config($path, $uid) ?? [];
+                $config = $this->config($kind, $path, $uid) ?? [];
                 $description = [
                     'handle' => is_string($config['handle'] ?? null) ? $config['handle'] : null,
                     'name' => is_string($config['name'] ?? null) ? $config['name'] : null,
                 ];
-                if ($kind === 'fields') {
+                if ($kind === 'fields' || $kind === 'hyperLinkTypes') {
                     $description['type'] = is_string($config['type'] ?? null) ? $config['type'] : null;
                 }
                 $description['fingerprint'] = $this->fingerprint($config);
@@ -82,12 +86,12 @@ final class SchemaManifest
     /**
      * @param array<string, mixed> $description
      */
-    private function drift(string $kind, string $path, string $label, string $uid, array $description): Drift
+    private function drift(string $kind, ?string $path, string $label, string $uid, array $description): Drift
     {
         $name = $description['name'] ?? $description['handle'] ?? null;
         $name = is_string($name) ? $name : $uid;
         $subject = "$label \"$name\"";
-        $config = $this->config($path, $uid);
+        $config = $this->config($kind, $path, $uid);
 
         if ($config === null) {
             return new Drift($kind, $uid, $name, Drift::MISSING, match ($kind) {
@@ -95,9 +99,19 @@ final class SchemaManifest
                 'sites' => "The $subject doesn't exist in this environment. Content for that site will be skipped.",
                 'entryTypes' => "The $subject doesn't exist in this environment. Content of that type will be skipped.",
                 'neoBlockTypes' => "The $subject doesn't exist in this environment. Blocks of that type, and the blocks nested under them, will be skipped.",
+                'hyperLinkTypes' => "The $subject doesn't exist in this environment. Links of that type will be skipped.",
                 'volumes' => "The $subject doesn't exist in this environment. Its assets can only be fetched into another volume.",
                 default => "The $subject doesn't exist in this environment. Its values will be skipped.",
             });
+        }
+
+        if ($kind === 'hyperLinkTypes' && ($description['type'] ?? null) !== ($config['type'] ?? null)) {
+            return new Drift($kind, $uid, $name, Drift::TYPE_CHANGED, sprintf(
+                'The %s is a %s link type in this environment but was a %s link type where it was exported. Its links will be skipped.',
+                $subject,
+                $this->typeName($config['type'] ?? null),
+                $this->typeName($description['type'] ?? null),
+            ));
         }
 
         if ($kind === 'fields' && ($description['type'] ?? null) !== ($config['type'] ?? null)) {
@@ -112,6 +126,7 @@ final class SchemaManifest
         if (($description['fingerprint'] ?? null) !== $this->fingerprint($config)) {
             return new Drift($kind, $uid, $name, Drift::DRIFTED, match ($kind) {
                 'fields' => "The $subject has different settings in this environment than where it was exported. Its values will be imported, but check them.",
+                'hyperLinkTypes' => "The $subject has different settings in this environment than where it was exported. Its links will be imported, but check them.",
                 default => "The $subject has different settings in this environment than where it was exported. Its content will be imported, but check it.",
             });
         }
@@ -122,11 +137,50 @@ final class SchemaManifest
     /**
      * @return array<string, mixed>|null
      */
-    private function config(string $path, string $uid): ?array
+    private function config(string $kind, ?string $path, string $uid): ?array
     {
+        if ($path === null) {
+            return $this->lookup($kind, $uid);
+        }
+
         $config = Craft::$app->getProjectConfig()->get("$path.$uid");
 
         return is_array($config) ? $config : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function lookup(string $kind, string $uid): ?array
+    {
+        return match ($kind) {
+            'hyperLinkTypes' => $this->hyperLinkTypeConfig($uid),
+            default => null,
+        };
+    }
+
+    /**
+     * A Hyper link type has no project config path of its own: it's part of its field's settings, identified by the UID
+     * of its field layout. Its label stands in for a name.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function hyperLinkTypeConfig(string $layoutUid): ?array
+    {
+        $fields = Craft::$app->getProjectConfig()->get('fields');
+        foreach (is_array($fields) ? $fields : [] as $field) {
+            if (!is_array($field) || ($field['type'] ?? null) !== HyperField::class) {
+                continue;
+            }
+            $linkTypes = $field['settings']['linkTypes'] ?? [];
+            foreach (is_array($linkTypes) ? ProjectConfigHelper::unpackAssociativeArrays($linkTypes) : [] as $linkType) {
+                if (is_array($linkType) && ($linkType['layoutUid'] ?? null) === $layoutUid) {
+                    return $linkType + ['name' => $linkType['label'] ?? null];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

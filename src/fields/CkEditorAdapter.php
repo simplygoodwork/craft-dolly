@@ -20,7 +20,7 @@ use simplygoodwork\craftportage\import\PendingNestedEntry;
  * The portable value is `['html' => …, 'entries' => […]]`. In the HTML, each nested entry's marker names the entry by
  * its UID (`<craft-entry data-entry-uid="…">`) instead of its ID.
  */
-final class CkEditorAdapter implements FieldAdapter
+final class CkEditorAdapter implements RequiresOwner
 {
     private const MARKER_PATTERN = '/<craft-entry\b[^>]*?data-entry-id="(\d+)"[^>]*>.*?<\/craft-entry>/is';
     private const PORTABLE_MARKER_PATTERN = '/<craft-entry\b[^>]*?data-entry-uid="([^"]*)"[^>]*>.*?<\/craft-entry>/is';

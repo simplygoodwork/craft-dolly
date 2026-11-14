@@ -22,6 +22,8 @@ modules:
           handle: ckeditor
         - class: '\benf\neo\Plugin'
           handle: neo
+        - class: '\verbb\hyper\Hyper'
+          handle: hyper
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

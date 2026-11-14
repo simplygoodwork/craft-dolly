@@ -18,6 +18,7 @@ use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\fields\Tags;
 use craft\fields\Users;
+use verbb\hyper\fields\HyperField;
 
 /**
  * Maps field classes to their Field adapters.
@@ -37,6 +38,7 @@ final class FieldAdapterRegistry
             Matrix::class => new MatrixAdapter(),
             CkEditorField::class => new CkEditorAdapter(),
             NeoField::class => new NeoAdapter(),
+            HyperField::class => new HyperAdapter(),
             Entries::class => new RelationFieldAdapter(Entry::class),
             Categories::class => new RelationFieldAdapter(Category::class),
             Tags::class => new RelationFieldAdapter(Tag::class),

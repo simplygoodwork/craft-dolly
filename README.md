@@ -145,6 +145,8 @@ $entry = Schema::entry($section, $page, [
 
 `Schema::categoryGroup()`, `Schema::category()`, `Schema::tagGroup()`, `Schema::tag()` and `Schema::user()` build related elements. `Schema::site()` adds a site (create sites before the sections that use them), and `Schema::translate($element, $site, [...])` saves an element's content in another site. Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
 
+`Schema::hyper()` saves a Hyper field from link types built with `Schema::hyperLinkType(linkTypes\\Url::class, 'url', [...customFields])`, and `Schema::changeHyperLinkTypes()` and `Schema::removeHyperLinkType()` change a Hyper field's link types to simulate a different Target environment. `Schema::withHyperLinkType()` registers an extra link type for a callback, as a plugin would.
+
 `Schema::volume()` saves a volume on its own local filesystem in a temp directory, with public URLs if given a `url`, and `Schema::asset()` saves an asset from a file in `tests/_data/files`, in any folder. Tests that fetch assets serve those files over a local file server, never the internet: `FileServer::start()` (in `tests/_support/FileServer.php`) starts PHP's built-in server once per run and returns its base URL. Under `/files/` it serves the fixtures, `/private/` answers 401 like a source behind basic auth, and `/slow/` waits 3 seconds first. Give a volume `FileServer::start() . '/files'` as its URL so its assets' URLs point at the stub:
 
 ```php

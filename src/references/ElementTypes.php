@@ -33,6 +33,14 @@ final class ElementTypes
         return is_string($name) ? (self::CLASSES[$name] ?? null) : null;
     }
 
+    /**
+     * Returns whether elements of the class can be Referenced.
+     */
+    public static function supports(string $class): bool
+    {
+        return in_array($class, self::CLASSES, true);
+    }
+
     public static function nameOf(ElementInterface $element): ?string
     {
         $name = array_search($element::class, self::CLASSES, true);
