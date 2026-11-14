@@ -16,6 +16,12 @@ use craft\elements\User;
 final class ElementTypes
 {
     /**
+     * The element type of a Neo block that is a Root element. Only Root elements are blocks: a block is never a
+     * Reference, so it isn't in the whitelist of classes.
+     */
+    public const NEO_BLOCK = 'neoBlock';
+
+    /**
      * @var array<string, class-string<ElementInterface>>
      */
     private const CLASSES = [
@@ -32,6 +38,17 @@ final class ElementTypes
     public static function classFor(mixed $name): ?string
     {
         return is_string($name) ? (self::CLASSES[$name] ?? null) : null;
+    }
+
+    /**
+     * Returns whether a Root element is a Matrix or Neo block (pasted into a field) rather than a whole entry: a Neo
+     * block, or a nested entry, which names the field it was exported from.
+     *
+     * @param array<mixed> $root
+     */
+    public static function isBlockRoot(array $root): bool
+    {
+        return ($root['elementType'] ?? null) === self::NEO_BLOCK || is_string($root['field'] ?? null);
     }
 
     /**

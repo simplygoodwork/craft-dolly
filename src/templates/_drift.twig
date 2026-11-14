@@ -1,0 +1,29 @@
+{#
+ # The Preview's table of Schema references and their Drift. Shared by the utility's Preview and the Preview in the
+ # paste modal.
+ #}
+
+{% set drift = plan.drift.all() %}
+{% if drift %}
+    <h2>{{ 'Schema'|t('portage') }}</h2>
+    <table class="data fullwidth">
+        <thead>
+            <tr>
+                <th>{{ 'Kind'|t('portage') }}</th>
+                <th>{{ 'Name'|t('portage') }}</th>
+                <th>{{ 'State'|t('portage') }}</th>
+                <th>{{ 'What happens'|t('portage') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in drift %}
+                <tr>
+                    <td>{{ driftKinds[item.kind] ?? item.kind }}</td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ driftStates[item.state] ?? item.state }}</td>
+                    <td>{{ item.outcome() }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

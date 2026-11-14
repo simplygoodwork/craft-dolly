@@ -30,8 +30,12 @@ class ExportAsset extends AssetBundle
         $view->registerTranslations('portage', [
             'Copied for another environment: 1 entry.',
             'Copied for another environment: {count} entries.',
+            'Copied for another environment: 1 block.',
+            'Copied for another environment: {count} blocks.',
             'The Payload is large. Download it as {filename}, then upload it in the Portage utility.',
             'The Payload couldn’t be copied. Download it as {filename}, then upload it in the Portage utility.',
+            'The Payload is large. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.',
+            'The Payload couldn’t be copied. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.',
             'Download {filename}',
             'Couldn’t copy for another environment.',
         ]);

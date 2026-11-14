@@ -15,6 +15,7 @@
 {% set statuses = {
     'created': 'Created a disabled entry'|t('portage'),
     'overwritten': 'Created a draft on'|t('portage'),
+    'pasted': 'Added blocks to the draft of'|t('portage'),
     'failed': 'Failed'|t('portage'),
 } %}
 
@@ -64,7 +65,7 @@
             <p>
                 <strong>{{ statuses[result.status] ?? result.status }}</strong>:
                 {% if draft %}
-                    <a href="{{ draft.cpEditUrl }}">{{ entry.title ?? name }}</a>
+                    <a href="{{ draft.cpEditUrl }}">{{ draft.title ?? entry.title ?? name }}</a>
                 {% elseif entry %}
                     <a href="{{ entry.cpEditUrl }}">{{ entry.title ?? name }}</a>
                 {% else %}
@@ -72,9 +73,11 @@
                 {% endif %}
             </p>
             {% set section = result.section ?? null ? craft.app.entries.getSectionByUid(result.section) : null %}
+            {% if result.status != 'pasted' %}
             <p class="light">
                 {{ (result.mode ?? 'create') == 'overwrite' ? 'Overwrite'|t('portage') : 'Create new'|t('portage') }}{% if section %}, {{ 'in the "{section}" section'|t('portage', { section: section.name }) }}{% endif %}
             </p>
+            {% endif %}
             {% if result.errors ?? [] or result.stubs ?? [] or result.fetchedAssets ?? [] %}
                 <ul class="bullets">
                     {% for error in result.errors ?? [] %}

@@ -124,6 +124,11 @@ final class RootPlan
     public ?OverwritePlan $overwrite = null;
 
     /**
+     * @var PastePlan|null the blocks the Import will add to the target draft, when the Root element is a block
+     */
+    public ?PastePlan $paste = null;
+
+    /**
      * @var Placement|null where a new entry in a Structure section will go, or null when it isn't one
      */
     public ?Placement $placement = null;
@@ -140,6 +145,7 @@ final class RootPlan
         $this->entry = null;
         $this->sites = [];
         $this->overwrite = null;
+        $this->paste = null;
         $this->placement = null;
         $this->availableModes = [self::MODE_CREATE];
         $this->mode = self::MODE_CREATE;

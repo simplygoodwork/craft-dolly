@@ -6,6 +6,7 @@ use benf\neo\elements\Block;
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
+use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\Section;
@@ -63,9 +64,18 @@ final class ExportContext
      * entry's UID, and an Import matches it to the entry it came from rather than to a draft that exists nowhere else.
      * An unpublished draft is its own entry.
      */
-    public static function rootUid(Entry $entry): string
+    public static function rootUid(Entry|Block $root): string
     {
-        return (string)$entry->getCanonical(true)->uid;
+        return $root instanceof Block ? (string)$root->uid : (string)$root->getCanonical(true)->uid;
+    }
+
+    /**
+     * Returns whether a Root element is a Matrix or Neo block (an element that is Owned content of a field) rather than
+     * a whole entry.
+     */
+    public static function isBlock(Entry|Block $root): bool
+    {
+        return $root instanceof Block || $root->fieldId !== null;
     }
 
     /**
@@ -87,6 +97,71 @@ final class ExportContext
             ...$this->structurePath($entry),
             ...$this->content($this->inEverySite($entry)),
         ];
+    }
+
+    /**
+     * Exports a Matrix or Neo block as a Root element, to be pasted into a field of another environment. It carries the UID
+     * of the field it was copied from, so a Neo block can only go back into the same field, and its content for every
+     * site. A Neo block also carries its child blocks, the blocks nested under it, which are Owned content; levels are
+     * relative to the shallowest of the Root elements, 1 being the top.
+     *
+     * @param int $baseLevel the level of the shallowest Neo Root element being exported
+     * @return array<string, mixed>
+     */
+    public function exportBlockRoot(Entry|Block $block, int $baseLevel = 1): array
+    {
+        $field = Craft::$app->getFields()->getFieldById((int)$block->fieldId);
+        if ($field === null) {
+            throw new InvalidArgumentException('The block doesn\'t belong to a field.');
+        }
+        $this->schema['fields'][$field->uid] = true;
+
+        $adjust = function(array $nested) use ($baseLevel): array {
+            if (isset($nested['level'])) {
+                $nested['level'] = max(1, $nested['level'] - $baseLevel + 1);
+            }
+
+            return $nested;
+        };
+
+        return [
+            'elementType' => $block instanceof Block ? ElementTypes::NEO_BLOCK : (string)ElementTypes::nameOf($block),
+            'field' => $field->uid,
+            ...$adjust($this->exportNested($block)),
+            ...($block instanceof Block ? ['children' => array_map(fn(Block $child) => $adjust($this->exportNested($child)), self::childBlocks($block))] : []),
+        ];
+    }
+
+    /**
+     * Returns the blocks nested under a Neo block, in order: the blocks after it in its field that are at a deeper level,
+     * up to the next block that isn't.
+     *
+     * @return list<Block>
+     */
+    public static function childBlocks(Block $block): array
+    {
+        $owner = $block->getOwner();
+        $field = Craft::$app->getFields()->getFieldById((int)$block->fieldId);
+        $value = $owner && $field ? $owner->getFieldValue($field->handle) : null;
+        $siblings = $value instanceof ElementQueryInterface ? (clone $value)->status(null)->all() : [];
+
+        $children = [];
+        $found = false;
+        foreach ($siblings as $sibling) {
+            if (!$sibling instanceof Block) {
+                continue;
+            }
+            if ($found) {
+                if ((int)$sibling->level <= (int)$block->level) {
+                    break;
+                }
+                $children[] = $sibling;
+            } elseif ($sibling->id === $block->id) {
+                $found = true;
+            }
+        }
+
+        return $children;
     }
 
     /**

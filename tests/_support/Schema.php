@@ -44,6 +44,7 @@ use craft\models\Volume;
 use nystudio107\seomatic\seoelements\SeoEntry;
 use ReflectionProperty;
 use RuntimeException;
+use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
 use verbb\hyper\base\Link as HyperLink;
 use verbb\hyper\fieldlayoutelements\UrlSuffixField;
@@ -1098,6 +1099,16 @@ final class Schema
         self::saveElement($entry, $values);
 
         return $entry;
+    }
+
+    /**
+     * Builds the target of a block paste: a Matrix or Neo field of a draft.
+     */
+    public static function blockTarget(Entry $draft, string $handle): BlockTarget
+    {
+        $field = Craft::$app->getFields()->getFieldByHandle($handle) ?? throw new RuntimeException("No field with the handle $handle");
+
+        return new BlockTarget($draft, $field);
     }
 
     /**

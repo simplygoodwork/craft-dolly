@@ -2,10 +2,12 @@
 
 namespace simplygoodwork\craftportage\services;
 
+use benf\neo\elements\Block;
 use Craft;
 use craft\elements\Entry;
 use simplygoodwork\craftportage\export\Exporter;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\import\Importer;
 use simplygoodwork\craftportage\import\ImportPlan;
 use simplygoodwork\craftportage\import\ImportPlanner;
@@ -26,7 +28,7 @@ class Portage extends Component
     /**
      * Exports Root elements as Payload text.
      *
-     * @param Entry[] $roots
+     * @param array<Entry|Block> $roots whole entries, or Matrix and Neo blocks to paste into a field
      * @param list<int>|null $siteIds limits the Payload to the content of these sites, for a user who can't see the others;
      * null exports every site the entries exist in
      * @throws InvalidConfigException if the Shared key's env var isn't set in this environment
@@ -47,8 +49,10 @@ class Portage extends Component
      * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, by Root element UID:
      * the `mode` ("create", the default, or "overwrite" the matching entry) and the target `section` (a UID or handle;
      * the default is the Payload's own section)
+     * @param BlockTarget|null $target the Matrix or Neo field of a draft that a Payload of blocks is pasted into. A Payload of
+     * blocks is refused without one, and a Payload of entries with one
      */
-    public function preview(string $payload, array $choices = [], array $rootChoices = []): ImportPlan
+    public function preview(string $payload, array $choices = [], array $rootChoices = [], ?BlockTarget $target = null): ImportPlan
     {
         try {
             $decoded = $this->codec()->decode($payload);
@@ -56,7 +60,7 @@ class Portage extends Component
             return ImportPlan::refused($e->getMessage());
         }
 
-        return (new ImportPlanner($this->adapters()))->plan($decoded, $choices, $rootChoices);
+        return (new ImportPlanner($this->adapters()))->plan($decoded, $choices, $rootChoices, $target);
     }
 
     /**
@@ -65,10 +69,12 @@ class Portage extends Component
      *
      * @param array<string, string|int|array<string, string>> $choices for Unresolved references, as for `preview()`
      * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, as for `preview()`
+     * @param BlockTarget|null $target the field of a draft that blocks are pasted into, as for `preview()`: the blocks are
+     * added to the draft as normal edits, after the blocks it already has
      */
-    public function import(string $payload, array $choices = [], array $rootChoices = []): ImportResult
+    public function import(string $payload, array $choices = [], array $rootChoices = [], ?BlockTarget $target = null): ImportResult
     {
-        $plan = $this->preview($payload, $choices, $rootChoices);
+        $plan = $this->preview($payload, $choices, $rootChoices, $target);
         if ($plan->isRefused()) {
             return ImportResult::refused((string)$plan->refusal);
         }

@@ -105,112 +105,19 @@
             </div>
         {% endfor %}
 
-        {% if plan.references %}
-            <h2>{{ 'Related elements'|t('portage') }}</h2>
-            <table class="data fullwidth">
-                <thead>
-                    <tr>
-                        <th>{{ 'Element'|t('portage') }}</th>
-                        <th>{{ 'Type'|t('portage') }}</th>
-                        <th>{{ 'In this environment'|t('portage') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for uid, reference in plan.references %}
-                        {% set unresolved = not reference.resolution.isResolved() %}
-                        {% set want = requested[uid] ?? null %}
-                        {% set selected = reference.pending ?? want.choice ?? reference.choice %}
-                        <tr data-portage-reference="{{ uid }}">
-                            <td>{{ reference.name() }}</td>
-                            <td>{{ reference.elementType|capitalize }}</td>
-                            <td>
-                                <div class="portage-outcome">{{ reference.outcome() }}</div>
-                                {% if unresolved %}
-                                    <div class="select">
-                                        <select name="choices[{{ uid }}][choice]" aria-label="{{ 'What to do with {name}'|t('portage', { name: reference.name() }) }}" data-portage-choice data-portage-replan>
-                                            {% for choice in reference.availableChoices %}
-                                                <option value="{{ choice }}"{{ choice == selected ? ' selected' }}>{{ choiceLabels[choice] ?? choice }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
+        {% include 'portage/_references' with {
+            plan: plan,
+            requested: requested,
+            choiceLabels: choiceLabels,
+            pickers: pickers,
+            volumes: volumes,
+        } only %}
 
-                                    {% if 'replace' in reference.availableChoices and pickers[uid] is defined %}
-                                        {% set picked = reference.replacement ? [reference.replacement] : [] %}
-                                        <div data-panel="replace"{{ selected != 'replace' ? ' class="hidden"' }}>
-                                            {{ forms.elementSelect({
-                                                id: 'portage-replacement-' ~ loop.index,
-                                                name: 'choices[' ~ uid ~ '][replacement]',
-                                                elementType: pickers[uid].elementType,
-                                                sources: pickers[uid].sources,
-                                                elements: picked,
-                                                limit: 1,
-                                            }) }}
-                                            {% if reference.pending == 'replace' %}
-                                                <p class="light">{{ 'Pick a replacement. Until you do, this will be skipped.'|t('portage') }}</p>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-
-                                    {% if reference.elementType == 'asset' %}
-                                        <div data-panel="fetch upload"{{ selected not in ['fetch', 'upload'] ? ' class="hidden"' }}>
-                                            <div class="field">
-                                                <div class="heading"><label>{{ 'Save it in the volume'|t('portage') }}</label></div>
-                                                <div class="select">
-                                                    <select name="choices[{{ uid }}][volume]" data-portage-replan>
-                                                        <option value="">{{ 'Its own volume'|t('portage') }}</option>
-                                                        {% for volume in volumes %}
-                                                            <option value="{{ volume.uid }}"{{ volume.uid == want.volume ?? '' ? ' selected' }}>{{ volume.name }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                                <input type="text" class="text" name="choices[{{ uid }}][folder]" value="{{ want.folder ?? '' }}" placeholder="{{ 'Folder path (when you choose a volume)'|t('portage') }}" data-portage-replan>
-                                            </div>
-                                        </div>
-                                        <div data-panel="fetch"{{ selected != 'fetch' ? ' class="hidden"' }}>
-                                            <p class="light">{{ 'Fetching fails for private volumes and for sources behind basic auth. Upload the file instead.'|t('portage') }}</p>
-                                        </div>
-                                        <div data-panel="upload"{{ selected != 'upload' ? ' class="hidden"' }}>
-                                            <input type="file" name="uploads[{{ uid }}]" data-portage-replan>
-                                            {{ hiddenInput('choices[' ~ uid ~ '][staged]', want.staged ?? '') }}
-                                            {% if want.stagedName ?? '' %}
-                                                <p class="light">{{ 'Using the uploaded file {name}. Choose another file to replace it.'|t('portage', { name: want.stagedName }) }}</p>
-                                            {% elseif reference.pending == 'upload' %}
-                                                <p class="light">{{ 'Choose a file. Until you do, this will be skipped.'|t('portage') }}</p>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
-
-        {% set drift = plan.drift.all() %}
-        {% if drift %}
-            <h2>{{ 'Schema'|t('portage') }}</h2>
-            <table class="data fullwidth">
-                <thead>
-                    <tr>
-                        <th>{{ 'Kind'|t('portage') }}</th>
-                        <th>{{ 'Name'|t('portage') }}</th>
-                        <th>{{ 'State'|t('portage') }}</th>
-                        <th>{{ 'What happens'|t('portage') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in drift %}
-                        <tr>
-                            <td>{{ driftKinds[item.kind] ?? item.kind }}</td>
-                            <td>{{ item.name }}</td>
-                            <td>{{ driftStates[item.state] ?? item.state }}</td>
-                            <td>{{ item.outcome() }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
+        {% include 'portage/_drift' with {
+            plan: plan,
+            driftKinds: driftKinds,
+            driftStates: driftStates,
+        } only %}
 
         <div class="buttons">
             <button type="submit" id="portage-update" class="btn" name="action" value="portage/import/preview">{{ 'Update Preview'|t('portage') }}</button>
@@ -226,57 +133,13 @@
 </div>
 
 {% if not plan.isRefused() %}
+{% do view.registerAssetBundle('simplygoodwork\\craftportage\\web\\assets\\preview\\PreviewAsset') %}
 {% js %}{% verbatim %}
 (function() {
     var form = document.getElementById('portage-import');
     if (!form) { return; }
     var update = document.getElementById('portage-update');
-    var importButton = form.querySelector('button.submit');
-    var replanning = false;
-    var timer = null;
-    // The Import button stays off from the moment a choice changes until the Preview has been rebuilt, so the Import
-    // can't run choices the Preview hasn't shown.
-    function replan() {
-        if (replanning) { return; }
-        replanning = true;
-        clearTimeout(timer);
-        form.requestSubmit(update);
-    }
-    function pending() {
-        if (importButton) { importButton.disabled = true; }
-    }
-    form.addEventListener('input', function(event) {
-        if (event.target.matches('input[type="text"][data-portage-replan]')) {
-            pending();
-            clearTimeout(timer);
-            timer = setTimeout(replan, 600);
-        }
-    });
-    form.addEventListener('change', function(event) {
-        var target = event.target;
-        if (!target.matches('[data-portage-replan]')) { return; }
-        pending();
-        if (target.matches('[data-portage-choice]')) {
-            var row = target.closest('[data-portage-reference]');
-            row.querySelectorAll('[data-panel]').forEach(function(panel) {
-                panel.classList.toggle('hidden', panel.getAttribute('data-panel').split(' ').indexOf(target.value) === -1);
-            });
-        }
-        if (target.matches('[data-portage-section]')) {
-            // The matching entry depends on the section, so go back to creating a new entry.
-            var mode = target.closest('.pane').querySelector('[data-portage-mode]');
-            if (mode) { mode.value = 'create'; }
-        }
-        replan();
-    });
-    // Craft's element selector adds and removes hidden inputs rather than firing a change event.
-    form.querySelectorAll('[data-portage-reference] .elementselect').forEach(function(picker) {
-        var count = function() { return picker.querySelectorAll('input[type="hidden"][name$="[replacement][]"]').length; };
-        var before = count();
-        new MutationObserver(function() {
-            if (count() !== before) { before = count(); pending(); replan(); }
-        }).observe(picker, { childList: true, subtree: true });
-    });
+    Portage.bindPreview(form, function() { form.requestSubmit(update); });
 })();
 {% endverbatim %}{% endjs %}
 {% endif %}

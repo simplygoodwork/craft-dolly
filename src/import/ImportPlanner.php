@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\import;
 
+use benf\neo\Field as NeoField;
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
@@ -9,6 +10,7 @@ use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\enums\PropagationMethod;
+use craft\fields\Matrix;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Assets as AssetsHelper;
 use craft\helpers\DateTimeHelper;
@@ -49,11 +51,17 @@ final class ImportPlanner
      * 'section' => section UID or handle]`. Omitted choices are "create" in the Payload's own section. The key `*`
      * is the default for every Root element: Root elements that can't be overwritten are created instead, while an
      * explicit choice that can't be carried out is refused.
+     * @param BlockTarget|null $target the field of a draft that Matrix or Neo blocks are pasted into. The Payload's Root
+     * elements are then all blocks, and without a target they can't be imported
      */
-    public function plan(DecodedPayload $payload, array $choices = [], array $rootChoices = []): ImportPlan
+    public function plan(DecodedPayload $payload, array $choices = [], array $rootChoices = [], ?BlockTarget $target = null): ImportPlan
     {
         $envelope = $payload->envelope;
         $drift = (new SchemaManifest())->classify($envelope['schema'] ?? null);
+        $refusal = $this->blockRefusal($envelope['roots'], $drift, $target);
+        if ($refusal !== null) {
+            return ImportPlan::refused($refusal);
+        }
         $uids = new UidClaims();
         $references = $this->planReferences($envelope['references'] ?? null);
 
@@ -71,7 +79,7 @@ final class ImportPlanner
         foreach ($envelope['roots'] as $root) {
             $plan = new RootPlan(
                 is_array($root) && is_string($root['uid'] ?? null) ? $root['uid'] : null,
-                is_array($root) ? $this->title($root) : null,
+                is_array($root) ? ($target ? $this->blockTitle($root, $drift) : $this->title($root)) : null,
             );
             $plans[] = $plan;
 
@@ -82,12 +90,12 @@ final class ImportPlanner
 
             try {
                 $explicit = $rootChoices[$plan->sourceUid] ?? [];
-                $this->planRoot(
-                    $root,
-                    new ImportContext($this->adapters, $references, $uids, $drift, $plan),
-                    $explicit + ($rootChoices['*'] ?? []),
-                    !isset($explicit['mode']),
-                );
+                $context = new ImportContext($this->adapters, $references, $uids, $drift, $plan);
+                if ($target) {
+                    $this->planBlockRoot($root, $context, $target);
+                } else {
+                    $this->planRoot($root, $context, $explicit + ($rootChoices['*'] ?? []), !isset($explicit['mode']));
+                }
             } catch (InvalidChoiceException $e) {
                 return ImportPlan::refused($e->getMessage(), $e->uid ?? $plan->sourceUid);
             }
@@ -107,7 +115,144 @@ final class ImportPlanner
             earlierImports: $earlierImports,
             warnings: array_map(fn(ImportLogEntry $import) => $this->duplicateWarning($import), $earlierImports),
             envelope: $envelope,
+            target: $target,
         );
+    }
+
+    /**
+     * Returns why the Payload's Root elements can't go to the target, or null if they can: blocks go only to a field,
+     * and entries only to a section. Neo blocks go only to the Neo field they were copied from, since their block
+     * types and hierarchy belong to it, and Matrix blocks to any Matrix field (those it doesn't allow are skipped).
+     *
+     * @param array<mixed> $roots
+     */
+    private function blockRefusal(array $roots, DriftReport $drift, ?BlockTarget $target): ?string
+    {
+        $blocks = array_filter($roots, fn(mixed $root) => is_array($root) && ElementTypes::isBlockRoot($root));
+
+        if ($target === null) {
+            return $blocks ? 'This Payload holds blocks copied from a Matrix or Neo field. Paste it with "Paste from another environment" in the menu of a Matrix or Neo field in an entry editor.' : null;
+        }
+        if (count($blocks) !== count($roots)) {
+            return 'This Payload holds whole entries, not blocks. Import it in the Portage utility.';
+        }
+        if (!$target->owner->getIsDraft()) {
+            return "Blocks can only be pasted into a draft, so they can't be added to {$target->label()} of the live entry \"{$target->owner->title}\". Open the entry in the editor and paste there.";
+        }
+
+        foreach ($blocks as $root) {
+            $isNeoBlock = $root['elementType'] === ElementTypes::NEO_BLOCK;
+            if ($target->isNeo() && !$isNeoBlock) {
+                return "Matrix blocks can't be pasted into {$target->label()}, which is a Neo field. Paste them into a Matrix field.";
+            }
+            if ($isNeoBlock && (!$target->isNeo() || ($root['field'] ?? null) !== $target->field->uid)) {
+                $source = $drift->get('fields', $root['field'] ?? null)?->name;
+
+                return sprintf(
+                    'Neo blocks can only be pasted into the Neo field they were copied from%s. They can\'t be pasted into %s.',
+                    $source !== null ? " (\"$source\")" : '',
+                    $target->label(),
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Names a block Root element in a message by its block type.
+     *
+     * @param array<mixed> $root
+     */
+    private function blockTitle(array $root, DriftReport $drift): ?string
+    {
+        $kind = ($root['elementType'] ?? null) === ElementTypes::NEO_BLOCK ? 'neoBlockTypes' : 'entryTypes';
+
+        return $drift->get($kind, $root['type'] ?? null)?->name;
+    }
+
+    /**
+     * Plans pasting a block Root element: its blocks, and the blocks nested under it, added to the target field in each
+     * of the target draft's sites. The field's own adapter rebuilds them, so the blocks its entry types or block types
+     * don't allow are skipped with a warning. A Root element none of whose blocks can be added is blocked.
+     *
+     * @param array<mixed> $root
+     */
+    private function planBlockRoot(array $root, ImportContext $context, BlockTarget $target): void
+    {
+        $plan = $context->plan;
+        $owner = $target->owner;
+        $name = $owner->title !== null && $owner->title !== '' ? "\"$owner->title\"" : "entry #$owner->id";
+
+        // A paste always needs a user, whose permission to edit the draft it checks.
+        $user = Craft::$app->getUser()->getIdentity();
+        if ($user === null || !Craft::$app->getElements()->canSave($owner, $user)) {
+            $plan->block("You don't have permission to edit the entry $name, so blocks can't be pasted into {$target->label()}.");
+            return;
+        }
+
+        $adapter = $this->adapters->adapterFor($target->field);
+        if ($adapter === null) {
+            $plan->block("Portage can't paste blocks into {$target->label()}.");
+            return;
+        }
+
+        $children = is_array($root['children'] ?? null) ? array_values(array_filter($root['children'], 'is_array')) : [];
+
+        // Only the draft's own site is written, as Craft's editor does: Craft propagates the blocks to the entry's other
+        // sites as the field's propagation method says, so a site the user may not edit is never saved here.
+        $site = $owner->getSite();
+        $context->siteUid = $site->uid;
+        $fragment = $adapter->import($target->field, [$root, ...$children], $context);
+        if (!is_array($fragment) || !$fragment) {
+            $plan->block("None of its blocks can be added to {$target->label()}.");
+            return;
+        }
+
+        $paste = new PasteSite($site, $fragment);
+        $this->warnAboutLimits($target, $paste, $plan);
+        $plan->paste = new PastePlan($target, $paste);
+    }
+
+    /**
+     * Warns when the pasted blocks take the draft's field past its maximum. The draft saves anyway, like any draft, and
+     * Craft checks the limits when it's applied, so this only tells the user ahead of time.
+     */
+    private function warnAboutLimits(BlockTarget $target, PasteSite $paste, RootPlan $plan): void
+    {
+        $value = $target->owner->getFieldValue($target->field->handle);
+        $existing = $value instanceof ElementQueryInterface ? (clone $value)->status(null)->all() : [];
+        $adding = $paste->blockCount();
+        $name = $target->field->name;
+        /** @var Matrix|NeoField $field */
+        $field = $target->field;
+        $max = $field instanceof NeoField ? $field->maxBlocks : $field->maxEntries;
+
+        if ($max && count($existing) + $adding > $max) {
+            $plan->warn(sprintf(
+                'The field "%s" allows at most %d %s. Your draft has %d and this adds %d, so remove some before applying the draft.',
+                $name,
+                $max,
+                $max === 1 ? 'block' : 'blocks',
+                count($existing),
+                $adding,
+            ));
+        }
+
+        $maxTop = $field instanceof NeoField ? $field->maxTopBlocks : null;
+        if ($maxTop) {
+            $top = count(array_filter($existing, fn(ElementInterface $block) => (int)($block->level ?? 1) === 1));
+            $adding = count(array_filter((array)($paste->fragment['blocks'] ?? []), fn(mixed $block) => (int)($block['level'] ?? 1) === 1));
+            if ($top + $adding > $maxTop) {
+                $plan->warn(sprintf(
+                    'The field "%s" allows at most %d top-level blocks. Your draft has %d and this adds %d, so remove some before applying the draft.',
+                    $name,
+                    $maxTop,
+                    $top,
+                    $adding,
+                ));
+            }
+        }
     }
 
     /**

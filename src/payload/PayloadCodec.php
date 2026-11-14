@@ -144,11 +144,14 @@ final class PayloadCodec
      */
     private function checkElementTypes(array $envelope): void
     {
-        foreach ([...$envelope['roots'], ...array_values($envelope['references'] ?? [])] as $element) {
-            $elementType = $element['elementType'] ?? null;
-            if (ElementTypes::classFor($elementType) === null) {
-                $name = is_string($elementType) ? mb_strimwidth($elementType, 0, 80, '…') : Json::encode($elementType);
-                throw new InvalidPayloadException("The Payload names an element type Portage doesn't support: \"$name\". It can't be imported.");
+        // A Neo block is a Root element, never a Reference.
+        foreach (['roots' => [...$envelope['roots']], 'references' => array_values($envelope['references'] ?? [])] as $kind => $elements) {
+            foreach ($elements as $element) {
+                $elementType = $element['elementType'] ?? null;
+                if (ElementTypes::classFor($elementType) === null && !($kind === 'roots' && $elementType === ElementTypes::NEO_BLOCK)) {
+                    $name = is_string($elementType) ? mb_strimwidth($elementType, 0, 80, '…') : Json::encode($elementType);
+                    throw new InvalidPayloadException("The Payload names an element type Portage doesn't support: \"$name\". It can't be imported.");
+                }
             }
         }
     }

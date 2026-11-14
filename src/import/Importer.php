@@ -7,6 +7,7 @@ use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\Serializable;
 use craft\elements\Asset;
+use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\events\ElementEvent;
 use craft\helpers\FileHelper;
@@ -174,6 +175,9 @@ final class Importer
     private function importRoot(RootPlan $plan, ?RootResult $parentRootResult): RootResult
     {
         $result = RootResult::fromPlan($plan);
+        if ($plan->paste) {
+            return $this->pasteRoot($plan, $plan->paste, $result);
+        }
         if ($plan->overwrite) {
             return $this->overwriteRoot($plan, $plan->overwrite, $result);
         }
@@ -424,6 +428,78 @@ final class Importer
         $result->draftId = (int)$draft->draftId;
 
         return $result;
+    }
+
+    /**
+     * Adds the blocks of a pasted Root element to the target field of the draft, as normal edits, in one transaction
+     * with the Stubs its relations need. The draft's other blocks stay as they are, before the new ones.
+     */
+    private function pasteRoot(RootPlan $root, PastePlan $plan, RootResult $result): RootResult
+    {
+        $owner = $plan->target->owner;
+        $created = [];
+        $transaction = Craft::$app->getDb()->beginTransaction();
+        try {
+            $error = $this->saveStubs($root, $result, $created);
+            if ($error === null) {
+                $this->fetchAssets($root, $result, $created);
+            }
+            if ($error === null) {
+                $error = $this->savePastedSite($plan->target, $plan->site);
+            }
+            if ($error !== null) {
+                $this->rollBack($transaction, $created, $root);
+                $result->fail($error);
+                return $result;
+            }
+            $transaction->commit();
+        } catch (Throwable $e) {
+            $this->rollBack($transaction, $created, $root);
+            Craft::$app->getErrorHandler()->logException($e);
+            $result->fail("Couldn't paste the blocks into {$plan->target->label()}, so none were added: " . $e->getMessage());
+            return $result;
+        }
+
+        $result->status = RootResult::STATUS_PASTED;
+        $result->blocks = $plan->site->blockCount();
+        $result->elementId = (int)$owner->id;
+        $result->draftId = $owner->draftId !== null ? (int)$owner->draftId : null;
+
+        return $result;
+    }
+
+    /**
+     * Adds a pasted Root element's blocks to the end of the field's blocks in the draft, and saves the draft. The blocks
+     * the field already has are listed by UID without content, so Craft leaves them as they are. This reads the draft as
+     * it is now, because an earlier Root element of the same paste may have added blocks since the Preview.
+     *
+     * @return string|null the error, or null if it saved
+     */
+    private function savePastedSite(BlockTarget $target, PasteSite $paste): ?string
+    {
+        $siteName = $paste->site->getName();
+        $draft = Entry::find()->id($target->owner->id)->drafts(null)->provisionalDrafts(null)->siteId($paste->site->id)->status(null)->one();
+        if (!$draft) {
+            return "Craft didn't find your draft in the site \"$siteName\", so no blocks were pasted.";
+        }
+
+        $handle = $target->field->handle;
+        $value = $draft->getFieldValue($handle);
+        $existing = $value instanceof ElementQueryInterface ? (clone $value)->status(null)->all() : [];
+        $existingUids = array_map(fn(ElementInterface $element) => (string)$element->uid, $existing);
+
+        $draft->setFieldValue($handle, [
+            ...array_diff_key($paste->fragment, ['sortOrder' => true]),
+            'sortOrder' => [...$existingUids, ...(array)$paste->fragment['sortOrder']],
+        ]);
+        // A draft may be incomplete, like any draft an editor saves.
+        $draft->setScenario(Element::SCENARIO_ESSENTIALS);
+
+        if (!Craft::$app->getElements()->saveElement($draft)) {
+            return "Craft couldn't save the blocks into your draft for the site \"$siteName\", so none were pasted: " . implode(' ', $draft->getFirstErrors());
+        }
+
+        return null;
     }
 
     /**

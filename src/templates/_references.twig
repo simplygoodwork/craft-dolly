@@ -1,0 +1,88 @@
+{% import '_includes/forms' as forms %}
+
+{#
+ # The Preview's table of related elements: how each Reference resolved in this environment and, for each Unresolved
+ # reference, the choices. Shared by the utility's Preview and the Preview in the paste modal.
+ #}
+
+{% if plan.references %}
+    <h2>{{ 'Related elements'|t('portage') }}</h2>
+    <table class="data fullwidth">
+        <thead>
+            <tr>
+                <th>{{ 'Element'|t('portage') }}</th>
+                <th>{{ 'Type'|t('portage') }}</th>
+                <th>{{ 'In this environment'|t('portage') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for uid, reference in plan.references %}
+                {% set unresolved = not reference.resolution.isResolved() %}
+                {% set want = requested[uid] ?? null %}
+                {% set selected = reference.pending ?? want.choice ?? reference.choice %}
+                <tr data-portage-reference="{{ uid }}">
+                    <td>{{ reference.name() }}</td>
+                    <td>{{ reference.elementType|capitalize }}</td>
+                    <td>
+                        <div class="portage-outcome">{{ reference.outcome() }}</div>
+                        {% if unresolved %}
+                            <div class="select">
+                                <select name="choices[{{ uid }}][choice]" aria-label="{{ 'What to do with {name}'|t('portage', { name: reference.name() }) }}" data-portage-choice data-portage-replan>
+                                    {% for choice in reference.availableChoices %}
+                                        <option value="{{ choice }}"{{ choice == selected ? ' selected' }}>{{ choiceLabels[choice] ?? choice }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            {% if 'replace' in reference.availableChoices and pickers[uid] is defined %}
+                                {% set picked = reference.replacement ? [reference.replacement] : [] %}
+                                <div data-panel="replace"{{ selected != 'replace' ? ' class="hidden"' }}>
+                                    {{ forms.elementSelect({
+                                        id: 'portage-replacement-' ~ loop.index,
+                                        name: 'choices[' ~ uid ~ '][replacement]',
+                                        elementType: pickers[uid].elementType,
+                                        sources: pickers[uid].sources,
+                                        elements: picked,
+                                        limit: 1,
+                                    }) }}
+                                    {% if reference.pending == 'replace' %}
+                                        <p class="light">{{ 'Pick a replacement. Until you do, this will be skipped.'|t('portage') }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+
+                            {% if reference.elementType == 'asset' %}
+                                <div data-panel="fetch upload"{{ selected not in ['fetch', 'upload'] ? ' class="hidden"' }}>
+                                    <div class="field">
+                                        <div class="heading"><label>{{ 'Save it in the volume'|t('portage') }}</label></div>
+                                        <div class="select">
+                                            <select name="choices[{{ uid }}][volume]" data-portage-replan>
+                                                <option value="">{{ 'Its own volume'|t('portage') }}</option>
+                                                {% for volume in volumes %}
+                                                    <option value="{{ volume.uid }}"{{ volume.uid == want.volume ?? '' ? ' selected' }}>{{ volume.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <input type="text" class="text" name="choices[{{ uid }}][folder]" value="{{ want.folder ?? '' }}" placeholder="{{ 'Folder path (when you choose a volume)'|t('portage') }}" data-portage-replan>
+                                    </div>
+                                </div>
+                                <div data-panel="fetch"{{ selected != 'fetch' ? ' class="hidden"' }}>
+                                    <p class="light">{{ 'Fetching fails for private volumes and for sources behind basic auth. Upload the file instead.'|t('portage') }}</p>
+                                </div>
+                                <div data-panel="upload"{{ selected != 'upload' ? ' class="hidden"' }}>
+                                    <input type="file" name="uploads[{{ uid }}]" data-portage-replan>
+                                    {{ hiddenInput('choices[' ~ uid ~ '][staged]', want.staged ?? '') }}
+                                    {% if want.stagedName ?? '' %}
+                                        <p class="light">{{ 'Using the uploaded file {name}. Choose another file to replace it.'|t('portage', { name: want.stagedName }) }}</p>
+                                    {% elseif reference.pending == 'upload' %}
+                                        <p class="light">{{ 'Choose a file. Until you do, this will be skipped.'|t('portage') }}</p>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

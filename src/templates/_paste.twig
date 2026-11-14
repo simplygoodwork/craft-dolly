@@ -1,0 +1,89 @@
+{#
+ # The Preview in the "Paste from another environment" modal: a rendering of the ImportPlan from the core service for
+ # blocks pasted into a field. It decides nothing. The Related elements and Schema tables, and the choices in them, are
+ # the utility Preview's.
+ #}
+
+{% set driftStates = {
+    'matched': 'Matched'|t('portage'),
+    'drifted': 'Drifted'|t('portage'),
+    'type-changed': 'Type changed'|t('portage'),
+    'missing': 'Missing'|t('portage'),
+} %}
+
+<div id="portage-paste-preview">
+    {{ hiddenInput('payload', payload) }}
+    {{ hiddenInput('previewed', previewed) }}
+
+    {% if plan.isRefused() %}
+        <p class="error" id="portage-refusal">{{ plan.refusal }}</p>
+        <div class="buttons">
+            <button type="button" class="btn" data-portage-back>{{ 'Back'|t('portage') }}</button>
+            <button type="button" class="btn" data-portage-cancel>{{ 'Cancel'|t('portage') }}</button>
+        </div>
+    {% else %}
+        <p>{{ 'Nothing has been pasted yet. The blocks will be added to the end of the field {field} in your draft of this entry. Check what will happen, change what you like, then paste.'|t('portage', { field: '“' ~ target.field.name ~ '”' }) }}</p>
+
+        {% if choiceError %}
+            <p class="error" id="portage-choice-error">{{ choiceError }}</p>
+        {% endif %}
+
+        {% if plan.source %}
+            <p class="light">
+                {{ 'Copied from {siteUrl} ({environment}) by {user} on {date}.'|t('portage', {
+                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('portage'),
+                    environment: plan.source.environment ?? 'unknown environment'|t('portage'),
+                    user: plan.source.exportedBy ?? 'an unknown user'|t('portage'),
+                    date: plan.source.exportedAt ?? 'an unknown date'|t('portage'),
+                }) }}
+            </p>
+        {% endif %}
+
+        {% for warning in plan.warnings %}
+            <p class="warning">{{ warning }}</p>
+        {% endfor %}
+
+        <h2>{{ 'Blocks'|t('portage') }}</h2>
+        {% for root in plan.roots %}
+            <div class="pane">
+                {% set name = root.title is not null ? '"' ~ root.title ~ '"' : root.sourceUid %}
+                {% if root.isBlocked() %}
+                    <p class="error">{{ '{name} can’t be pasted: {reason}'|t('portage', { name: name, reason: root.blockedBy }) }}</p>
+                {% else %}
+                    <p>{{ '{name} will be added to the field {field}.'|t('portage', { name: name, field: '"' ~ target.field.name ~ '"' }) }}</p>
+                {% endif %}
+
+                {% include 'portage/_root-details' with {
+                    warnings: root.warnings,
+                    unresolvedReferences: root.unresolvedReferences,
+                    incompleteFields: root.incompleteFields,
+                } only %}
+            </div>
+        {% endfor %}
+
+        {% include 'portage/_references' with {
+            plan: plan,
+            requested: requested,
+            choiceLabels: choiceLabels,
+            pickers: pickers,
+            volumes: volumes,
+        } only %}
+
+        {% include 'portage/_drift' with {
+            plan: plan,
+            driftKinds: driftKinds,
+            driftStates: driftStates,
+        } only %}
+
+        <div class="buttons">
+            <button type="button" id="portage-update" class="btn" data-portage-update>{{ 'Update Preview'|t('portage') }}</button>
+            {% if plan.hasImportableRoots() %}
+                <button type="submit" class="btn submit">{{ 'Paste'|t('portage') }}</button>
+            {% endif %}
+            <button type="button" class="btn" data-portage-cancel>{{ 'Cancel'|t('portage') }}</button>
+        </div>
+        {% if not plan.hasImportableRoots() %}
+            <p class="error">{{ 'None of the blocks can be pasted.'|t('portage') }}</p>
+        {% endif %}
+    {% endif %}
+</div>

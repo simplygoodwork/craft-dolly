@@ -31,6 +31,7 @@ final class ImportPlan
         public readonly array $warnings = [],
         public readonly array $envelope = [],
         public readonly ?string $refusalUid = null,
+        public readonly ?BlockTarget $target = null,
     ) {
     }
 
@@ -58,7 +59,9 @@ final class ImportPlan
             $reference->fetch?->source->uploadPath,
         ], array_filter($this->references, fn(ReferencePlan $reference) => !$reference->resolution->isResolved()));
 
-        return hash('sha256', json_encode([$this->payloadIdentity, $roots, array_values($references)], JSON_THROW_ON_ERROR));
+        $target = $this->target ? [$this->target->owner->id, $this->target->field->uid] : null;
+
+        return hash('sha256', json_encode([$this->payloadIdentity, $roots, array_values($references), $target], JSON_THROW_ON_ERROR));
     }
 
     public function isRefused(): bool

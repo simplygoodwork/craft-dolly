@@ -102,23 +102,36 @@
     }
 
     if (response.asFile) {
-      offerDownload(t('The Payload is large. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}), response);
+      offerDownload(
+        response.kind === 'blocks'
+          ? t('The Payload is large. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.', {filename: response.filename})
+          : t('The Payload is large. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}),
+        response
+      );
       return;
     }
 
     copied = copied || (!window.ClipboardItem && (await copyText(response.payload)));
     if (copied) {
+      const blocks = response.kind === 'blocks';
       Craft.cp.displayNotice(
         response.count === 1
-          ? t('Copied for another environment: 1 entry.')
-          : t('Copied for another environment: {count} entries.', {count: response.count})
+          ? t(blocks ? 'Copied for another environment: 1 block.' : 'Copied for another environment: 1 entry.')
+          : t(blocks ? 'Copied for another environment: {count} blocks.' : 'Copied for another environment: {count} entries.', {count: response.count})
       );
     } else {
-      offerDownload(t('The Payload couldn’t be copied. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}), response);
+      offerDownload(
+        response.kind === 'blocks'
+          ? t('The Payload couldn’t be copied. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.', {filename: response.filename})
+          : t('The Payload couldn’t be copied. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}),
+        response
+      );
     }
   }
 
-  window.Portage = {
+  window.Portage = Object.assign(window.Portage || {}, {
+    exportAndDeliver,
+
     /**
      * Exports the entry an element editor is showing, including changes that haven't been saved to its draft yet.
      */
@@ -137,5 +150,5 @@
     exportEntries(ids, siteId) {
       return exportAndDeliver('portage/export/entries', async () => ({ids, siteId}));
     },
-  };
+  });
 })();

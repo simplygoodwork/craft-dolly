@@ -9,12 +9,13 @@ final class RootResult
 {
     public const STATUS_CREATED = 'created';
     public const STATUS_OVERWRITTEN = 'overwritten';
+    public const STATUS_PASTED = 'pasted';
     public const STATUS_FAILED = 'failed';
 
     public string $status = self::STATUS_CREATED;
 
     /**
-     * @var int|null the new entry, or for an overwrite the canonical entry
+     * @var int|null the new entry, or for an overwrite the canonical entry, or for pasted blocks the draft they went into
      */
     public ?int $elementId = null;
 
@@ -22,6 +23,11 @@ final class RootResult
      * @var int|null the draft an overwrite created on the canonical entry
      */
     public ?int $draftId = null;
+
+    /**
+     * @var int the number of blocks a pasted Root element added to the draft's field, with the blocks nested under it
+     */
+    public int $blocks = 0;
 
     /**
      * @var string the Import mode the Root element was imported in
@@ -113,6 +119,7 @@ final class RootResult
             'status' => $this->status,
             'elementId' => $this->elementId,
             'draftId' => $this->draftId,
+            'blocks' => $this->blocks,
             'mode' => $this->mode,
             'section' => $this->sectionUid,
             'errors' => $this->errors,

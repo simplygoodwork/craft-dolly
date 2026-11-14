@@ -14,10 +14,12 @@ _Exception_: SEOmatic's own terms "meta bundle" and "bundle settings" (its `Meta
 **Export**:
 Producing a Payload from selected content in the source environment.
 _Avoid_: Copy, dump
+_Exception_: "Copy" for the entry-editor actions "Copy for another environment" and "Copy selected for another environment" on entries and on Matrix and Neo blocks, which the spec names that way, and in the code, tests and docs of those actions.
 
 **Import**:
 Applying a Payload to the target environment, always preceded by a Preview.
 _Avoid_: Paste, restore, sync
+_Exception_: "Paste" for the entry-editor action "Paste from another environment" on Matrix and Neo fields (block paste), which the spec names that way, and in the code, tests and docs of that action. It is an Import into a draft's field.
 
 **Preview**:
 The report shown before an Import commits, listing every Resolution, Drift and skipped value, and the user's choices for Unresolved References.
