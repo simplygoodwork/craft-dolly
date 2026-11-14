@@ -12,6 +12,7 @@ use craft\elements\User;
 use craft\fields\Assets;
 use craft\fields\Categories;
 use craft\fields\Entries;
+use craft\fields\Link;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\fields\Tags;
@@ -31,6 +32,7 @@ final class FieldAdapterRegistry
     {
         $this->adapters = [
             PlainText::class => new PlainTextAdapter(),
+            Link::class => new LinkAdapter(),
             Matrix::class => new MatrixAdapter(),
             CkEditorField::class => new CkEditorAdapter(),
             Entries::class => new RelationFieldAdapter(Entry::class),

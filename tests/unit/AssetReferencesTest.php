@@ -131,8 +131,8 @@ class AssetReferencesTest extends Unit
             ],
         ], $root->fetchFailures);
         $this->assertSame([
-            "The asset \"Gone notes\" couldn't be fetched from $server/files/gone.txt: the file wasn't found at the source (HTTP 404 Not Found). Its relations were skipped.",
-            "The asset \"Private diagram\" couldn't be fetched from $server/private/diagram.png: the source refused access (HTTP 401 Unauthorized). It may be behind basic auth, or the volume may be private. Its relations were skipped.",
+            "The asset \"Gone notes\" couldn't be fetched from $server/files/gone.txt: the file wasn't found at the source (HTTP 404 Not Found). Its relations and links to it were cleared.",
+            "The asset \"Private diagram\" couldn't be fetched from $server/private/diagram.png: the source refused access (HTTP 401 Unauthorized). It may be behind basic auth, or the volume may be private. Its relations and links to it were cleared.",
         ], $root->warnings);
         $this->assertSame([['uid' => $photoUid, 'title' => 'Photo', 'elementId' => $fetched->id]], $root->fetchedAssets);
     }

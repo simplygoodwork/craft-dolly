@@ -246,7 +246,7 @@ class EmbeddedReferencesTest extends Unit
         $this->assertNotNull($fetched, 'No asset with the source UID');
         $this->assertSame("{asset:$fetched->id:url} no notes", $this->importedEntry($result->roots[0]->elementId)->getFieldValue('body'));
         $this->assertSame(
-            ["The asset \"Gone notes\" couldn't be fetched from $server/files/gone.txt: the file wasn't found at the source (HTTP 404 Not Found). Its relations were skipped."],
+            ["The asset \"Gone notes\" couldn't be fetched from $server/files/gone.txt: the file wasn't found at the source (HTTP 404 Not Found). Its relations and links to it were cleared."],
             $result->roots[0]->warnings,
         );
     }

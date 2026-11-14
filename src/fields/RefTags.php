@@ -73,6 +73,15 @@ final class RefTags
     }
 
     /**
+     * Replaces the Reference UIDs in a value made of reference tags (a Link field's `{entry:…:url}`) with the IDs of the
+     * elements they resolve to. One unresolved tag clears the whole value: it returns null, after warning.
+     */
+    public function importValue(string $value, FieldInterface $field, ImportContext $context): ?string
+    {
+        return $this->importTagsOrNull($value, $field, $context, 'linked', 'The link will be cleared.');
+    }
+
+    /**
      * Translates the tags in a link, or removes the link and keeps its text if a tag in its opening tag is unresolved.
      */
     private function importLink(string $link, FieldInterface $field, ImportContext $context): string
@@ -81,16 +90,29 @@ final class RefTags
             return $this->importTags($link, $field, $context);
         }
 
+        $openingTag = $this->importTagsOrNull($match[1], $field, $context, 'linked', 'The link will be removed and its text kept.');
+        $text = $this->importTags($match[2], $field, $context);
+
+        return $openingTag === null ? $text : "$openingTag$text</a>";
+    }
+
+    /**
+     * Translates every tag in the text, or returns null after warning if any is unresolved.
+     *
+     * @param string $usage how the field uses the tags, in a warning: "linked" or "referenced"
+     * @param string $outcome what happens to an unresolved tag, in a warning
+     */
+    private function importTagsOrNull(string $text, FieldInterface $field, ImportContext $context, string $usage, string $outcome): ?string
+    {
         $unresolved = false;
-        $openingTag = $this->replaceTags($match[1], function(array $tag) use ($field, $context, &$unresolved): ?string {
-            $translated = $this->importTag($tag, $field, $context, 'linked', 'The link will be removed and its text kept.');
+        $imported = $this->replaceTags($text, function(array $tag) use ($field, $context, $usage, $outcome, &$unresolved): ?string {
+            $translated = $this->importTag($tag, $field, $context, $usage, $outcome);
             $unresolved = $unresolved || $translated === false;
 
             return $translated === false ? null : $translated;
         });
-        $text = $this->importTags($match[2], $field, $context);
 
-        return $unresolved ? $text : "$openingTag$text</a>";
+        return $unresolved ? null : $imported;
     }
 
     private function importTags(string $text, FieldInterface $field, ImportContext $context): string

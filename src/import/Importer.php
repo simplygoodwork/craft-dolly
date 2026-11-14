@@ -5,6 +5,7 @@ namespace simplygoodwork\craftportage\import;
 use Craft;
 use craft\base\Element;
 use craft\base\ElementInterface;
+use craft\base\Serializable;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\events\ElementEvent;
@@ -52,7 +53,7 @@ final class Importer
     }
 
     /**
-     * Completes the reference tags pointing at Stubs and fetched assets in an element's text values, as it's saved.
+     * Completes the reference tags pointing at Stubs and fetched assets in an element's text, HTML and structured (such as Link) field values, as it's saved.
      * The Stubs and assets are saved first, so they have IDs by then (unless an asset's fetch failed).
      *
      * @param array<string, PendingRefTag> $pending by token
@@ -65,6 +66,13 @@ final class Importer
 
         foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
             $value = $element->getFieldValue($field->handle);
+            if ($value instanceof Serializable) {
+                $serialized = $value->serialize();
+                if (is_array($serialized) && $this->renderTokensIn($serialized, $pending)) {
+                    $element->setFieldValue($field->handle, $serialized);
+                }
+                continue;
+            }
             if ($value instanceof HtmlFieldData) {
                 $value = $value->getRawContent();
             }
@@ -75,6 +83,25 @@ final class Importer
                 }
             }
         }
+    }
+
+    /**
+     * Replaces the tokens in every string of a serialized field value, returning whether any changed.
+     *
+     * @param array<mixed> $value
+     * @param array<string, PendingRefTag> $pending by token
+     */
+    private function renderTokensIn(array &$value, array $pending): bool
+    {
+        $changed = false;
+        array_walk_recursive($value, function(mixed &$leaf) use ($pending, &$changed): void {
+            if (is_string($leaf) && ($completed = PendingRefTag::renderIn($leaf, $pending)) !== $leaf) {
+                $leaf = $completed;
+                $changed = true;
+            }
+        });
+
+        return $changed;
     }
 
     /**
@@ -269,7 +296,7 @@ final class Importer
                 'url' => $fetch->url,
                 'reason' => $fetch->failure,
             ];
-            $result->warnings[] = "The asset {$reference->name()} couldn't be fetched from $fetch->url: $fetch->failure. Its relations were skipped.";
+            $result->warnings[] = "The asset {$reference->name()} couldn't be fetched from $fetch->url: $fetch->failure. Its relations and links to it were cleared.";
         }
 
         if ($result->fetchFailures) {

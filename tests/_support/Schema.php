@@ -11,10 +11,13 @@ use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
+use craft\elements\GlobalSet;
 use craft\elements\Tag;
 use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
+use craft\fields\Link;
+use craft\fields\linktypes\BaseLinkType;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\fs\Local;
@@ -31,6 +34,7 @@ use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
+use ReflectionProperty;
 use RuntimeException;
 use simplygoodwork\craftportage\Plugin;
 
@@ -72,6 +76,47 @@ final class Schema
     public static function plainText(string $handle, array $config = []): PlainText
     {
         return self::field(PlainText::class, $handle, $config);
+    }
+
+    /**
+     * Saves a Link field.
+     *
+     * @param array<string, mixed> $config
+     */
+    public static function link(string $handle, array $config = []): Link
+    {
+        return self::field(Link::class, $handle, $config);
+    }
+
+    /**
+     * Saves a global set, an element type Portage doesn't support.
+     */
+    public static function globalSet(string $handle): GlobalSet
+    {
+        $set = new GlobalSet(['name' => self::nameFor($handle), 'handle' => $handle]);
+        if (!Craft::$app->getGlobals()->saveSet($set)) {
+            self::fail("global set \"$handle\"", $set->getErrors());
+        }
+
+        return $set;
+    }
+
+    /**
+     * Runs a callback with an extra Link field type registered, as a plugin would.
+     *
+     * @param class-string<BaseLinkType> $class
+     */
+    public static function withLinkType(string $class, callable $callback): mixed
+    {
+        // Craft caches the registered types in a private static, so it's replaced for the callback and restored after.
+        $property = new ReflectionProperty(Link::class, '_types');
+        $original = Link::types();
+        $property->setValue(null, [$class::id() => $class] + $original);
+        try {
+            return $callback();
+        } finally {
+            $property->setValue(null, $original);
+        }
     }
 
     /**
