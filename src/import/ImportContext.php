@@ -12,10 +12,12 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\Assets as AssetsHelper;
 use craft\helpers\StringHelper;
 use craft\models\EntryType;
+use craft\models\FieldLayout;
 use craft\models\Site;
 use craft\models\Volume;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\fields\RequiresOwner;
+use simplygoodwork\craftportage\references\ElementTypes;
 use simplygoodwork\craftportage\schema\Drift;
 use simplygoodwork\craftportage\schema\DriftReport;
 use verbb\hyper\base\Link as HyperLink;
@@ -40,6 +42,11 @@ final class ImportContext
     private array $nestedUids = [];
 
     /**
+     * @var FieldLayout|null the field layout of the element whose field values are being planned
+     */
+    private ?FieldLayout $layout = null;
+
+    /**
      * @param array<string, ReferencePlan> $references the plan for each of the Payload's References, by UID
      */
     public function __construct(
@@ -54,8 +61,11 @@ final class ImportContext
     /**
      * Returns the element a relation to a Reference will point at (matched, replacement or Stub), or null after
      * reporting it as a skipped Unresolved reference.
+     *
+     * @param list<string>|null $allowedKinds the kinds of file an asset may be fetched as, for a field that only takes some
+     * kinds (SEO images); null leaves it to an Assets field's own restrictions
      */
-    public function resolveReference(string $uid, FieldInterface $field): ?ElementInterface
+    public function resolveReference(string $uid, FieldInterface $field, ?array $allowedKinds = null): ?ElementInterface
     {
         $reference = $this->references[$uid] ?? null;
         $target = $reference?->target();
@@ -69,7 +79,7 @@ final class ImportContext
             $this->plan->stubs[$uid] = $reference;
         }
         if ($reference->fetch) {
-            if (!$this->allowsKind($field, $reference->fetch)) {
+            if (!$this->allowsKind($field, $reference->fetch, $allowedKinds)) {
                 return null;
             }
             $this->plan->addFetch($reference);
@@ -93,6 +103,43 @@ final class ImportContext
         $this->plan->pendingRefTags[$pending->token] = $pending;
 
         return $pending->token;
+    }
+
+    /**
+     * Resolves a Reference that a field value embeds by element ID (a Hyper link, a SEO image) to the ID of its element
+     * in the Target environment, or a token for the ID of a Stub or fetched asset. Returns null, after warning, if the
+     * Payload carries no Reference of the element class, or it doesn't resolve.
+     *
+     * @param class-string<ElementInterface> $elementClass
+     * @param string $notCarried the warning when the Payload carries no such Reference
+     * @param string $usage how the field uses the element, in the warning for one that doesn't resolve: "linked"
+     * @param string $outcome what happens to it, in that warning
+     * @param list<string>|null $allowedKinds see `resolveReference()`
+     */
+    public function embeddedId(string $uid, string $elementClass, FieldInterface $field, string $notCarried, string $usage, string $outcome, ?array $allowedKinds = null): int|string|null
+    {
+        $reference = $this->reference($uid);
+        if (!$reference || ElementTypes::classFor($reference->elementType) !== $elementClass) {
+            $this->plan->warn($notCarried);
+            return null;
+        }
+
+        $target = $this->resolveReference($uid, $field, $allowedKinds);
+        if (!$target) {
+            $this->plan->warn(sprintf('The %s %s %s in the field "%s" doesn\'t exist in this environment. %s', $reference->elementType, $reference->name(), $usage, $field->name, $outcome));
+            return null;
+        }
+
+        return $this->elementIdFor($target);
+    }
+
+    /**
+     * Returns whether the element whose field values are being planned has a custom field with the handle in its field
+     * layout, or null if that isn't known.
+     */
+    public function layoutHasField(string $handle): ?bool
+    {
+        return $this->layout?->getFieldByHandle($handle) !== null ?: ($this->layout === null ? null : false);
     }
 
     /**
@@ -127,10 +174,13 @@ final class ImportContext
     /**
      * Returns whether an Assets field allows the kind of file being fetched, warning when it doesn't.
      */
-    private function allowsKind(FieldInterface $field, AssetFetch $fetch): bool
+    private function allowsKind(FieldInterface $field, AssetFetch $fetch, ?array $allowedKinds): bool
     {
         $kind = (string)$fetch->asset->kind;
-        if (!$field instanceof AssetsField || !$field->restrictFiles || in_array($kind, $field->allowedKinds ?? [], true)) {
+        if ($allowedKinds === null) {
+            $allowedKinds = $field instanceof AssetsField && $field->restrictFiles ? ($field->allowedKinds ?? []) : null;
+        }
+        if ($allowedKinds === null || in_array($kind, $allowedKinds, true)) {
             return true;
         }
 
@@ -358,7 +408,13 @@ final class ImportContext
                 continue;
             }
             if ($adapter) {
-                $values[$field->handle] = $adapter->import($field, $value, $this);
+                $outer = $this->layout;
+                $this->layout = $owner->getFieldLayout();
+                try {
+                    $values[$field->handle] = $adapter->import($field, $value, $this);
+                } finally {
+                    $this->layout = $outer;
+                }
             }
         }
 

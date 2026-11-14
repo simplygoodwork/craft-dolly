@@ -71,7 +71,7 @@ class Portage extends Component
             return ImportResult::refused((string)$plan->refusal);
         }
 
-        $roots = (new Importer())->import($plan);
+        $roots = (new Importer(adapters: $this->adapters()))->import($plan);
         $logId = Plugin::getInstance()->getImportLog()->record((string)$plan->payloadIdentity, $plan->source, $roots, $plan->choices());
 
         return new ImportResult($roots, payloadIdentity: $plan->payloadIdentity, logId: $logId);

@@ -24,6 +24,8 @@ modules:
           handle: neo
         - class: '\verbb\hyper\Hyper'
           handle: hyper
+        - class: '\nystudio107\seomatic\Seomatic'
+          handle: seomatic
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

@@ -9,6 +9,7 @@ Portage moves content between Craft environments that share project config but h
 **Payload**:
 The portable, version-tagged representation of selected content that a user carries from one environment to another.
 _Avoid_: Blob, bundle, package, export file
+_Exception_: SEOmatic's own terms "meta bundle" and "bundle settings" (its `MetaBundle` model, and the field value that is one), in the SEO Settings adapter, its tests and docs.
 
 **Export**:
 Producing a Payload from selected content in the source environment.

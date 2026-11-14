@@ -18,6 +18,7 @@ use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\fields\Tags;
 use craft\fields\Users;
+use nystudio107\seomatic\fields\SeoSettings;
 use verbb\hyper\fields\HyperField;
 
 /**
@@ -39,6 +40,7 @@ final class FieldAdapterRegistry
             CkEditorField::class => new CkEditorAdapter(),
             NeoField::class => new NeoAdapter(),
             HyperField::class => new HyperAdapter(),
+            SeoSettings::class => new SeoSettingsAdapter(),
             Entries::class => new RelationFieldAdapter(Entry::class),
             Categories::class => new RelationFieldAdapter(Category::class),
             Tags::class => new RelationFieldAdapter(Tag::class),

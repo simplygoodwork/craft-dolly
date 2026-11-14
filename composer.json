@@ -21,6 +21,7 @@
     "craftcms/ckeditor": "^5.9",
     "craftcms/ecs": "dev-main",
     "craftcms/phpstan": "dev-main",
+    "nystudio107/craft-seomatic": "^5.1",
     "phpstan/phpstan": "^2.1",
     "spicyweb/craft-neo": "^5.0",
     "verbb/hyper": "^2.0"

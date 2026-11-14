@@ -14,8 +14,9 @@ use craft\htmlfield\HtmlFieldData;
 use craft\services\Elements;
 use craft\services\Structures;
 use RuntimeException;
+use simplygoodwork\craftportage\fields\CompletesTokens;
+use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use Throwable;
-use verbb\hyper\models\LinkCollection;
 use yii\db\Transaction;
 
 /**
@@ -27,8 +28,10 @@ use yii\db\Transaction;
  */
 final class Importer
 {
-    public function __construct(private readonly AssetFetcher $fetcher = new AssetFetcher())
-    {
+    public function __construct(
+        private readonly AssetFetcher $fetcher = new AssetFetcher(),
+        private readonly FieldAdapterRegistry $adapters = new FieldAdapterRegistry(),
+    ) {
     }
 
     /**
@@ -67,15 +70,19 @@ final class Importer
 
         foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
             $value = $element->getFieldValue($field->handle);
-            // A Link field's value, or Hyper's links, which hold the tokens of the Stubs and assets they link to.
-            if ($value instanceof Serializable || $value instanceof LinkCollection) {
-                $serialized = $value instanceof LinkCollection ? $value->serializeValues($element) : $value->serialize();
+            // A field whose adapter knows where its value holds tokens (Hyper's links, SEOmatic's images).
+            $adapter = $this->adapters->adapterFor($field);
+            if ($adapter instanceof CompletesTokens) {
+                $completed = $adapter->completeTokens($value, $element, fn(array &$data) => $this->renderTokensIn($data, $pending));
+                if ($completed !== null) {
+                    $element->setFieldValue($field->handle, $completed);
+                }
+                continue;
+            }
+            // A Link field's value, which holds the tokens of the Stubs and assets it links to.
+            if ($value instanceof Serializable) {
+                $serialized = $value->serialize();
                 if (is_array($serialized) && $this->renderTokensIn($serialized, $pending)) {
-                    if ($value instanceof LinkCollection) {
-                        // A link to an asset whose fetch failed has no element left to link to. The fetch failure is
-                        // already reported.
-                        $serialized = array_values(array_filter($serialized, fn(array $link) => ($link['linkValue'] ?? null) !== ['']));
-                    }
                     $element->setFieldValue($field->handle, $serialized);
                 }
                 continue;

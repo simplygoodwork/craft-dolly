@@ -41,6 +41,7 @@ use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
+use nystudio107\seomatic\seoelements\SeoEntry;
 use ReflectionProperty;
 use RuntimeException;
 use simplygoodwork\craftportage\Plugin;
@@ -878,6 +879,50 @@ final class Schema
         self::saveElement($asset, $values);
 
         return $asset;
+    }
+
+    /**
+     * Gives a section URLs and SEOmatic a section-level meta bundle for it, whose meta global vars are the given values,
+     * and returns the bundle's row. SEOmatic only makes meta bundles for sections with URLs.
+     *
+     * @param array<string, mixed> $globalVars
+     * @return array<string, mixed>
+     */
+    public static function seomaticSectionBundle(Section $section, array $globalVars): array
+    {
+        foreach ($section->getSiteSettings() as $siteSettings) {
+            $siteSettings->hasUrls = true;
+            $siteSettings->uriFormat = $section->handle . '/{slug}';
+            $siteSettings->template = '_' . $section->handle;
+        }
+        if (!Craft::$app->getEntries()->saveSection($section)) {
+            self::fail("section \"$section->handle\" with URLs", $section->getErrors());
+        }
+        if (!self::seomaticSectionBundleRows($section)) {
+            SeoEntry::createContentMetaBundle($section);
+        }
+
+        $updated = Craft::$app->getDb()->createCommand()
+            ->update('{{%seomatic_metabundles}}', ['metaGlobalVars' => json_encode($globalVars)], ['sourceBundleType' => 'section', 'sourceId' => $section->id])
+            ->execute();
+        if ($updated === 0) {
+            throw new RuntimeException("SEOmatic made no meta bundle for the section \"$section->handle\".");
+        }
+
+        return self::seomaticSectionBundleRows($section)[0];
+    }
+
+    /**
+     * Returns the rows of SEOmatic's meta bundles for a section, one per site.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function seomaticSectionBundleRows(Section $section): array
+    {
+        return Craft::$app->getDb()->createCommand(
+            'SELECT * FROM {{%seomatic_metabundles}} WHERE [[sourceBundleType]] = :type AND [[sourceId]] = :id ORDER BY [[id]]',
+            [':type' => 'section', ':id' => $section->id],
+        )->queryAll();
     }
 
     /**

@@ -72,6 +72,8 @@ When the Import log already holds the Payload, the Preview warns who imported it
 
 Values for fields that are missing or have changed type in this environment are skipped with a warning; values for fields whose settings changed are imported with a warning. A Root element whose section is missing isn't imported, but the rest of the Payload is. A Payload exported from a different Craft major is refused.
 
+SEOmatic's SEO Settings field moves its values as they are, including Twig and object templates. The SEO, Facebook and Twitter images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Twig written by hand that contains an asset ID, and the images of the site-level identity and creator settings, move untranslated. Section-level SEOmatic bundles are never read or written. A setting that pulls from a field the Target entry doesn't have is imported with a warning.
+
 ## Shared key
 
 Set a Shared key to encrypt and authenticate every Payload. In **Settings → Plugins → Portage**, set **Shared key** to an env var, such as `$PORTAGE_SHARED_KEY`, and give that env var the same secret in every environment. Saving the setting only accepts an env var reference, so the secret itself never reaches project config. (A `sharedKey` set in `config/portage.php` isn't checked, so keep it an env var reference there too.)
@@ -146,6 +148,8 @@ $entry = Schema::entry($section, $page, [
 `Schema::categoryGroup()`, `Schema::category()`, `Schema::tagGroup()`, `Schema::tag()` and `Schema::user()` build related elements. `Schema::site()` adds a site (create sites before the sections that use them), and `Schema::translate($element, $site, [...])` saves an element's content in another site. Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
 
 `Schema::hyper()` saves a Hyper field from link types built with `Schema::hyperLinkType(linkTypes\\Url::class, 'url', [...customFields])`, and `Schema::changeHyperLinkTypes()` and `Schema::removeHyperLinkType()` change a Hyper field's link types to simulate a different Target environment. `Schema::withHyperLinkType()` registers an extra link type for a callback, as a plugin would.
+
+`Schema::seomaticSectionBundle()` gives a section URLs and SEOmatic a section-level meta bundle for it, and returns its row.
 
 `Schema::volume()` saves a volume on its own local filesystem in a temp directory, with public URLs if given a `url`, and `Schema::asset()` saves an asset from a file in `tests/_data/files`, in any folder. Tests that fetch assets serve those files over a local file server, never the internet: `FileServer::start()` (in `tests/_support/FileServer.php`) starts PHP's built-in server once per run and returns its base URL. Under `/files/` it serves the fixtures, `/private/` answers 401 like a source behind basic auth, and `/slow/` waits 3 seconds first. Give a volume `FileServer::start() . '/files'` as its URL so its assets' URLs point at the stub:
 

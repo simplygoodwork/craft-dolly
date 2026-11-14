@@ -23,12 +23,28 @@ use verbb\hyper\models\LinkCollection;
  * usual rules, Stub and replacement choices. The values of the custom fields in a link type's field layout travel
  * with the link, through their own Field adapters.
  */
-final class HyperAdapter implements FieldAdapter
+final class HyperAdapter implements CompletesTokens
 {
     /**
      * The plain settings of a link, copied as they are.
      */
     private const ATTRIBUTES = ['newWindow', 'linkText', 'ariaLabel', 'urlSuffix', 'linkTitle', 'classes', 'customAttributes'];
+
+    /**
+     * @return list<array<string, mixed>>|null the links with the tokens of Stubs and fetched assets replaced. A link to
+     * an asset whose fetch failed has no element left to link to, so it's removed; the fetch failure is already
+     * reported.
+     */
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    {
+        if (!$value instanceof LinkCollection) {
+            return null;
+        }
+
+        $serialized = $value->serializeValues($element);
+
+        return $render($serialized) ? array_values(array_filter($serialized, fn(array $link) => ($link['linkValue'] ?? null) !== [''])) : null;
+    }
 
     /**
      * @return list<array<string, mixed>> the links, in order. A link to an element that no longer exists is left out. A
@@ -185,19 +201,15 @@ final class HyperAdapter implements FieldAdapter
     private function importElement(HyperField $field, array $portable, ElementLink $linkType, ImportContext $context): int|string|null
     {
         $uid = $portable['linkValue'] ?? null;
-        $reference = is_string($uid) ? $context->reference($uid) : null;
-        if (!$reference || ElementTypes::classFor($reference->elementType) !== $linkType::elementType()) {
-            $context->plan->warn(sprintf('A %s link in the field "%s" doesn\'t point at a %s the Payload carries. The link will be skipped.', $linkType->label ?? $linkType->handle, $field->name, $linkType::displayName()));
-            return null;
-        }
 
-        $target = $context->resolveReference((string)$uid, $field);
-        if (!$target) {
-            $context->plan->warn(sprintf('The %s %s linked in the field "%s" doesn\'t exist in this environment. The link will be removed.', $reference->elementType, $reference->name(), $field->name));
-            return null;
-        }
-
-        return $context->elementIdFor($target);
+        return $context->embeddedId(
+            is_string($uid) ? $uid : '',
+            $linkType::elementType(),
+            $field,
+            sprintf('A %s link in the field "%s" doesn\'t point at a %s the Payload carries. The link will be skipped.', $linkType->label ?? $linkType->handle, $field->name, $linkType::displayName()),
+            'linked',
+            'The link will be removed.',
+        );
     }
 
     /**
