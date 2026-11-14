@@ -10,6 +10,7 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\events\ElementEvent;
 use craft\helpers\FileHelper;
+use craft\helpers\StringHelper;
 use craft\htmlfield\HtmlFieldData;
 use craft\services\Elements;
 use craft\services\Structures;
@@ -300,6 +301,7 @@ final class Importer
                         'uid' => $reference->uid,
                         'title' => $reference->title,
                         'elementId' => (int)$fetch->asset->id,
+                        ...($fetch->source->isUpload() ? ['uploaded' => true] : []),
                     ];
                     continue;
                 }
@@ -307,10 +309,12 @@ final class Importer
             $result->fetchFailures[] = [
                 'uid' => $reference->uid,
                 'title' => $reference->title,
-                'url' => $fetch->url,
+                ...($fetch->source->isUpload() ? [] : ['url' => $fetch->source->url]),
                 'reason' => $fetch->failure,
             ];
-            $result->warnings[] = "The asset {$reference->name()} couldn't be fetched from $fetch->url: $fetch->failure. Its relations and links to it were cleared.";
+            $result->warnings[] = $fetch->source->isUpload()
+                ? "The asset {$reference->name()} couldn't be created from the uploaded file: $fetch->failure. Its relations and links to it were cleared."
+                : "The asset {$reference->name()} couldn't be fetched from {$fetch->source->url}: $fetch->failure. Its relations and links to it were cleared.";
         }
 
         if ($result->fetchFailures) {
@@ -318,6 +322,22 @@ final class Importer
                 $related->dropUnsaved();
             }
         }
+    }
+
+    /**
+     * Copies an uploaded file to a temp file for the asset to take, so the uploaded file stays for any other Root
+     * element that relates to the asset.
+     *
+     * @throws AssetFetchFailedException if the uploaded file is gone
+     */
+    private function copyUpload(string $path, string $filename): string
+    {
+        $copy = Craft::$app->getPath()->getTempPath() . '/portage-' . StringHelper::randomString(12) . '-' . $filename;
+        if (!is_file($path) || !@copy($path, $copy)) {
+            throw new AssetFetchFailedException('the uploaded file is no longer available. Upload it again');
+        }
+
+        return $copy;
     }
 
     /**
@@ -329,7 +349,9 @@ final class Importer
     {
         $asset = $fetch->asset;
         try {
-            $tempPath = $this->fetcher->download($fetch->url, $asset->getFilename());
+            $tempPath = $fetch->source->isUpload()
+                ? $this->copyUpload((string)$fetch->source->uploadPath, $asset->getFilename())
+                : $this->fetcher->download((string)$fetch->source->url, $asset->getFilename());
         } catch (AssetFetchFailedException $e) {
             return $e->getMessage();
         }

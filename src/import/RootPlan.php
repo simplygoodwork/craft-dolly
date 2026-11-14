@@ -108,6 +108,12 @@ final class RootPlan
     public ?string $overwriteUnavailable = null;
 
     /**
+     * @var list<Section> the sections the user can choose as the Target section: those that allow the Root element's
+     * entry type
+     */
+    public array $availableSections = [];
+
+    /**
      * @var Section|null the Target section: the Payload's own section, or the one the user chose
      */
     public ?Section $section = null;

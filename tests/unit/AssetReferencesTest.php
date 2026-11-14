@@ -64,7 +64,7 @@ class AssetReferencesTest extends Unit
 
         $plan = $this->portage()->preview($payload);
         $this->assertSame('skip', $plan->references[$sourceUid]->choice);
-        $this->assertSame(['skip', 'fetch', 'replace'], $plan->references[$sourceUid]->availableChoices);
+        $this->assertSame(['skip', 'fetch', 'upload', 'replace'], $plan->references[$sourceUid]->availableChoices);
         $this->assertSame(
             'Unresolved: will be fetched from ' . FileServer::start() . '/files/blog/2026/photo.png into the folder "blog/2026/" of the "Photos" volume',
             $this->portage()->preview($payload, [$sourceUid => 'fetch'])->references[$sourceUid]->outcome(),
@@ -151,7 +151,7 @@ class AssetReferencesTest extends Unit
         $this->hardDelete($contract);
 
         $reference = $this->portage()->preview($payload)->references[$uid];
-        $this->assertSame(['skip', 'replace'], $reference->availableChoices);
+        $this->assertSame(['skip', 'upload', 'replace'], $reference->availableChoices);
         $this->assertSame(
             'Unresolved: will be skipped. It can\'t be fetched: its volume has no public URL in the Source environment.',
             $reference->outcome(),
@@ -219,7 +219,7 @@ class AssetReferencesTest extends Unit
 
         $plan = Schema::withGeneralConfig(['allowedFileExtensions' => ['png', 'jpg']], fn() => $this->portage()->preview($payload));
 
-        $this->assertSame(['skip', 'replace'], $plan->references[$uid]->availableChoices);
+        $this->assertSame(['skip', 'upload', 'replace'], $plan->references[$uid]->availableChoices);
         $this->assertSame('Unresolved: will be skipped. It can\'t be fetched: this environment doesn\'t allow ".txt" files.', $plan->references[$uid]->outcome());
     }
 
@@ -313,6 +313,98 @@ class AssetReferencesTest extends Unit
         $this->assertSame([], $result->roots[0]->fetchedAssets);
         $this->assertSame([['uid' => $uid, 'title' => 'Photo', 'elementId' => $assets[0]->id]], $result->roots[1]->fetchedAssets);
         $this->assertSame([$assets[0]->id], $this->importedEntry($result->roots[1]->elementId)->getFieldValue('images')->ids());
+    }
+
+    public function testAnUnresolvedAssetCanBeUploadedAndKeepsItsMetadataInTheMatchedOrChosenVolumeAndFolder(): void
+    {
+        $photos = Schema::volume('photos', FileServer::start() . '/files', [Schema::plainText('credit')]);
+        $archive = Schema::volume('archive');
+        $photo = Schema::asset($photos, 'photo.png', 'blog/2026', [
+            'title' => 'Red square',
+            'alt' => 'A red square',
+            'focalPoint' => ['x' => 0.25, 'y' => 0.75],
+            'credit' => 'Sam',
+        ]);
+        $sourceUid = $photo->uid;
+
+        [$news, $article] = $this->newsWithImages();
+        $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
+        $payload = $this->portage()->export([$source]);
+        $this->hardDelete($source);
+        $this->hardDelete($photo);
+        $file = $this->uploadedFile('red.png');
+
+        $plan = $this->portage()->preview($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
+        $this->assertSame('upload', $plan->references[$sourceUid]->choice);
+        $this->assertSame(
+            'Unresolved: the uploaded file will be saved into the folder "blog/2026/" of the "Photos" volume',
+            $plan->references[$sourceUid]->outcome(),
+        );
+        $this->assertNull(Asset::find()->uid($sourceUid)->one(), 'The Preview created the asset');
+
+        $result = $this->portage()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
+
+        $created = Asset::find()->uid($sourceUid)->one();
+        $this->assertNotNull($created, 'No asset with the source UID');
+        $this->assertSame(['photos', 'blog/2026/', 'red.png'], [$created->getVolume()->handle, $created->getFolder()->path, $created->getFilename()]);
+        $this->assertSame(['Red square', 'A red square', 'Sam'], [$created->title, $created->alt, $created->getFieldValue('credit')]);
+        $this->assertSame(['x' => 0.25, 'y' => 0.75], $created->getFocalPoint());
+        $this->assertSame([$created->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('images')->ids());
+        $this->assertSame([['uid' => $sourceUid, 'title' => 'Red square', 'elementId' => $created->id, 'uploaded' => true]], $result->roots[0]->fetchedAssets);
+        $this->assertTrue(is_file($file), 'The uploaded file was used up, so it could not serve a second Root element');
+        $this->assertSame('upload', Plugin::getInstance()->getImportLog()->getEntryById((int)$result->logId)->choices[0]['choice']);
+
+        // Into another volume and folder.
+        $this->hardDelete($created);
+        $chosen = $this->portage()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png', 'volume' => 'archive', 'folder' => 'uploads/2026']]);
+        $again = Asset::find()->uid($sourceUid)->one();
+        $this->assertNotNull($again, implode(' ', $chosen->roots[0]->warnings));
+        $this->assertSame(['archive', 'uploads/2026/'], [$again->getVolume()->handle, $again->getFolder()->path]);
+        $this->assertSame($archive->id, $again->volumeId);
+    }
+
+    public function testAnUploadThatCanNotBeUsedIsRefusedWithTheReason(): void
+    {
+        $photos = Schema::volume('photos');
+        $photo = Schema::asset($photos, 'photo.png', '', ['title' => 'Photo']);
+        $uid = $photo->uid;
+        [$news, $article] = $this->newsWithImages();
+        $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
+        $payload = $this->portage()->export([$source]);
+        $this->hardDelete($source);
+        $this->hardDelete($photo);
+
+        $this->assertSame(
+            'The file to upload for the asset "Photo" couldn\'t be found. Upload it again.',
+            $this->portage()->preview($payload, [$uid => ['choice' => 'upload', 'path' => '/nowhere/missing.png']])->refusal,
+        );
+        $this->assertSame(
+            'The file to upload for the asset "Photo" can\'t be used: this environment doesn\'t allow ".exe" files. Upload another file or skip it.',
+            $this->portage()->preview($payload, [$uid => ['choice' => 'upload', 'path' => $this->uploadedFile('tool.exe'), 'filename' => 'tool.exe']])->refusal,
+        );
+    }
+
+    /**
+     * @var list<string> the files the test uploaded, deleted afterwards
+     */
+    private array $uploadedFiles = [];
+
+    protected function _after(): void
+    {
+        foreach ($this->uploadedFiles as $path) {
+            @unlink($path);
+        }
+        $this->uploadedFiles = [];
+        parent::_after();
+    }
+
+    private function uploadedFile(string $name): string
+    {
+        $path = sys_get_temp_dir() . '/portage-test-' . uniqid() . '-' . $name;
+        file_put_contents($path, file_get_contents(codecept_data_dir('files/photo.png')));
+        $this->uploadedFiles[] = $path;
+
+        return $path;
     }
 
     /**

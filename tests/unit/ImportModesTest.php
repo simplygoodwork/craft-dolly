@@ -229,6 +229,43 @@ class ImportModesTest extends Unit
         ]);
     }
 
+    public function testThePreviewListsOnlyTheSectionsThatAllowTheRootsEntryType(): void
+    {
+        $article = Schema::entryType('article');
+        $page = Schema::entryType('page');
+        $news = Schema::section('news', [$article]);
+        Schema::section('blog', [$article, $page]);
+        Schema::section('pages', [$page]);
+        $source = Schema::entry($news, $article, ['title' => 'Hello']);
+        $payload = $this->portage()->export([$source]);
+
+        $plan = $this->portage()->preview($payload);
+        $this->assertSame(['Blog', 'News'], $this->sectionNames($plan->roots[0]->availableSections));
+
+        // Choosing the Payload's own section is no choice at all.
+        $own = $this->portage()->preview($payload, [], [$source->uid => ['section' => 'news']]);
+        $this->assertSame('News', $own->roots[0]->section->name);
+        $this->assertSame($plan->fingerprint(), $own->fingerprint());
+
+        // A Root element whose section is gone is still offered the sections that allow its entry type.
+        Schema::deleteSection($news);
+        $blocked = $this->portage()->preview($payload)->roots[0];
+        $this->assertTrue($blocked->isBlocked());
+        $this->assertSame(['Blog'], $this->sectionNames($blocked->availableSections));
+    }
+
+    /**
+     * @param list<\craft\models\Section> $sections
+     * @return list<string>
+     */
+    private function sectionNames(array $sections): array
+    {
+        $names = array_map(fn($section) => $section->name, $sections);
+        sort($names);
+
+        return $names;
+    }
+
     public function testTheTargetSectionOverrideCanRescueARootWhoseSectionIsMissing(): void
     {
         $article = Schema::entryType('article');

@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\controllers;
 
 use craft\web\Controller;
+use simplygoodwork\craftportage\import\ReferencePlan;
 use simplygoodwork\craftportage\Plugin;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -31,6 +32,6 @@ class LogController extends Controller
         $import = Plugin::getInstance()->getImportLog()->getEntryById($importId)
             ?? throw new NotFoundHttpException('No Import with that ID is in the Import log.');
 
-        return $this->renderTemplate('portage/_log/view', ['import' => $import]);
+        return $this->renderTemplate('portage/_log/view', ['import' => $import, 'outcomes' => ReferencePlan::loggedOutcomes()]);
     }
 }

@@ -30,12 +30,35 @@ final class ImportPlan
         public readonly array $earlierImports = [],
         public readonly array $warnings = [],
         public readonly array $envelope = [],
+        public readonly ?string $refusalUid = null,
     ) {
     }
 
-    public static function refused(string $reason): self
+    /**
+     * @param string|null $choiceUid the Reference or Root element UID whose choice caused the refusal, if one did
+     */
+    public static function refused(string $reason, ?string $choiceUid = null): self
     {
-        return new self(refusal: $reason);
+        return new self(refusal: $reason, refusalUid: $choiceUid);
+    }
+
+    /**
+     * A hash of what the Import will do: each Root element's mode and section, and the choice for each Unresolved
+     * reference with where its asset goes. Two plans with the same fingerprint import the same thing.
+     */
+    public function fingerprint(): string
+    {
+        $roots = array_map(fn(RootPlan $root) => [$root->sourceUid, $root->mode, $root->section?->uid, $root->blockedBy], $this->roots);
+        $references = array_map(fn(ReferencePlan $reference) => [
+            $reference->uid,
+            $reference->choice,
+            $reference->replacement?->id,
+            $reference->fetch?->location(),
+            $reference->fetch?->source->describe(),
+            $reference->fetch?->source->uploadPath,
+        ], array_filter($this->references, fn(ReferencePlan $reference) => !$reference->resolution->isResolved()));
+
+        return hash('sha256', json_encode([$this->payloadIdentity, $roots, array_values($references)], JSON_THROW_ON_ERROR));
     }
 
     public function isRefused(): bool

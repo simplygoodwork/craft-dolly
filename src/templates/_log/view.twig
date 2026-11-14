@@ -39,14 +39,16 @@
             {% for choice in import.choices %}
                 {% set name = (choice.title is not null ? '"' ~ choice.title ~ '"' : choice.uid) ~ (choice.elementType ? ' (' ~ choice.elementType ~ ')' : '') %}
                 <li>
-                    {% if choice.choice == 'stub' %}
-                        {{ '{name}: a Stub was created'|t('portage', { name: name }) }}
-                    {% elseif choice.choice == 'fetch' %}
-                        {{ '{name}: fetched from its source URL'|t('portage', { name: name }) }}
-                    {% elseif choice.choice == 'replace' %}
+                    {% if choice.choice == 'replace' %}
                         {{ '{name}: replaced with {replacement}'|t('portage', { name: name, replacement: choice.replacementTitle ?? ('#' ~ choice.replacementId) }) }}
                     {% else %}
-                        {{ '{name}: skipped'|t('portage', { name: name }) }}
+                        {{ '{name}: {outcome}'|t('portage', { name: name, outcome: outcomes[choice.choice] ?? outcomes.skip }) }}
+                    {% endif %}
+                    {% if choice.filename ?? null %}
+                        {{ '(file {filename})'|t('portage', { filename: choice.filename }) }}
+                    {% endif %}
+                    {% if choice.location ?? null %}
+                        {{ 'Saved in {location}.'|t('portage', { location: choice.location }) }}
                     {% endif %}
                 </li>
             {% endfor %}
@@ -82,7 +84,8 @@
                         <li>{{ 'Created a disabled Stub for {name}.'|t('portage', { name: stub.title is not null ? '"' ~ stub.title ~ '"' : stub.uid }) }}</li>
                     {% endfor %}
                     {% for asset in result.fetchedAssets ?? [] %}
-                        <li>{{ 'Fetched the asset {name} from its source URL.'|t('portage', { name: asset.title is not null ? '"' ~ asset.title ~ '"' : asset.uid }) }}</li>
+                        {% set assetName = asset.title is not null ? '"' ~ asset.title ~ '"' : asset.uid %}
+                        <li>{{ (asset.uploaded ?? false) ? 'Created the asset {name} from an uploaded file.'|t('portage', { name: assetName }) : 'Fetched the asset {name} from its source URL.'|t('portage', { name: assetName }) }}</li>
                     {% endfor %}
                 </ul>
             {% endif %}

@@ -43,7 +43,8 @@ final class ImportPlanner
     /**
      * @param array<mixed> $choices for Unresolved references, by Reference UID: "skip", "stub", the ID of a
      * replacement element, or for an asset "fetch" (into its own volume and folder) or `['choice' => 'fetch',
-     * 'volume' => volume UID or handle, 'folder' => folder path]`. Omitted choices are "skip".
+     * 'volume' => volume UID or handle, 'folder' => folder path]`, or `['choice' => 'upload', 'path' => the path of
+     * the file, 'filename' => its name, 'volume' => ..., 'folder' => ...]`. Omitted choices are "skip".
      * @param array<mixed> $rootChoices for Root elements, by Root element UID: `['mode' => 'create'|'overwrite',
      * 'section' => section UID or handle]`. Omitted choices are "create" in the Payload's own section. The key `*`
      * is the default for every Root element: Root elements that can't be overwritten are created instead, while an
@@ -61,7 +62,7 @@ final class ImportPlanner
             $this->planFetchedAssetFields($references, $uids, $drift);
             $rootChoices = $this->parseRootChoices($rootChoices, $this->rootUids($envelope['roots']));
         } catch (InvalidChoiceException $e) {
-            return ImportPlan::refused($e->getMessage());
+            return ImportPlan::refused($e->getMessage(), $e->uid);
         }
 
         $plans = [];
@@ -88,7 +89,7 @@ final class ImportPlanner
                     !isset($explicit['mode']),
                 );
             } catch (InvalidChoiceException $e) {
-                return ImportPlan::refused($e->getMessage());
+                return ImportPlan::refused($e->getMessage(), $e->uid ?? $plan->sourceUid);
             }
             $parentUids[] = [$plan, $root['parent'] ?? null];
         }
@@ -239,10 +240,10 @@ final class ImportPlanner
 
         foreach ($choices as $uid => $choice) {
             if (!is_string($uid) || ($uid !== '*' && !isset($rootUids[$uid]))) {
-                throw new InvalidChoiceException("The Payload has no Root element with the UID $uid, so its mode and section can't be chosen.");
+                throw new InvalidChoiceException("The Payload has no Root element with the UID $uid, so its mode and section can't be chosen.", is_string($uid) ? $uid : null);
             }
             if (!is_array($choice)) {
-                throw new InvalidChoiceException("The choice for the Root element $uid isn't valid. Choose a \"mode\" and a \"section\".");
+                throw new InvalidChoiceException("The choice for the Root element $uid isn't valid. Choose a \"mode\" and a \"section\".", $uid);
             }
 
             $mode = $choice['mode'] ?? null;
@@ -251,7 +252,7 @@ final class ImportPlanner
                     'The mode %s for the Root element %s isn\'t valid. Choose "create" or "overwrite".',
                     Json::encode($mode),
                     $uid,
-                ));
+                ), $uid);
             }
             if ($mode !== null) {
                 $parsed[$uid]['mode'] = $mode;
@@ -266,7 +267,7 @@ final class ImportPlanner
                         'The section %s for the Root element %s doesn\'t exist in this environment, so it can\'t be chosen.',
                         Json::encode($section),
                         $uid,
-                    ));
+                    ), $uid);
                 }
                 $parsed[$uid]['section'] = $found;
             }
@@ -344,28 +345,58 @@ final class ImportPlanner
                 ReferencePlan::CHOICE_SKIP,
                 ...($stubs->canStub($reference) ? [ReferencePlan::CHOICE_STUB] : []),
                 ...($isAsset && $whyNoFetch === null ? [ReferencePlan::CHOICE_FETCH] : []),
+                ...($isAsset ? [ReferencePlan::CHOICE_UPLOAD] : []),
                 ReferencePlan::CHOICE_REPLACE,
             ];
-            $choice = $choices[$uid] ?? ReferencePlan::CHOICE_SKIP;
-
-            if ($choice === ReferencePlan::CHOICE_SKIP) {
-                $reference->choice = ReferencePlan::CHOICE_SKIP;
-            } elseif ($choice === ReferencePlan::CHOICE_STUB) {
-                $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference, $stubs));
-                $reference->choice = ReferencePlan::CHOICE_STUB;
-            } elseif ($choice === ReferencePlan::CHOICE_FETCH || (is_array($choice) && ($choice['choice'] ?? null) === ReferencePlan::CHOICE_FETCH)) {
-                $reference->fetch = $this->planFetch($reference, is_array($choice) ? $choice : [], $whyNoFetch, $uids);
-                $reference->choice = ReferencePlan::CHOICE_FETCH;
-            } elseif (is_int($choice) || (is_string($choice) && ctype_digit($choice))) {
-                $reference->replacement = $this->replacement($reference, (int)$choice);
-                $reference->choice = ReferencePlan::CHOICE_REPLACE;
-            } else {
-                throw new InvalidChoiceException(sprintf(
-                    'The choice for the Reference %s isn\'t valid. Choose %s.',
-                    $reference->name(),
-                    $isAsset ? '"skip", "fetch" or the ID of a replacement asset' : '"skip", "stub" or the ID of a replacement element',
-                ));
+            try {
+                $this->applyChoice($reference, $choices[$uid] ?? ReferencePlan::CHOICE_SKIP, $stubs, $uids, $isAsset, $whyNoFetch);
+            } catch (InvalidChoiceException $e) {
+                $e->uid ??= $uid;
+                throw $e;
             }
+        }
+    }
+
+    /**
+     * @throws InvalidChoiceException if the choice can't be carried out
+     */
+    private function applyChoice(ReferencePlan $reference, mixed $choice, Stubs $stubs, UidClaims $uids, bool $isAsset, ?string $whyNoFetch): void
+    {
+        // A choice that isn't complete yet, a replacement with no element picked or an upload with no file, is skip.
+        $kind = is_array($choice) ? ($choice['choice'] ?? null) : null;
+        if ($kind === ReferencePlan::CHOICE_REPLACE) {
+            $element = $choice['element'] ?? null;
+            if ($element === null || $element === '') {
+                $reference->pending = ReferencePlan::CHOICE_REPLACE;
+                $choice = ReferencePlan::CHOICE_SKIP;
+            } else {
+                $choice = $element;
+            }
+        } elseif ($kind === ReferencePlan::CHOICE_UPLOAD && ($choice['path'] ?? null) === null) {
+            $reference->pending = ReferencePlan::CHOICE_UPLOAD;
+            $choice = ReferencePlan::CHOICE_SKIP;
+        }
+
+        if ($choice === ReferencePlan::CHOICE_SKIP) {
+            $reference->choice = ReferencePlan::CHOICE_SKIP;
+        } elseif ($choice === ReferencePlan::CHOICE_STUB) {
+            $reference->stub = $stubs->build($reference) ?? throw new InvalidChoiceException($this->whyNoStub($reference, $stubs));
+            $reference->choice = ReferencePlan::CHOICE_STUB;
+        } elseif ($choice === ReferencePlan::CHOICE_FETCH || (is_array($choice) && ($choice['choice'] ?? null) === ReferencePlan::CHOICE_FETCH)) {
+            $reference->fetch = $this->planFetch($reference, is_array($choice) ? $choice : [], $whyNoFetch, $uids);
+            $reference->choice = ReferencePlan::CHOICE_FETCH;
+        } elseif (is_array($choice) && ($choice['choice'] ?? null) === ReferencePlan::CHOICE_UPLOAD) {
+            $reference->fetch = $this->planFetch($reference, $choice, null, $uids);
+            $reference->choice = ReferencePlan::CHOICE_UPLOAD;
+        } elseif (is_int($choice) || (is_string($choice) && ctype_digit($choice))) {
+            $reference->replacement = $this->replacement($reference, (int)$choice);
+            $reference->choice = ReferencePlan::CHOICE_REPLACE;
+        } else {
+            throw new InvalidChoiceException(sprintf(
+                'The choice for the Reference %s isn\'t valid. Choose %s.',
+                $reference->name(),
+                $isAsset ? '"skip", "fetch", "upload" or the ID of a replacement asset' : '"skip", "stub" or the ID of a replacement element',
+            ));
         }
     }
 
@@ -428,6 +459,33 @@ final class ImportPlanner
     }
 
     /**
+     * Returns the filename an uploaded file gives its asset, after checking the file can be uploaded.
+     *
+     * @param array<mixed> $choice
+     * @throws InvalidChoiceException if there's no file, it's too large or its extension isn't allowed here
+     */
+    private function uploadedFilename(ReferencePlan $reference, array $choice): string
+    {
+        $name = $reference->name();
+        $path = $choice['path'] ?? null;
+        if (!is_string($path) || !is_file($path) || !is_readable($path)) {
+            throw new InvalidChoiceException("The file to upload for the asset $name couldn't be found. Upload it again.");
+        }
+        $maxBytes = (int)Craft::$app->getConfig()->getGeneral()->maxUploadFileSize;
+        if (filesize($path) > $maxBytes) {
+            throw new InvalidChoiceException("The file to upload for the asset $name is larger than this environment allows. Upload a smaller file or skip it.");
+        }
+
+        $filename = AssetsHelper::prepareAssetName(basename(is_string($choice['filename'] ?? null) && $choice['filename'] !== '' ? $choice['filename'] : $path));
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (!in_array($extension, Craft::$app->getConfig()->getGeneral()->allowedFileExtensions, true)) {
+            throw new InvalidChoiceException("The file to upload for the asset $name can't be used: this environment doesn't allow \".$extension\" files. Upload another file or skip it.");
+        }
+
+        return $filename;
+    }
+
+    /**
      * Plans fetching an unresolved asset into the chosen volume and folder, or else its own: an unsaved asset with
      * the title, alt text and focal point the Reference carries. Its custom field values are planned afterwards, once
      * every Reference's choice is known.
@@ -441,9 +499,11 @@ final class ImportPlanner
         if ($reference->elementType !== 'asset') {
             throw new InvalidChoiceException("The Reference $name isn't an asset, so it can't be fetched. Choose \"skip\", \"stub\" or the ID of a replacement element.");
         }
-        if ($whyNoFetch !== null) {
+        $upload = ($choice['choice'] ?? null) === ReferencePlan::CHOICE_UPLOAD;
+        if (!$upload && $whyNoFetch !== null) {
             throw new InvalidChoiceException("The asset $name can't be fetched: $whyNoFetch. Skip it or choose a replacement.");
         }
+        $filename = $upload ? $this->uploadedFilename($reference, $choice) : (string)$this->assetFilename($reference);
 
         $key = $reference->reference['naturalKey'];
         $volumes = Craft::$app->getVolumes();
@@ -471,7 +531,6 @@ final class ImportPlanner
         }
         $folderPath = $segments ? implode('/', $segments) . '/' : '';
 
-        $filename = (string)$this->assetFilename($reference);
         $asset = new Asset();
         $asset->setVolumeId($volume->id);
         $asset->setFilename($filename);
@@ -486,7 +545,7 @@ final class ImportPlanner
             $asset->setFocalPoint(['x' => (float)$focalPoint['x'], 'y' => (float)$focalPoint['y']]);
         }
 
-        $fetch = new AssetFetch((string)$reference->reference['url'], $volume, $folderPath, $asset);
+        $fetch = new AssetFetch($upload ? AssetSource::uploaded((string)$choice['path']) : AssetSource::fetchFrom((string)$reference->reference['url']), $volume, $folderPath, $asset);
         $this->checkFetchPermission($fetch, $name);
         $asset->uid = $uids->claim($reference->uid);
 
@@ -535,19 +594,45 @@ final class ImportPlanner
     }
 
     /**
-     * @throws InvalidChoiceException if there's no element of the Reference's type with that ID
+     * @throws InvalidChoiceException if there's no element of the Reference's type with that ID that the user may
+     * view and that is in the Reference's section, group or volume
      */
     private function replacement(ReferencePlan $reference, int $id): ElementInterface
     {
         $class = ElementTypes::classFor($reference->elementType);
         $element = $class ? $class::find()->id($id)->status(null)->site('*')->unique()->one() : null;
+        $user = Craft::$app->getUser()->getIdentity();
+        $source = ElementTypes::sourceFor($reference->elementType, (array)($reference->reference['naturalKey'] ?? []));
 
-        return $element ?? throw new InvalidChoiceException(sprintf(
-            'The replacement for the Reference %s doesn\'t exist: there\'s no %s with the ID %d in this environment.',
-            $reference->name(),
-            $reference->elementType ?? 'element',
-            $id,
-        ));
+        $why = match (true) {
+            $element === null => sprintf(
+                'The replacement for the Reference %s doesn\'t exist: there\'s no %s with the ID %d in this environment.',
+                $reference->name(),
+                $reference->elementType ?? 'element',
+                $id,
+            ),
+            $user && !Craft::$app->getElements()->canView($element, $user) => sprintf(
+                'The replacement for the Reference %s can\'t be used: you don\'t have permission to view the %s with the ID %d.',
+                $reference->name(),
+                $reference->elementType ?? 'element',
+                $id,
+            ),
+            $element instanceof Entry && $element->getPrimaryOwnerId() !== null => sprintf(
+                'The replacement for the Reference %s can\'t be used: the entry with the ID %d is nested in another element.',
+                $reference->name(),
+                $id,
+            ),
+            $source !== null && !ElementTypes::isInSource($element, $source) => sprintf(
+                'The replacement for the Reference %s can\'t be used: the %s with the ID %d isn\'t in the same %s as the Reference.',
+                $reference->name(),
+                $reference->elementType ?? 'element',
+                $id,
+                ['section' => 'section', 'group' => 'category group', 'taggroup' => 'tag group', 'volume' => 'volume'][explode(':', $source)[0]],
+            ),
+            default => null,
+        };
+
+        return $why === null ? $element : throw new InvalidChoiceException($why);
     }
 
     /**
@@ -565,7 +650,18 @@ final class ImportPlanner
             return;
         }
 
+        $importer = Craft::$app->getUser()->getIdentity();
+        $plan->availableSections = array_values(array_filter(
+            Craft::$app->getEntries()->getAllSections(),
+            fn(Section $candidate) => ArrayHelper::firstWhere($candidate->getEntryTypes(), 'uid', $root['type'] ?? null) instanceof EntryType
+                && (!$importer || $importer->can("saveEntries:$candidate->uid")),
+        ));
+
         $chosenSection = $choice['section'] ?? null;
+        // Choosing the Payload's own section is no change.
+        if ($chosenSection instanceof Section && $chosenSection->uid === ($root['section'] ?? null)) {
+            $chosenSection = null;
+        }
         $section = $chosenSection ?? (is_string($root['section'] ?? null) ? Craft::$app->getEntries()->getSectionByUid($root['section']) : null);
         if (!$section) {
             $plan->block($context->drift->get('sections', $root['section'] ?? null)->message

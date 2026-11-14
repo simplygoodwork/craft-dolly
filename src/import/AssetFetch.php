@@ -6,7 +6,7 @@ use craft\elements\Asset;
 use craft\models\Volume;
 
 /**
- * How an Import will fetch an unresolved asset: from its source URL into a volume and folder, as an unsaved asset
+ * How an Import will fetch an unresolved asset: from its source URL (a Fetch), or from a file the user uploaded (an Upload), into a volume and folder, as an unsaved asset
  * that already holds the metadata the Reference carries (title, alt text, focal point and custom field values).
  *
  * The Importer downloads the file and saves the asset inside the transaction of the first Root element that relates
@@ -30,7 +30,7 @@ final class AssetFetch
      * folder, "blog/2026/" for a subfolder
      */
     public function __construct(
-        public readonly string $url,
+        public readonly AssetSource $source,
         public readonly Volume $volume,
         public readonly string $folderPath,
         public readonly Asset $asset,

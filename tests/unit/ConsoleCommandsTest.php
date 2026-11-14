@@ -266,6 +266,36 @@ class ConsoleCommandsTest extends ConsoleTest
 
     private string $sourceUid = '';
 
+    public function testPreviewSaysAnUploadWillBeCreatedFromTheFile(): void
+    {
+        $photos = Schema::volume('photos');
+        $photo = Schema::asset($photos, 'photo.png', '', ['title' => 'Photo']);
+        $uid = $photo->uid;
+        $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
+        $source = Schema::entry(Schema::section('news', [$article]), $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::deleteElement($photo);
+        $file = sys_get_temp_dir() . '/portage-console-' . uniqid() . '.png';
+        copy(codecept_data_dir('files/photo.png'), $file);
+        $choices = sys_get_temp_dir() . '/portage-console-' . uniqid() . '.json';
+        file_put_contents($choices, json_encode([$uid => ['choice' => 'upload', 'path' => $file]]));
+
+        try {
+            $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'choices' => $choices, 'user' => $this->importerEmail()], false)
+                ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
+                ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be created from the uploaded file into the \"Photos\" volume. Choices: skip, upload, replace." . PHP_EOL)
+                ->stdout('Would create a disabled entry "Pictured" from ' . $source->uid . '.' . PHP_EOL)
+                ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
+                ->stdout('  Target section: "News".' . PHP_EOL)
+                ->exitCode(ExitCode::OK)
+                ->run();
+        } finally {
+            @unlink($file);
+            @unlink($choices);
+        }
+    }
+
     public function testFetchOptionFetchesAnUnresolvedAsset(): void
     {
         $server = FileServer::start();
@@ -280,7 +310,7 @@ class ConsoleCommandsTest extends ConsoleTest
 
         $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'fetch' => $uid, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
-            ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be fetched from $server/files/photo.png into the \"Photos\" volume. Choices: skip, fetch, replace." . PHP_EOL)
+            ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be fetched from $server/files/photo.png into the \"Photos\" volume. Choices: skip, fetch, upload, replace." . PHP_EOL)
             ->stdout('Would create a disabled entry "Pictured" from ' . $source->uid . '.' . PHP_EOL)
             ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
             ->stdout('  Target section: "News".' . PHP_EOL)

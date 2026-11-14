@@ -51,7 +51,7 @@ class ImportController extends Controller
     /**
      * @var string|null Read choices for Unresolved references from this JSON file: an object of Reference UID =>
      * "skip", "stub", "fetch", a replacement element ID, or `{"choice": "fetch", "volume": "<handle>", "folder":
-     * "<path>"}` to fetch an asset into another volume or folder. --stub, --replace and --fetch override it.
+     * "<path>"}` to fetch an asset into another volume or folder, or `{"choice": "upload", "path": "<file>"}` to create it from a file. --stub, --replace and --fetch override it.
      */
     public ?string $choices = null;
 
@@ -223,8 +223,11 @@ class ImportController extends Controller
             ReferencePlan::CHOICE_STUB => 'will be Stubbed',
             ReferencePlan::CHOICE_REPLACE => "will be replaced with #{$reference->replacement?->id}",
             ReferencePlan::CHOICE_FETCH => $reference->fetch
-                ? "will be fetched from {$reference->fetch->url} into {$reference->fetch->location()}"
+                ? "will be fetched from {$reference->fetch->source->describe()} into {$reference->fetch->location()}"
                 : 'will be fetched',
+            ReferencePlan::CHOICE_UPLOAD => $reference->fetch
+                ? "will be created from {$reference->fetch->source->describe()} into {$reference->fetch->location()}"
+                : 'will be created from the uploaded file',
             default => match (true) {
                 $reference->elementType === 'user' => sprintf(
                     'will be skipped in user fields; as an author, "%s" is credited instead',

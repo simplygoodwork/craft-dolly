@@ -5,6 +5,8 @@ namespace simplygoodwork\craftportage\tests\functional;
 use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\elements\Asset;
+use craft\fields\Assets;
 use craft\fields\Entries;
 use FunctionalTester;
 use simplygoodwork\craftportage\Plugin;
@@ -98,6 +100,203 @@ class UtilityCest
         $I->see('Created a disabled entry');
         $I->seeLink('Related', $imported->getCpEditUrl());
         $I->see('Skipped in "Related Topics": "Gone"');
+    }
+
+    public function thePreviewOffersOnlyTheChoicesThatAreValidAndReplansWhenAChoiceChanges(FunctionalTester $I): void
+    {
+        [$payload, , $goneUid] = $this->payloadWithAMatchAndAnUnresolvedReference();
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->seeElement("select[name=\"choices[$goneUid][choice]\"] option[value=stub]");
+        $I->seeElement("select[name=\"choices[$goneUid][choice]\"] option[value=replace]");
+        $I->dontSeeElement("select[name=\"choices[$goneUid][choice]\"] option[value=fetch]");
+        $I->dontSeeElement("select[name=\"choices[$goneUid][choice]\"] option[value=upload]");
+        $I->dontSeeElement('select[data-portage-mode]');
+        $I->see('Unresolved: will be skipped');
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'choices' => [$goneUid => ['choice' => 'stub']]]);
+
+        $I->seeResponseCodeIs(200);
+        $I->see('Unresolved: a Stub will be created');
+        $I->seeOptionIsSelected("select[name=\"choices[$goneUid][choice]\"]", 'Create a Stub');
+        $I->assertNull(Entry::find()->section('topics')->title('Gone')->status(null)->one(), 'Updating the Preview created the Stub');
+
+        $I->submitForm('#portage-import', []);
+
+        $I->seeResponseCodeIs(200);
+        $stub = Entry::find()->section('topics')->title('Gone')->status(null)->one();
+        $I->assertNotNull($stub);
+        $I->assertFalse($stub->enabled);
+        $I->see('"Gone" (entry): a Stub was created');
+    }
+
+    public function aChoiceThatCantBeCarriedOutShowsThePreviewWithTheDefaultsAndSaysWhy(FunctionalTester $I): void
+    {
+        [$payload, , $goneUid] = $this->payloadWithAMatchAndAnUnresolvedReference();
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'choices' => [$goneUid => ['choice' => 'replace', 'replacement' => ['999999']]]]);
+
+        $I->seeResponseCodeIs(200);
+        $I->see('The replacement for the Reference "Gone" doesn\'t exist', '#portage-choice-error');
+        $I->seeElement('#portage-import');
+        $I->see('Unresolved: will be skipped');
+    }
+
+    public function aReplacementWithoutAnElementIsSkippedUntilOneIsPicked(FunctionalTester $I): void
+    {
+        [$payload, , $goneUid] = $this->payloadWithAMatchAndAnUnresolvedReference();
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'choices' => [$goneUid => ['choice' => 'replace']]]);
+
+        $I->see('Pick a replacement. Until you do, this will be skipped.');
+        $I->seeOptionIsSelected("select[name=\"choices[$goneUid][choice]\"]", 'Pick a replacement');
+    }
+
+    public function theTargetSectionAndImportModeAreChosenInThePreview(FunctionalTester $I): void
+    {
+        $article = Schema::entryType('article');
+        $news = Schema::section('news', [$article]);
+        $blog = Schema::section('blog', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Hello']);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $rootUid = $source->uid;
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->seeElement("select[name=\"rootChoices[$rootUid][section]\"] option[value=\"$blog->uid\"]");
+        $I->seeElement("select[name=\"rootChoices[$rootUid][mode]\"] option[value=overwrite]");
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'rootChoices' => [$rootUid => ['mode' => 'overwrite']]]);
+        $I->see('A draft will be created on "Hello" with the Payload’s content.');
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'rootChoices' => [$rootUid => ['section' => $blog->uid, 'mode' => 'create']]]);
+        $I->see('"Hello" will be created as a disabled entry in the "Blog" section.');
+        $I->submitForm('#portage-import', []);
+
+        $I->see('Create new, in the "Blog" section');
+        $I->assertNotNull(Entry::find()->section('blog')->title('Hello')->status(null)->one());
+    }
+
+    public function anOverwriteImportedFromThePreviewCreatesADraftOnTheMatchedEntry(FunctionalTester $I): void
+    {
+        $article = Schema::entryType('article', [Schema::plainText('summary')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Staging title', 'summary' => 'Staging summary']);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Schema::updateEntry($source, ['title' => 'Prod title', 'summary' => 'Prod summary']);
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'rootChoices' => [$source->uid => ['mode' => 'overwrite']]]);
+        $I->see('A draft will be created on "Prod title" with the Payload’s content.');
+        $I->submitForm('#portage-import', []);
+
+        $I->see('Created a draft on');
+        $I->see('Overwrite, in the "News" section');
+        $draft = Entry::find()->draftOf($source)->status(null)->one();
+        $I->assertNotNull($draft, 'No draft on the matched entry');
+        $I->assertSame(['Staging title', 'Staging summary'], [$draft->title, $draft->getFieldValue('summary')]);
+        $I->assertSame('Prod title', Entry::find()->id($source->id)->status(null)->one()->title);
+    }
+
+    public function anUploadedFileForAnUnresolvedAssetIsStagedPreviewedAndImportedIntoTheChosenVolumeAndFolder(FunctionalTester $I): void
+    {
+        $photos = Schema::volume('photos');
+        $archive = Schema::volume('archive');
+        $photo = Schema::asset($photos, 'photo.png', 'blog', ['title' => 'Red square', 'alt' => 'A red square']);
+        $assetUid = $photo->uid;
+        $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::deleteElement($photo);
+        $admin = User::find()->admin()->one();
+        $staging = Craft::$app->getPath()->getTempPath() . "/portage-uploads/$admin->id";
+        $I->amLoggedInAs($admin);
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        UploadedFile::reset();
+        $I->attachFile("input[name=\"uploads[$assetUid]\"]", 'files/photo.png');
+        $I->submitForm('#portage-import', [
+            'action' => 'portage/import/preview',
+            'choices' => [$assetUid => ['choice' => 'upload', 'volume' => $archive->uid, 'folder' => 'uploads/2026']],
+        ]);
+
+        $I->see('Unresolved: the uploaded file will be saved into the folder "uploads/2026/" of the "archive" volume');
+        $I->see('Using the uploaded file photo.png.');
+        $I->assertCount(1, glob("$staging/*"), 'The upload wasn\'t staged');
+        $I->assertNull(Asset::find()->uid($assetUid)->one(), 'The Preview created the asset');
+
+        UploadedFile::reset();
+        $I->submitForm('#portage-import', []);
+
+        $created = Asset::find()->uid($assetUid)->one();
+        $I->assertNotNull($created, 'No asset with the source UID');
+        $I->assertSame(['archive', 'uploads/2026/', 'photo.png'], [$created->getVolume()->handle, $created->getFolder()->path, $created->getFilename()]);
+        $I->assertSame(['Red square', 'A red square'], [$created->title, $created->alt]);
+        $I->assertSame([], glob("$staging/*"), 'The staged file was left behind');
+        $I->see('Created the asset "Red square" from an uploaded file.');
+        $I->see('"Red square" (asset): created from an uploaded file');
+        $I->see('Saved in the folder "uploads/2026/" of the "archive" volume.');
+    }
+
+    public function anImportWithChoicesThePreviewDidNotShowImportsNothingAndShowsThePreviewAgain(FunctionalTester $I): void
+    {
+        [$payload, , $goneUid] = $this->payloadWithAMatchAndAnUnresolvedReference();
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', ['choices' => [$goneUid => ['choice' => 'stub']]]);
+
+        $I->seeResponseCodeIs(200);
+        $I->see('Your choices changed since the Preview. Check it, then import.', '#portage-choice-error');
+        $I->see('Unresolved: a Stub will be created');
+        $I->assertNull(Entry::find()->section('news')->title('Related')->status(null)->one(), 'The Import ran');
+        $I->assertNull(Entry::find()->section('topics')->title('Gone')->status(null)->one(), 'The Stub was created');
+
+        $I->submitForm('#portage-import', []);
+
+        $I->assertNotNull(Entry::find()->section('topics')->title('Gone')->status(null)->one());
+    }
+
+    public function oneChoiceThatCantBeCarriedOutDoesNotDiscardTheOthers(FunctionalTester $I): void
+    {
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $first = Schema::entry($topics, $topic, ['title' => 'First gone']);
+        $second = Schema::entry($topics, $topic, ['title' => 'Second gone']);
+        $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$first->id, $second->id]]);
+        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        [$firstUid, $secondUid] = [$first->uid, $second->uid];
+        Schema::deleteElement($first);
+        Schema::deleteElement($second);
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', ['action' => 'portage/import/preview', 'choices' => [
+            $firstUid => ['choice' => 'replace', 'replacement' => ['999999']],
+            $secondUid => ['choice' => 'stub'],
+        ]]);
+
+        $I->see('The replacement for the Reference "First gone" doesn\'t exist', '#portage-choice-error');
+        $I->seeOptionIsSelected("select[name=\"choices[$secondUid][choice]\"]", 'Create a Stub');
+        $I->seeOptionIsSelected("select[name=\"choices[$firstUid][choice]\"]", 'Skip it');
     }
 
     public function theImportLogListsImportsAndShowsWhoWhenWhereChoicesAndResults(FunctionalTester $I): void

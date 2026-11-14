@@ -83,6 +83,10 @@ _Avoid_: Missing relation, broken link
 The choice for an unresolved asset that downloads its file from the source URL its Reference carries during Import, creating the asset in the Target environment with the Reference's title, alt text, focal point and custom field values.
 _Avoid_: Download, pull, sync
 
+**Upload**:
+The choice for an unresolved asset that creates it in the Target environment from a file the user uploads in the Preview, instead of one downloaded from the source URL, with the Reference's title, alt text, focal point and custom field values.
+_Avoid_: Attach, replace file
+
 **Stub**:
 A disabled, minimal element created during Import to satisfy an Unresolved reference, populated only from the Reference's identifying information.
 _Avoid_: Placeholder, shell entry

@@ -10,7 +10,7 @@ use simplygoodwork\craftportage\references\Resolution;
 /**
  * What an Import will do with one Reference: its Resolution in the Target environment and, for an Unresolved
  * reference, the user's choice: skip it (the default), Stub it, relate a replacement element instead or, for an asset,
- * fetch its file from the source URL. Assets are never Stubbed.
+ * fetch its file from the source URL or upload a file. Assets are never Stubbed.
  */
 final class ReferencePlan
 {
@@ -18,6 +18,7 @@ final class ReferencePlan
     public const CHOICE_STUB = 'stub';
     public const CHOICE_REPLACE = 'replace';
     public const CHOICE_FETCH = 'fetch';
+    public const CHOICE_UPLOAD = 'upload';
 
     /**
      * @var string|null what happens to an Unresolved reference, or null when the Reference is resolved
@@ -43,6 +44,12 @@ final class ReferencePlan
      * @var AssetFetch|null how the asset will be fetched, when the choice is to fetch it
      */
     public ?AssetFetch $fetch = null;
+
+    /**
+     * @var string|null the choice the user has started but not finished ("replace" with no element picked, "upload"
+     * with no file), which is planned as skip until it is complete
+     */
+    public ?string $pending = null;
 
     /**
      * @var string|null why an unresolved asset can't be fetched, or null if it can (or it isn't an asset)
@@ -91,8 +98,11 @@ final class ReferencePlan
         return match ($this->choice) {
             self::CHOICE_STUB => 'Unresolved: a Stub will be created',
             self::CHOICE_REPLACE => sprintf('Unresolved: replaced with %s', $this->replacementName()),
+            self::CHOICE_UPLOAD => $this->fetch
+                ? "Unresolved: the uploaded file will be saved into {$this->fetch->location()}"
+                : 'Unresolved: an uploaded file will be saved',
             self::CHOICE_FETCH => $this->fetch
-                ? "Unresolved: will be fetched from {$this->fetch->url} into {$this->fetch->location()}"
+                ? "Unresolved: will be fetched from {$this->fetch->source->url} into {$this->fetch->location()}"
                 : 'Unresolved: will be fetched',
             default => match (true) {
                 $this->elementType === 'user' => sprintf(
@@ -108,7 +118,7 @@ final class ReferencePlan
     /**
      * The choice for an Unresolved reference, as the Import log records it.
      *
-     * @return array{uid: string, elementType: string|null, title: string|null, choice: string|null, replacementId: int|null, replacementTitle: string|null}
+     * @return array{uid: string, elementType: string|null, title: string|null, choice: string|null, replacementId: int|null, replacementTitle: string|null, location?: string, filename?: string}
      */
     public function toLogArray(): array
     {
@@ -119,6 +129,40 @@ final class ReferencePlan
             'choice' => $this->choice,
             'replacementId' => $this->replacement?->id,
             'replacementTitle' => $this->replacement ? $this->replacementName() : null,
+            ...($this->fetch ? ['location' => $this->fetch->location()] : []),
+            ...($this->fetch?->source->isUpload() ? ['filename' => $this->fetch->asset->getFilename()] : []),
+        ];
+    }
+
+    /**
+     * The label of each choice in the Preview's select.
+     *
+     * @return array<string, string>
+     */
+    public static function choiceLabels(): array
+    {
+        return [
+            self::CHOICE_SKIP => Craft::t('portage', 'Skip it'),
+            self::CHOICE_STUB => Craft::t('portage', 'Create a Stub'),
+            self::CHOICE_FETCH => Craft::t('portage', 'Fetch it from the source URL'),
+            self::CHOICE_UPLOAD => Craft::t('portage', 'Upload a file'),
+            self::CHOICE_REPLACE => Craft::t('portage', 'Pick a replacement'),
+        ];
+    }
+
+    /**
+     * What each choice did, as a phrase for the Import log.
+     *
+     * @return array<string, string>
+     */
+    public static function loggedOutcomes(): array
+    {
+        return [
+            self::CHOICE_SKIP => Craft::t('portage', 'skipped'),
+            self::CHOICE_STUB => Craft::t('portage', 'a Stub was created'),
+            self::CHOICE_FETCH => Craft::t('portage', 'fetched from its source URL'),
+            self::CHOICE_UPLOAD => Craft::t('portage', 'created from an uploaded file'),
+            self::CHOICE_REPLACE => Craft::t('portage', 'replaced'),
         ];
     }
 

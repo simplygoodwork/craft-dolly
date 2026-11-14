@@ -60,13 +60,13 @@ final class RootResult
     public array $stubs = [];
 
     /**
-     * @var list<array{uid: string, title: string|null, elementId: int}> assets fetched from their source URL for this
+     * @var list<array{uid: string, title: string|null, elementId: int, uploaded?: bool}> assets fetched from their source URL, or created from an uploaded file, for this
      * Root element's Unresolved references
      */
     public array $fetchedAssets = [];
 
     /**
-     * @var list<array{uid: string, title: string|null, url: string, reason: string}> assets that couldn't be fetched,
+     * @var list<array{uid: string, title: string|null, url?: string, reason: string}> assets that couldn't be fetched or created from an upload,
      * whose relations were skipped
      */
     public array $fetchFailures = [];
