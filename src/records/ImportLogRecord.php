@@ -13,6 +13,8 @@ use craft\db\ActiveRecord;
  * @property array|string|null $source
  * @property array|string|null $results
  * @property array|string|null $choices
+ * @property string $status
+ * @property string|null $error
  * @property string $dateCreated
  */
 class ImportLogRecord extends ActiveRecord

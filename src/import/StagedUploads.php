@@ -60,12 +60,18 @@ final class StagedUploads
     }
 
     /**
+     * Deletes kept files. A path that isn't a file in this user's directory is left alone, wherever it points.
+     *
      * @param list<string> $paths
      */
     public function discard(array $paths): void
     {
+        $directory = realpath($this->directory());
         foreach ($paths as $path) {
-            FileHelper::unlink($path);
+            $real = realpath($path);
+            if ($directory !== false && $real !== false && dirname($real) === $directory) {
+                FileHelper::unlink($real);
+            }
         }
     }
 

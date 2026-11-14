@@ -104,7 +104,11 @@ final class ImportPlanner
 
         $this->planPlacements($parentUids, $references);
 
-        $earlierImports = Plugin::getInstance()->getImportLog()->getEntriesForPayload($payload->identity);
+        // An Import that failed without importing anything isn't an earlier Import.
+        $earlierImports = array_values(array_filter(
+            Plugin::getInstance()->getImportLog()->getEntriesForPayload($payload->identity),
+            fn(ImportLogEntry $import) => $import->status !== ImportLogEntry::STATUS_FAILED || array_filter($import->results, fn(array $result) => ($result['status'] ?? null) !== RootResult::STATUS_FAILED),
+        ));
 
         return new ImportPlan(
             drift: $drift,
@@ -368,7 +372,9 @@ final class ImportPlanner
         $user = $import->userId !== null ? User::find()->id($import->userId)->status(null)->one() : null;
         $who = $user ? sprintf(' by "%s"', $user->getName()) : ' by a user that no longer exists';
 
-        return "This Payload was already imported here on $when$who.";
+        return $import->isInProgress()
+            ? "This Payload is already queued for import here (Import #$import->id, queued on $when$who)."
+            : "This Payload was already imported here on $when$who.";
     }
 
     /**

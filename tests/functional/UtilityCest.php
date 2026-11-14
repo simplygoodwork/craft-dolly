@@ -299,6 +299,68 @@ class UtilityCest
         $I->seeOptionIsSelected("select[name=\"choices[$firstUid][choice]\"]", 'Skip it');
     }
 
+    public function aLargeImportIsQueuedAndItsLogEntryShowsTheProgressAndTheResult(FunctionalTester $I): void
+    {
+        $type = Schema::entryType('article');
+        $section = Schema::section('news', [$type]);
+        $entries = array_map(fn(int $i) => Schema::entry($section, $type, ['title' => "Entry $i"]), range(1, 11));
+        $payload = Plugin::getInstance()->getPortage()->export($entries);
+        foreach ($entries as $entry) {
+            Schema::deleteElement($entry);
+        }
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        $I->submitForm('#portage-import', []);
+
+        $I->seeResponseCodeIs(200);
+        $I->seeElement('#portage-log-status[data-status=queued]');
+        $I->see('Queued: waiting for the queue to start it.');
+        $I->see('Not imported yet');
+        $I->assertSame(0, (int)Entry::find()->section('news')->status(null)->count());
+
+        Craft::$app->getQueue()->run();
+        $I->amOnPage('/admin/utilities/portage');
+        $I->see('Completed', '#portage-log');
+        $I->seeElement('#portage-log a[href*="portage/log/"]');
+        $I->assertSame(11, (int)Entry::find()->section('news')->status(null)->count());
+    }
+
+    public function theChoicesOfThePreviewAreCarriedThroughTheFormIntoTheQueuedImport(FunctionalTester $I): void
+    {
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $gone = Schema::entry($topics, $topic, ['title' => 'Gone']);
+        $goneUid = $gone->uid;
+        $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
+        $news = Schema::section('news', [$article]);
+        $entries = [Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]])];
+        foreach (range(2, 11) as $i) {
+            $entries[] = Schema::entry($news, $article, ['title' => "Plain $i"]);
+        }
+        $payload = Plugin::getInstance()->getPortage()->export($entries);
+        foreach ([...$entries, $gone] as $element) {
+            Schema::deleteElement($element);
+        }
+        $I->amLoggedInAs(User::find()->admin()->one());
+        $I->amOnPage('/admin/utilities/portage');
+        $I->submitForm('form', ['payload' => $payload]);
+
+        // As the Preview signs it after the user chose to Stub.
+        $previewed = Plugin::getInstance()->getPortage()->preview($payload, [$goneUid => 'stub'])->fingerprint();
+        $I->submitForm('#portage-import', ['choices' => [$goneUid => ['choice' => 'stub']], 'previewed' => $previewed]);
+
+        $I->seeElement('#portage-log-status[data-status=queued]');
+        $I->see('"Gone" (entry): a Stub was created');
+        Craft::$app->getQueue()->run();
+        $stub = Entry::find()->uid($goneUid)->status(null)->one();
+        $I->assertNotNull($stub, 'The Stub choice didn\'t reach the job');
+        $I->assertFalse($stub->enabled);
+        $related = Entry::find()->section('news')->title('Related')->status(null)->one();
+        $I->assertSame([$stub->id], $related->getFieldValue('relatedTopics')->status(null)->ids());
+    }
+
     public function theImportLogListsImportsAndShowsWhoWhenWhereChoicesAndResults(FunctionalTester $I): void
     {
         [$payload, , $goneUid] = $this->payloadWithAMatchAndAnUnresolvedReference();

@@ -48,7 +48,7 @@ class Plugin extends BasePlugin
      */
     public const PERMISSION_IMPORT = 'portage-importContent';
 
-    public string $schemaVersion = '1.0.1';
+    public string $schemaVersion = '1.0.2';
 
     public bool $hasCpSettings = true;
 

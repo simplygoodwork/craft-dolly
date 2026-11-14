@@ -56,6 +56,26 @@ class ConsoleCommandsTest extends ConsoleTest
         $this->assertFalse($imported->enabled);
     }
 
+    public function testImportRunsInlineWhateverTheNumberOfRootElements(): void
+    {
+        $type = Schema::entryType('article');
+        $section = Schema::section('news', [$type]);
+        $entries = array_map(fn(int $i) => Schema::entry($section, $type, ['title' => "Entry $i"]), range(1, 11));
+        $payload = Plugin::getInstance()->getPortage()->export($entries);
+        foreach ($entries as $entry) {
+            Schema::deleteElement($entry);
+        }
+
+        $this->consoleCommand('portage/import', [$payload, 'user' => $this->importerEmail()], true)
+            ->exitCode(ExitCode::OK)
+            ->run();
+
+        $this->assertSame(11, (int)Entry::find()->section('news')->status(null)->count());
+        $this->assertSame(0, (int)(new \craft\db\Query())->from(\craft\db\Table::QUEUE)->where(['like', 'job', 'ImportJob'])->count());
+        $log = Plugin::getInstance()->getImportLog()->getEntries();
+        $this->assertSame(['completed'], array_map(fn($entry) => $entry->status, $log));
+    }
+
     public function testImportsAPayloadPassedAsAnArgument(): void
     {
         $source = $this->sourceEntry('From an argument');

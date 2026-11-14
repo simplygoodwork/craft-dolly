@@ -17,10 +17,25 @@
     'overwritten': 'Created a draft on'|t('portage'),
     'pasted': 'Added blocks to the draft of'|t('portage'),
     'failed': 'Failed'|t('portage'),
+    'not-imported': 'Not imported yet'|t('portage'),
+} %}
+{% set importStatuses = {
+    'queued': 'Queued: waiting for the queue to start it.'|t('portage'),
+    'in-progress': 'In progress: {done} of {total} Root elements imported.'|t('portage', { done: import.results|filter(r => r.status != 'not-imported')|length, total: import.results|length }),
+    'completed': 'Completed.'|t('portage'),
+    'failed': 'Failed: nothing more was imported.'|t('portage'),
 } %}
 
 {% block content %}
+{% if import.inProgress %}
+    {# The queue runs it in the background: show how far it got. #}
+    {% do view.registerJs('setTimeout(function() { window.location.reload(); }, 3000);') %}
+{% endif %}
 <div id="portage-log-entry">
+    <p id="portage-log-status" class="{{ import.status == 'failed' ? 'error' : (import.inProgress ? 'warning' : 'success') }}" data-status="{{ import.status }}">
+        <strong>{{ importStatuses[import.status] ?? import.status }}</strong>
+        {% if import.error %}{{ import.error }}{% endif %}
+    </p>
     <dl class="meta">
         <dt>{{ 'Imported by'|t('portage') }}</dt>
         <dd>{{ user ? user.name : 'A user that no longer exists'|t('portage') }}</dd>

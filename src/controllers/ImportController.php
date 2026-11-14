@@ -47,7 +47,7 @@ class ImportController extends Controller
     }
 
     /**
-     * Imports the previewed Payload with the choices made in the Preview, then shows its result in the Import log. A
+     * Imports the previewed Payload with the choices made in the Preview, then shows its result in the Import log. An Import of more than 10 Root elements, or with an asset fetch, is queued instead, and its Import log entry shows its progress. A
      * refused Payload, a choice that can't be carried out, or choices that aren't the ones the Preview last showed
      * import nothing, and show the Preview again.
      */
@@ -68,9 +68,16 @@ class ImportController extends Controller
             return $this->previewWithChoices($payload, $form, Craft::t('portage', 'Your choices changed since the Preview. Check it, then import.'));
         }
 
-        $result = $portage->import($payload, $form['choices'], $form['rootChoices']);
+        // A large Import runs in the queue, with exactly these choices. Its job discards the uploaded files when it's done.
+        $result = $portage->import($payload, $form['choices'], $form['rootChoices'], queue: true);
         if ($result->isRefused()) {
-            return $this->previewWithChoices($payload, $form);
+            return $this->previewWithChoices($payload, $form, $result->refusal);
+        }
+
+        if ($result->queued) {
+            $this->setSuccessFlash(Craft::t('portage', 'The Import is queued. This page shows its progress.'));
+
+            return $this->redirect(UrlHelper::cpUrl("portage/log/$result->logId"));
         }
 
         $this->stagedUploads()->discard($form['staged']);

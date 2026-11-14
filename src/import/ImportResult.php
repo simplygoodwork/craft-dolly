@@ -3,7 +3,8 @@
 namespace simplygoodwork\craftportage\import;
 
 /**
- * The outcome of an Import: either a refusal (nothing was imported) or a result per Root element.
+ * The outcome of an Import: either a refusal (nothing was imported), a result per Root element, or for an Import that
+ * was queued, only the Import log entry the job reports to.
  */
 final class ImportResult
 {
@@ -15,6 +16,7 @@ final class ImportResult
         public readonly ?string $refusal = null,
         public readonly ?string $payloadIdentity = null,
         public readonly ?int $logId = null,
+        public readonly bool $queued = false,
     ) {
     }
 

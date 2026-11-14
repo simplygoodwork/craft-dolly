@@ -12,6 +12,11 @@ final class RootResult
     public const STATUS_PASTED = 'pasted';
     public const STATUS_FAILED = 'failed';
 
+    /**
+     * Not imported yet: a Root element of a queued Import that the job hasn't reached.
+     */
+    public const STATUS_NOT_IMPORTED = 'not-imported';
+
     public string $status = self::STATUS_CREATED;
 
     /**
@@ -96,6 +101,38 @@ final class RootResult
         $result->incompleteFields = $plan->incompleteFields;
 
         return $result;
+    }
+
+    /**
+     * The result of a Root element of a queued Import that hasn't been imported yet.
+     */
+    public static function notImported(RootPlan $plan): self
+    {
+        $result = new self($plan->sourceUid, $plan->title);
+        $result->status = self::STATUS_NOT_IMPORTED;
+        $result->mode = $plan->mode;
+        $result->sectionUid = $plan->section?->uid;
+
+        return $result;
+    }
+
+    /**
+     * Marks the Root elements of a queued Import's logged results that weren't imported as failed, with the reason an
+     * Import couldn't run.
+     *
+     * @param array<mixed> $results the results as the Import log holds them
+     * @return list<mixed>
+     */
+    public static function failNotImported(array $results, string $reason): array
+    {
+        foreach ($results as &$result) {
+            if (is_array($result) && ($result['status'] ?? null) === self::STATUS_NOT_IMPORTED) {
+                $result['status'] = self::STATUS_FAILED;
+                $result['errors'] = [...($result['errors'] ?? []), $reason];
+            }
+        }
+
+        return array_values($results);
     }
 
     public function fail(string $error): void

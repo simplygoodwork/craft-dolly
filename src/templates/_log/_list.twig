@@ -7,6 +7,13 @@
     'overwritten': 'drafted'|t('portage'),
     'pasted': 'pasted'|t('portage'),
     'failed': 'failed'|t('portage'),
+    'not-imported': 'not imported yet'|t('portage'),
+} %}
+{% set importStatuses = {
+    'queued': 'Queued'|t('portage'),
+    'in-progress': 'In progress'|t('portage'),
+    'completed': 'Completed'|t('portage'),
+    'failed': 'Failed'|t('portage'),
 } %}
 {% set choiceLabels = {
     'skip': 'skipped'|t('portage'),
@@ -23,6 +30,7 @@
         <thead>
             <tr>
                 <th>{{ 'Import'|t('portage') }}</th>
+                <th>{{ 'Status'|t('portage') }}</th>
                 <th>{{ 'Imported on'|t('portage') }}</th>
                 <th>{{ 'Imported by'|t('portage') }}</th>
                 <th>{{ 'Exported from'|t('portage') }}</th>
@@ -45,6 +53,7 @@
                 {% endfor %}
                 <tr>
                     <td><a href="{{ cpUrl('portage/log/' ~ import.id) }}">#{{ import.id }}</a></td>
+                    <td>{{ importStatuses[import.status] ?? import.status }}</td>
                     <td>{{ import.dateCreated|datetime('short') }}</td>
                     <td>{{ user ? user.name : 'A user that no longer exists'|t('portage') }}</td>
                     <td>{{ import.source.siteUrl ?? 'an unknown site'|t('portage') }} ({{ import.source.environment ?? 'unknown environment'|t('portage') }})</td>

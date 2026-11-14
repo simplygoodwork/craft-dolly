@@ -12,9 +12,13 @@ use simplygoodwork\craftportage\import\Importer;
 use simplygoodwork\craftportage\import\ImportPlan;
 use simplygoodwork\craftportage\import\ImportPlanner;
 use simplygoodwork\craftportage\import\ImportResult;
+use simplygoodwork\craftportage\import\RootPlan;
+use simplygoodwork\craftportage\import\RootResult;
+use simplygoodwork\craftportage\jobs\ImportJob;
 use simplygoodwork\craftportage\payload\InvalidPayloadException;
 use simplygoodwork\craftportage\payload\PayloadCodec;
 use simplygoodwork\craftportage\Plugin;
+use Throwable;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 
@@ -71,18 +75,111 @@ class Portage extends Component
      * @param array<string, array{mode?: string, section?: string}> $rootChoices for Root elements, as for `preview()`
      * @param BlockTarget|null $target the field of a draft that blocks are pasted into, as for `preview()`: the blocks are
      * added to the draft as normal edits, after the blocks it already has
+     * @param bool $queue lets a large Import (see `ImportPlan::shouldQueue()`) run in the queue instead: the Import log
+     * entry is recorded as queued, a job is pushed with the Payload and exactly these choices, and the result says
+     * it was queued. The control panel asks for this; the CLI and block paste never do, so they run inline
      */
-    public function import(string $payload, array $choices = [], array $rootChoices = [], ?BlockTarget $target = null): ImportResult
+    public function import(string $payload, array $choices = [], array $rootChoices = [], ?BlockTarget $target = null, bool $queue = false): ImportResult
     {
         $plan = $this->preview($payload, $choices, $rootChoices, $target);
         if ($plan->isRefused()) {
             return ImportResult::refused((string)$plan->refusal);
         }
 
+        if ($queue && $plan->shouldQueue()) {
+            return $this->enqueue($plan, $payload, $choices, $rootChoices);
+        }
+
         $roots = (new Importer(adapters: $this->adapters()))->import($plan);
         $logId = Plugin::getInstance()->getImportLog()->record((string)$plan->payloadIdentity, $plan->source, $roots, $plan->choices());
 
         return new ImportResult($roots, payloadIdentity: $plan->payloadIdentity, logId: $logId);
+    }
+
+    /**
+     * Runs an Import the queue was given, for its job: plans the Payload again with the same choices, which must be what
+     * the user previewed, and imports one Root element at a time, with its result in the Import log as soon as it's done.
+     * A Root element that fails doesn't stop the others. The Import log entry ends up completed, or failed if the Import
+     * couldn't run at all. Runs as the user who queued it.
+     *
+     * Only the queue job calls this, once the user who queued the Import is the current user.
+     *
+     * @param string $fingerprint the fingerprint of the plan that was queued
+     * @param (callable(int, int): void)|null $progress called with the number of Root elements done and the total, as each is done
+     * @param array<string, string|int|array<string, string>> $choices as for `preview()`
+     * @param array<string, array{mode?: string, section?: string}> $rootChoices as for `preview()`
+     */
+    public function runQueuedImport(int $logId, string $payload, array $choices, array $rootChoices, string $fingerprint, ?callable $progress = null): void
+    {
+        $log = Plugin::getInstance()->getImportLog();
+        if (!$log->start($logId)) {
+            // A retry of a job that already ran.
+            return;
+        }
+
+        try {
+            $plan = $this->preview($payload, $choices, $rootChoices);
+            if ($plan->isRefused()) {
+                $log->fail($logId, (string)$plan->refusal);
+                return;
+            }
+            if (!hash_equals($fingerprint, $plan->fingerprint())) {
+                $log->fail($logId, 'This environment changed after the Import was queued, so the Import no longer does what the Preview showed. Nothing was imported. Preview the Payload again.');
+                return;
+            }
+
+            $indexes = array_flip(array_map('spl_object_id', $plan->roots));
+            $total = count($plan->roots);
+            $done = 0;
+            $roots = (new Importer(adapters: $this->adapters()))->import(
+                $plan,
+                function(RootPlan $root, RootResult $result) use ($log, $logId, $indexes, $total, &$done, $progress): void {
+                    $log->recordRoot($logId, $indexes[spl_object_id($root)], $result);
+                    if ($progress !== null) {
+                        $progress(++$done, $total);
+                    }
+                },
+            );
+            $log->complete($logId, $roots);
+        } catch (Throwable $e) {
+            Craft::$app->getErrorHandler()->logException($e);
+            $log->fail($logId, 'The Import stopped unexpectedly. Root elements without a result weren\'t imported. The details are in the Craft logs.');
+        }
+    }
+
+    /**
+     * @param array<string, string|int|array<string, string>> $choices
+     * @param array<string, array{mode?: string, section?: string}> $rootChoices
+     */
+    private function enqueue(ImportPlan $plan, string $payload, array $choices, array $rootChoices): ImportResult
+    {
+        $logId = Plugin::getInstance()->getImportLog()->recordQueued(
+            (string)$plan->payloadIdentity,
+            $plan->source,
+            array_map(RootResult::notImported(...), $plan->roots),
+            $plan->choices(),
+        );
+
+        try {
+            Craft::$app->getQueue()->push(new ImportJob([
+                'logId' => $logId,
+                'userId' => (int)Craft::$app->getUser()->getId(),
+                'payload' => $payload,
+                'choices' => $choices,
+                'rootChoices' => $rootChoices,
+                'fingerprint' => $plan->fingerprint(),
+            ]));
+        } catch (Throwable $e) {
+            Craft::$app->getErrorHandler()->logException($e);
+            $reason = 'Craft couldn\'t add the Import to the queue, so nothing was imported. The details are in the Craft logs.';
+            $log = Plugin::getInstance()->getImportLog();
+            $log->start($logId);
+            $log->fail($logId, $reason);
+
+            return ImportResult::refused($reason);
+        }
+
+        return new ImportResult(payloadIdentity: $plan->payloadIdentity, logId: $logId, queued: true);
     }
 
     /**

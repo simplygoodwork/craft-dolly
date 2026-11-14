@@ -46,6 +46,10 @@ _Avoid_: Password, encryption setting, token
 The permanent record in the Target environment of each Import: who ran it, when, the Payload's identity, the Source environment it came from and the result for each Root element.
 _Avoid_: History, audit trail
 
+**Queued Import**:
+An Import from the control panel that runs as a queue job instead of in the request, because it has more than 10 Root elements or an asset Fetch. Its Import log entry is *Queued* until the job starts, *In progress* while it imports Root elements (each Root element is *not imported yet* until it has its result), then *Completed*, or *Failed* if the job couldn't run at all. A Root element that fails keeps its own failed result in a Completed Import.
+_Avoid_: Background import, async import, batch
+
 ### What a Payload contains
 
 **Root element**:

@@ -37,9 +37,10 @@ final class Importer
     }
 
     /**
+     * @param (callable(RootPlan, RootResult): void)|null $progress called as each Root element is done, in the order they are imported
      * @return list<RootResult>
      */
-    public function import(ImportPlan $plan): array
+    public function import(ImportPlan $plan, ?callable $progress = null): array
     {
         $results = [];
         $pendingRefTags = array_merge(...array_map(fn(RootPlan $root) => $root->pendingRefTags, $plan->roots));
@@ -51,7 +52,7 @@ final class Importer
         $elements->on(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
         $elements->on(Elements::EVENT_AFTER_SAVE_ELEMENT, $completeNested);
         try {
-            return array_map(fn(RootPlan $root) => $this->importOnce($root, $results), $plan->roots);
+            return array_map(fn(RootPlan $root) => $this->importOnce($root, $results, $progress), $plan->roots);
         } finally {
             $elements->off(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
             $elements->off(Elements::EVENT_AFTER_SAVE_ELEMENT, $completeNested);
@@ -157,13 +158,17 @@ final class Importer
      * Imports a Root element, once, after the Root element it will be placed under, and returns its result.
      *
      * @param array<int, RootResult> $results the Root elements imported so far, by plan object ID
+     * @param (callable(RootPlan, RootResult): void)|null $progress
      */
-    private function importOnce(RootPlan $plan, array &$results): RootResult
+    private function importOnce(RootPlan $plan, array &$results, ?callable $progress = null): RootResult
     {
         $id = spl_object_id($plan);
         if (!isset($results[$id])) {
             $parentRoot = $plan->placement?->parentRoot;
-            $results[$id] = $this->importRoot($plan, $parentRoot ? $this->importOnce($parentRoot, $results) : null);
+            $results[$id] = $this->importRoot($plan, $parentRoot ? $this->importOnce($parentRoot, $results, $progress) : null);
+            if ($progress !== null) {
+                $progress($plan, $results[$id]);
+            }
         }
 
         return $results[$id];

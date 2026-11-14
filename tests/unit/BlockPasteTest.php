@@ -60,6 +60,25 @@ class BlockPasteTest extends Unit
         $this->assertSame(1, count(Plugin::getInstance()->getImportLog()->getEntries()));
     }
 
+    public function testPastingMoreThanTenBlocksStillRunsInlineWhenTheQueueIsAllowed(): void
+    {
+        [$article, $news] = $this->matrixSchema();
+        $blocks = [];
+        foreach (range(1, 11) as $i) {
+            $blocks["new$i"] = ['type' => 'text', 'fields' => ['body' => "Block $i"]];
+        }
+        $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => $blocks]);
+        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
+
+        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'), queue: true);
+
+        $this->assertFalse($result->queued);
+        $this->assertCount(11, $result->roots);
+        $this->assertCount(11, $this->blocks($this->draftOf($draft), 'blocks'));
+        $this->assertSame(0, (int)(new \craft\db\Query())->from(\craft\db\Table::QUEUE)->where(['like', 'job', 'ImportJob'])->count());
+    }
+
     public function testPastingTwiceKeepsEarlierPastesAndGivesTheCopiesNewUids(): void
     {
         [$article, $news] = $this->matrixSchema();

@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\migrations;
 
 use craft\db\Migration;
 use craft\db\Table;
+use simplygoodwork\craftportage\models\ImportLogEntry;
 use simplygoodwork\craftportage\records\ImportLogRecord;
 
 /**
@@ -20,6 +21,8 @@ class Install extends Migration
             'source' => $this->json(),
             'results' => $this->json(),
             'choices' => $this->json(),
+            'status' => $this->string(20)->notNull()->defaultValue(ImportLogEntry::STATUS_COMPLETED),
+            'error' => $this->text(),
             'dateCreated' => $this->dateTime()->notNull(),
             'dateUpdated' => $this->dateTime()->notNull(),
             'uid' => $this->uid(),
