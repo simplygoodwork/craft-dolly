@@ -27,11 +27,13 @@ class Portage extends Component
      * Exports Root elements as Payload text.
      *
      * @param Entry[] $roots
+     * @param list<int>|null $siteIds limits the Payload to the content of these sites, for a user who can't see the others;
+     * null exports every site the entries exist in
      * @throws InvalidConfigException if the Shared key's env var isn't set in this environment
      */
-    public function export(array $roots): string
+    public function export(array $roots, ?array $siteIds = null): string
     {
-        return $this->codec()->encode((new Exporter($this->adapters()))->export($roots));
+        return $this->codec()->encode((new Exporter($this->adapters()))->export($roots, $siteIds));
     }
 
     /**

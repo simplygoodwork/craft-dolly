@@ -49,11 +49,23 @@ final class ExportContext
 
     /**
      * @param array<string, true> $rootUids UIDs of the Root elements being exported, which are never Referenced as a parent
+     * @param list<int>|null $allowedSiteIds the only sites content is exported from, or null for every site
      */
     public function __construct(
         private readonly FieldAdapterRegistry $adapters,
         private readonly array $rootUids = [],
+        private readonly ?array $allowedSiteIds = null,
     ) {
+    }
+
+    /**
+     * The UID a Root entry is exported under: a draft's content stands for the entry it's a draft of, so it carries that
+     * entry's UID, and an Import matches it to the entry it came from rather than to a draft that exists nowhere else.
+     * An unpublished draft is its own entry.
+     */
+    public static function rootUid(Entry $entry): string
+    {
+        return (string)$entry->getCanonical(true)->uid;
     }
 
     /**
@@ -68,7 +80,7 @@ final class ExportContext
 
         return [
             'elementType' => ElementTypes::nameOf($entry),
-            'uid' => $entry->uid,
+            'uid' => self::rootUid($entry),
             'section' => $section->uid,
             'type' => $this->entryTypeUid($entry),
             'authors' => array_map(fn(User $author) => $this->addReference($author), $entry->getAuthors()),
@@ -254,7 +266,11 @@ final class ExportContext
 
         $instances = [];
         foreach (Craft::$app->getSites()->getAllSiteIds(true) as $siteId) {
-            if (isset($bySite[$siteId]) && ($this->siteIds === null || in_array($siteId, $this->siteIds, true))) {
+            if (
+                isset($bySite[$siteId]) &&
+                ($this->siteIds === null || in_array($siteId, $this->siteIds, true)) &&
+                ($this->allowedSiteIds === null || in_array($siteId, $this->allowedSiteIds, true))
+            ) {
                 $instances[] = $bySite[$siteId];
             }
         }

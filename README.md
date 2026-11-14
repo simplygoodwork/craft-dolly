@@ -74,6 +74,15 @@ Values for fields that are missing or have changed type in this environment are 
 
 SEOmatic's SEO Settings field moves its values as they are, including Twig and object templates. The SEO, Facebook and Twitter images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Twig written by hand that contains an asset ID, and the images of the site-level identity and creator settings, move untranslated. Section-level SEOmatic bundles are never read or written. A setting that pulls from a field the Target entry doesn't have is imported with a warning.
 
+## Copying content in the control panel
+
+A user with the **Export content** permission gets **Copy for another environment**, separate from Craft's own Copy (which is unchanged):
+
+- In an entry editor's action menu. It exports what the editor is showing: unsaved changes are saved to the draft first (the provisional draft, or the named draft being edited), and that draft's content is exported as the entry it belongs to. A new entry that isn't published yet is exported as a new entry. A revision, a nested entry and another user's provisional draft can't be exported. Only the sites the user can edit are included in the Payload.
+- As a bulk action in the entry index. It exports the selected canonical entries as one Payload with a Root element for each; drafts and revisions in the index aren't offered.
+
+The Payload goes to the clipboard, with a confirmation. A Payload larger than `clipboardLimit` bytes (100,000 by default; set it in `config/portage.php`), or one the browser won't let the page copy, is offered as a `.portage` file to download instead (a button in the notice), which the Portage utility accepts like pasted text. Both actions check that the user can view the entries.
+
 ## Shared key
 
 Set a Shared key to encrypt and authenticate every Payload. In **Settings → Plugins → Portage**, set **Shared key** to an env var, such as `$PORTAGE_SHARED_KEY`, and give that env var the same secret in every environment. Saving the setting only accepts an env var reference, so the secret itself never reaches project config. (A `sharedKey` set in `config/portage.php` isn't checked, so keep it an env var reference there too.)

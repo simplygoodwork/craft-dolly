@@ -1101,6 +1101,21 @@ final class Schema
     }
 
     /**
+     * Creates a draft of an entry, as the entry editor does, and saves values on it, leaving the entry as it was.
+     *
+     * @param array<string, mixed> $values
+     * @param bool $provisional whether it's the user's provisional draft (the editor's autosave) rather than a named one
+     */
+    public static function draft(Entry $entry, array $values, bool $provisional = false): Entry
+    {
+        $entry = Entry::find()->id($entry->id)->status(null)->one() ?? throw new RuntimeException("No entry with ID $entry->id");
+        $draft = Craft::$app->getDrafts()->createDraft($entry, (int)User::find()->admin()->one()->id, $provisional ? null : 'Staging edits', provisional: $provisional);
+        self::saveElement($draft, $values);
+
+        return $draft;
+    }
+
+    /**
      * @param array<string, mixed> $values
      */
     private static function saveElement(ElementInterface $element, array $values): void

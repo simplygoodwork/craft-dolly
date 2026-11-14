@@ -24,6 +24,12 @@ class Settings extends Model
     public int $maxPayloadSize = 8 * 1024 * 1024;
 
     /**
+     * @var int the largest Payload, in bytes, that "Copy for another environment" puts on the clipboard. A larger one is
+     * offered as a `.portage` file download instead, so nobody pastes megabytes of text into chat.
+     */
+    public int $clipboardLimit = 100 * 1000;
+
+    /**
      * @var string|null the Shared key, as an env var reference such as `$PORTAGE_SHARED_KEY`, so the secret itself is
      * never written to project config. When set, every Export is encrypted and every Import refuses unencrypted
      * Payloads.
@@ -62,7 +68,7 @@ class Settings extends Model
     protected function defineRules(): array
     {
         return [
-            [['fetchTimeout', 'maxPayloadSize'], 'integer', 'min' => 1],
+            [['fetchTimeout', 'maxPayloadSize', 'clipboardLimit'], 'integer', 'min' => 1],
             [
                 ['sharedKey'],
                 'match',

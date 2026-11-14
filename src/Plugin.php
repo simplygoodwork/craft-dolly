@@ -3,17 +3,23 @@
 namespace simplygoodwork\craftportage;
 
 use Craft;
+use craft\base\Element;
 use craft\base\Plugin as BasePlugin;
+use craft\elements\Entry;
+use craft\events\DefineMenuItemsEvent;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterElementActionsEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\services\UserPermissions;
 use craft\services\Utilities;
 use craft\web\UrlManager;
+use simplygoodwork\craftportage\elements\CopyForAnotherEnvironment;
 use simplygoodwork\craftportage\models\Settings;
 use simplygoodwork\craftportage\services\ImportLog;
 use simplygoodwork\craftportage\services\Portage;
 use simplygoodwork\craftportage\utilities\PortageUtility;
+use simplygoodwork\craftportage\web\assets\export\ExportAsset;
 use yii\base\Event;
 
 /**
@@ -111,8 +117,68 @@ class Plugin extends BasePlugin
             $event->types[] = PortageUtility::class;
         });
 
+        Event::on(Entry::class, Element::EVENT_REGISTER_ACTIONS, function(RegisterElementActionsEvent $event) {
+            // Not for the indexes of nested entries (a Matrix field's), which can't be Root elements.
+            if (!str_starts_with((string)$event->source, 'field:') && Craft::$app->getUser()->checkPermission(self::PERMISSION_EXPORT)) {
+                $event->actions[] = CopyForAnotherEnvironment::class;
+            }
+        });
+
+        Event::on(Entry::class, Element::EVENT_DEFINE_ACTION_MENU_ITEMS, function(DefineMenuItemsEvent $event) {
+            $this->addEditorMenuItem($event);
+        });
+
         Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $event) {
             $event->rules['portage/log/<importId:\\d+>'] = 'portage/log/view';
         });
+    }
+
+    /**
+     * Adds "Copy for another environment" to an entry editor's action menu, for a user who can Export content. It
+     * exports what the editor is showing, so it isn't offered on revisions, on nested entries (only a whole entry is a
+     * Root element) or before the entry exists.
+     */
+    private function addEditorMenuItem(DefineMenuItemsEvent $event): void
+    {
+        /** @var Entry $entry */
+        $entry = $event->sender;
+        if (
+            $entry->id === null ||
+            $entry->getIsRevision() ||
+            $entry->getSection() === null ||
+            !Craft::$app->getUser()->checkPermission(self::PERMISSION_EXPORT) ||
+            !Craft::$app->getElements()->canView($entry)
+        ) {
+            return;
+        }
+
+        $view = Craft::$app->getView();
+        $id = sprintf('action-portage-export-%s', mt_rand());
+        $item = [
+            'id' => $id,
+            'icon' => 'truck',
+            'label' => Craft::t('portage', 'Copy for another environment'),
+        ];
+
+        // Before the destructive items, which Craft groups at the end.
+        $position = count($event->items);
+        foreach ($event->items as $i => $existing) {
+            if (!empty($existing['destructive'])) {
+                $position = $i;
+                break;
+            }
+        }
+        array_splice($event->items, $position, 0, [$item]);
+
+        $view->registerAssetBundle(ExportAsset::class);
+        $view->registerJsWithVars(fn($id) => <<<JS
+(() => {
+  const btn = $('#' + $id);
+  btn.on('activate', () => {
+    const editor = btn.closest('.menu').data('disclosureMenu').\$trigger.closest('form').data('elementEditor');
+    Portage.exportEditedEntry(editor);
+  });
+})();
+JS, [$view->namespaceInputId($id)]);
     }
 }

@@ -21,14 +21,16 @@ final class Exporter
     }
 
     /**
-     * @param Entry[] $roots
+     * @param Entry[] $roots a draft is exported with its own content, as the canonical entry it belongs to
+     * @param list<int>|null $siteIds the sites to export content from, or null for every site the entries exist in
      * @return array<string, mixed>
      */
-    public function export(array $roots): array
+    public function export(array $roots, ?array $siteIds = null): array
     {
         $context = new ExportContext(
             $this->adapters,
-            array_fill_keys(array_map(fn(Entry $entry) => (string)$entry->uid, $roots), true),
+            array_fill_keys(array_map(fn(Entry $entry) => ExportContext::rootUid($entry), $roots), true),
+            $siteIds,
         );
         $rootData = array_map(fn(Entry $entry) => $context->exportRoot($entry), array_values($roots));
 
