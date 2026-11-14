@@ -7,7 +7,9 @@ use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
 use craft\elements\Entry;
+use craft\events\ElementEvent;
 use craft\helpers\FileHelper;
+use craft\services\Elements;
 use craft\services\Structures;
 use Throwable;
 use yii\db\Transaction;
@@ -31,8 +33,39 @@ final class Importer
     public function import(ImportPlan $plan): array
     {
         $results = [];
+        $pending = array_merge(...array_map(fn(RootPlan $root) => $root->pendingRefTags, $plan->roots));
+        $completeRefTags = fn(ElementEvent $event) => $this->completeRefTags($event->element, $pending);
 
-        return array_map(fn(RootPlan $root) => $this->importOnce($root, $results), $plan->roots);
+        $elements = Craft::$app->getElements();
+        $elements->on(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
+        try {
+            return array_map(fn(RootPlan $root) => $this->importOnce($root, $results), $plan->roots);
+        } finally {
+            $elements->off(Elements::EVENT_BEFORE_SAVE_ELEMENT, $completeRefTags);
+        }
+    }
+
+    /**
+     * Completes the reference tags pointing at Stubs and fetched assets in an element's text values, as it's saved.
+     * The Stubs and assets are saved first, so they have IDs by then (unless an asset's fetch failed).
+     *
+     * @param array<string, PendingRefTag> $pending by token
+     */
+    private function completeRefTags(ElementInterface $element, array $pending): void
+    {
+        if (!$pending) {
+            return;
+        }
+
+        foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
+            $value = $element->getFieldValue($field->handle);
+            if (is_string($value)) {
+                $completed = PendingRefTag::renderIn($value, $pending);
+                if ($completed !== $value) {
+                    $element->setFieldValue($field->handle, $completed);
+                }
+            }
+        }
     }
 
     /**

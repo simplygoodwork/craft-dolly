@@ -61,6 +61,12 @@ final class RootPlan
     public array $relations = [];
 
     /**
+     * @var array<string, PendingRefTag> reference tags pointing at Stubs and fetched assets, which the Importer
+     * completes once they're saved, by token
+     */
+    public array $pendingRefTags = [];
+
+    /**
      * @var array<string, true> the assets `addFetch()` is adding, by UID
      */
     private array $addingFetches = [];
@@ -165,6 +171,7 @@ final class RootPlan
 
         $fields = $fetch->fieldPlan;
         $this->stubs += $fields->stubs;
+        $this->pendingRefTags += $fields->pendingRefTags;
         foreach ($fields->fetches as $nested) {
             $this->addFetch($nested);
         }

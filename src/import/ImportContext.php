@@ -74,6 +74,14 @@ final class ImportContext
     }
 
     /**
+     * Returns the plan for one of the Payload's References, or null if the Payload has no such Reference.
+     */
+    public function reference(string $uid): ?ReferencePlan
+    {
+        return $this->references[$uid] ?? null;
+    }
+
+    /**
      * Returns whether an Assets field allows the kind of file being fetched, warning when it doesn't.
      */
     private function allowsKind(FieldInterface $field, AssetFetch $fetch): bool

@@ -144,6 +144,20 @@ final class ExportContext
     }
 
     /**
+     * Records a site named by an Embedded reference as a Schema reference and returns its UID, or null if there's no
+     * site with that ID.
+     */
+    public function siteUid(int $siteId): ?string
+    {
+        $uid = Craft::$app->getSites()->getSiteById($siteId, true)?->uid;
+        if ($uid !== null) {
+            $this->schema['sites'][$uid] = true;
+        }
+
+        return $uid;
+    }
+
+    /**
      * @return array{alt: string|null, focalPoint: array{x: float, y: float}|null, fields: array<string, mixed>}
      */
     private function assetMetadata(Asset $asset): array
