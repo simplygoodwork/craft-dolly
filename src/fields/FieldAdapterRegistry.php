@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\fields;
 
 use benf\neo\Field as NeoField;
+use craft\base\ElementContainerFieldInterface;
 use craft\base\FieldInterface;
 use craft\ckeditor\Field as CkEditorField;
 use craft\elements\Asset;
@@ -11,28 +12,64 @@ use craft\elements\Entry;
 use craft\elements\Tag;
 use craft\elements\User;
 use craft\fields\Assets;
+use craft\fields\ButtonGroup;
 use craft\fields\Categories;
+use craft\fields\Checkboxes;
+use craft\fields\Color;
+use craft\fields\Country;
+use craft\fields\Date;
+use craft\fields\Dropdown;
+use craft\fields\Email;
 use craft\fields\Entries;
+use craft\fields\Icon;
+use craft\fields\Json;
+use craft\fields\Lightswitch;
 use craft\fields\Link;
 use craft\fields\Matrix;
+use craft\fields\MissingField;
+use craft\fields\Money;
+use craft\fields\MultiSelect;
+use craft\fields\Number;
 use craft\fields\PlainText;
+use craft\fields\RadioButtons;
+use craft\fields\Range;
+use craft\fields\Table;
 use craft\fields\Tags;
+use craft\fields\Time;
 use craft\fields\Users;
 use nystudio107\seomatic\fields\SeoSettings;
+use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
 use verbb\hyper\fields\HyperField;
+use yii\base\Component;
+use yii\base\InvalidConfigException;
 
 /**
  * Maps field classes to their Field adapters.
  */
-final class FieldAdapterRegistry
+final class FieldAdapterRegistry extends Component
 {
+    /**
+     * @event RegisterFieldAdaptersEvent Triggered when the registry is built, to register a Field adapter for a field class.
+     */
+    public const EVENT_REGISTER_ADAPTERS = 'registerAdapters';
+
     /**
      * @var array<class-string<FieldInterface>, FieldAdapter>
      */
     private array $adapters;
 
-    public function __construct()
+    private readonly FieldAdapter $fallback;
+
+    private readonly FieldAdapter $nestedContent;
+
+    public function __construct($config = [])
     {
+        parent::__construct($config);
+
+        $serialized = new SerializedValueAdapter();
+        $options = new OptionsFieldAdapter();
+        $this->fallback = new FallbackAdapter();
+        $this->nestedContent = new UnsupportedNestedContentAdapter();
         $this->adapters = [
             PlainText::class => new PlainTextAdapter(),
             Link::class => new LinkAdapter(),
@@ -46,14 +83,50 @@ final class FieldAdapterRegistry
             Tags::class => new RelationFieldAdapter(Tag::class),
             Users::class => new RelationFieldAdapter(User::class),
             Assets::class => new RelationFieldAdapter(Asset::class),
+            Number::class => $serialized,
+            Lightswitch::class => $serialized,
+            Date::class => $serialized,
+            Time::class => $serialized,
+            Color::class => $serialized,
+            Email::class => $serialized,
+            Money::class => new MoneyAdapter(),
+            Range::class => $serialized,
+            Table::class => $serialized,
+            Json::class => $serialized,
+            Country::class => $serialized,
+            Icon::class => $serialized,
+            Dropdown::class => $options,
+            RadioButtons::class => $options,
+            Checkboxes::class => $options,
+            MultiSelect::class => $options,
+            ButtonGroup::class => $options,
         ];
+
+        $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);
+        $this->trigger(self::EVENT_REGISTER_ADAPTERS, $event);
+        foreach ($event->adapters as $class => $adapter) {
+            if (!$adapter instanceof FieldAdapter) {
+                throw new InvalidConfigException("The adapter registered for $class must implement " . FieldAdapter::class . '.');
+            }
+        }
+        $this->adapters = $event->adapters;
     }
 
     /**
-     * Returns the adapter for a field's exact class, or null if the field type isn't supported.
+     * Returns the adapter for a field's exact class, the fallback if it has none (or, for a field that holds Owned content, an adapter that skips it), or null for a field that's missing its
+     * type (a `MissingField`), which holds nothing to move.
      */
     public function adapterFor(FieldInterface $field): ?FieldAdapter
     {
-        return $this->adapters[$field::class] ?? null;
+        if ($field instanceof MissingField) {
+            return null;
+        }
+
+        if (isset($this->adapters[$field::class])) {
+            return $this->adapters[$field::class];
+        }
+
+        // Raw serialization of nested content would skip Resolution of everything inside it.
+        return $field instanceof ElementContainerFieldInterface ? $this->nestedContent : $this->fallback;
     }
 }

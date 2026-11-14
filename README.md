@@ -80,6 +80,36 @@ Set a Shared key to encrypt and authenticate every Payload. In **Settings → Pl
 
 With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted with Craft's authenticated encryption, and an Import only accepts Payloads encrypted with the same key: an unencrypted Payload, one encrypted with a different key and one changed after Export are all refused. Without a Shared key, an encrypted Payload is refused. If the setting names an env var that isn't set, Export and Import both fail rather than fall back to unencrypted Payloads.
 
+## Field types
+
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields) with a Field adapter each. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+
+A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
+
+Fields that hold nested content and have no adapter, such as Content Block and Addresses, are skipped with a warning rather than falling back, since Craft's raw serialization would carry the source IDs of every element inside them untranslated.
+
+A Money field travels with its currency: if the Target field's currency differs, the Preview warns that the amount (in minor units) may change magnitude. A Date field that shows its time zone keeps its named time zone.
+
+### Registering an adapter for your field type
+
+A plugin can register an adapter for its own field class with `FieldAdapterRegistry::EVENT_REGISTER_ADAPTERS`. Implement `simplygoodwork\craftportage\fields\FieldAdapter`: `export()` returns the JSON-safe value for the Payload, and `import()` returns a value for `setFieldValue()` in the Target environment. Adapters are matched on the field's exact class, and a registered adapter replaces the fallback (and any adapter Portage ships for that class).
+
+```php
+use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
+use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use yii\base\Event;
+
+Event::on(
+    FieldAdapterRegistry::class,
+    FieldAdapterRegistry::EVENT_REGISTER_ADAPTERS,
+    function(RegisterFieldAdaptersEvent $event) {
+        $event->adapters[MyField::class] = new MyFieldAdapter();
+    },
+);
+```
+
+Register the handler while your plugin initializes, before Portage is first used in the request: the registry is built once and an adapter registered later is ignored. Every registered value must implement `FieldAdapter`, or building the registry throws an `InvalidConfigException`. During `export()`, `$context->element()` is the element that holds the value, for a field whose `serializeValue()` needs it; Import never has a Target element while it plans, so `import()` has none. Use `ExportContext::addReference()` and `ImportContext::resolveReference()` for any elements the value points at, and `$context->plan->warn()` for anything the Import drops.
+
 ## Limits
 
 An Import refuses a Payload larger than `maxPayloadSize` bytes (8 MB by default), whether as text or decompressed, and stops decompressing as soon as it passes the limit, so a small Payload that decompresses to gigabytes can't exhaust memory. Raise it in `config/portage.php`:

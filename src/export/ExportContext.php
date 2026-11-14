@@ -45,6 +45,8 @@ final class ExportContext
      */
     private ?array $siteIds = null;
 
+    private ?ElementInterface $element = null;
+
     /**
      * @param array<string, true> $rootUids UIDs of the Root elements being exported, which are never Referenced as a parent
      */
@@ -292,6 +294,15 @@ final class ExportContext
     }
 
     /**
+     * Returns the element whose field value is being exported, for an adapter that needs it to serialize the value, or
+     * null outside an adapter's `export()`.
+     */
+    public function element(): ?ElementInterface
+    {
+        return $this->element;
+    }
+
+    /**
      * @param bool|null $translatable whether to export the translatable fields or the others, or null for all of them
      * @param bool $ownerless whether the element is no one's owner, so fields that hold Owned content can't be exported
      * @return array<string, mixed> field UID => portable value
@@ -306,7 +317,17 @@ final class ExportContext
                 continue;
             }
             $this->schema['fields'][$field->uid] = true;
-            $fields[$field->uid] = $ownerless && $adapter instanceof RequiresOwner ? null : $adapter->export($field, $element->getFieldValue($field->handle), $this);
+            if ($ownerless && $adapter instanceof RequiresOwner) {
+                $fields[$field->uid] = null;
+                continue;
+            }
+            $outer = $this->element;
+            $this->element = $element;
+            try {
+                $fields[$field->uid] = $adapter->export($field, $element->getFieldValue($field->handle), $this);
+            } finally {
+                $this->element = $outer;
+            }
         }
 
         return $fields;
