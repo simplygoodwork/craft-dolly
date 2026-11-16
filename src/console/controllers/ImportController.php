@@ -210,7 +210,7 @@ class ImportController extends Controller
 
     private function previewReference(ReferencePlan $reference): void
     {
-        $what = "{$reference->name()} (" . ($reference->elementType ?? 'unknown type') . ", $reference->uid)";
+        $what = "{$reference->name()} ({$reference->typeName()}, $reference->uid)";
         $resolution = $reference->resolution;
 
         if ($resolution->isResolved()) {

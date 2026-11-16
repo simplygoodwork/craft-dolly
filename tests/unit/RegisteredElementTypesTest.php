@@ -77,6 +77,40 @@ class RegisteredElementTypesTest extends Unit
         });
     }
 
+    public function testAReferenceTagToARegisteredElementTypeUsesItsReferenceHandleInTheTargetEnvironment(): void
+    {
+        Schema::withElementType('widget', new WidgetDefinition(), function() {
+            $alpha = Schema::widget('Alpha', 'alpha');
+            $body = Schema::ckeditor('richBody');
+            $article = Schema::entryType('article', [$body]);
+            $news = Schema::section('news', [$article]);
+            $source = Schema::entry($news, $article, [
+                'title' => 'Rich',
+                'richBody' => "<p>See <a href=\"{gadget:$alpha->id:url}\">the widget</a>.</p>",
+            ]);
+            $alphaUid = $alpha->uid;
+
+            $payload = $this->portage()->export([$source]);
+            Schema::deleteElement($source);
+            Schema::deleteElement($alpha);
+            $newAlpha = Schema::widget('Alpha', 'alpha');
+
+            $plan = $this->portage()->preview($payload);
+            $this->assertSame('widget', $plan->references[$alphaUid]->elementType);
+            $this->assertSame('naturalKey', $plan->references[$alphaUid]->resolution->rule);
+            $this->assertSame($newAlpha->id, $plan->references[$alphaUid]->resolution->elementId);
+
+            $result = $this->portage()->import($payload);
+
+            $this->assertSame([], $result->roots[0]->warnings);
+            $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
+            $this->assertSame(
+                "<p>See <a href=\"{gadget:$newAlpha->id:url||}\">the widget</a>.</p>",
+                $imported->getFieldValue('richBody')->getRawContent(),
+            );
+        });
+    }
+
     public function testAPayloadNamingAnElementTypeThatIsNotRegisteredHereIsRefused(): void
     {
         $payload = Schema::withElementType('widget', new WidgetDefinition(), function() {

@@ -100,7 +100,7 @@ class CalendarEventsTest extends Unit
             $this->portage()->preview($payload, [$goneUid => 'stub'])->refusal,
         );
         $this->assertSame(
-            "The replacement for the Reference \"Gone\" can't be used: the calendarEvent with the ID $elsewhere->id isn't in the same calendar as the Reference.",
+            "The replacement for the Reference \"Gone\" can't be used: the event with the ID $elsewhere->id isn't in the same calendar as the Reference.",
             $this->portage()->preview($payload, [$goneUid => $elsewhere->id])->refusal,
         );
 

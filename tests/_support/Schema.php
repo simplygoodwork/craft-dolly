@@ -41,6 +41,7 @@ use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
+use craft\services\Elements;
 use ether\seo\Seo as EtherSeo;
 use nystudio107\retour\Retour;
 use nystudio107\retour\services\Redirects as RetourRedirects;
@@ -52,6 +53,7 @@ use RuntimeException;
 use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
 use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\references\ElementTypeDefinition;
 use simplygoodwork\craftportage\references\ElementTypeRegistry;
 use simplygoodwork\craftportage\services\Portage;
 use Solspace\Calendar\Calendar;
@@ -1076,7 +1078,9 @@ final class Schema
     /**
      * Runs a callback in an environment where a plugin registers an element type with Portage, under a short name,
      * then unregisters it. Portage's element types are read once per service, so the service is rebuilt both times.
-     * `$definition` is usually an `ElementTypeDefinition`; anything else tests that the registration is refused.
+     * `$definition` is usually an `ElementTypeDefinition`; anything else tests that the registration is refused. The
+     * definition's element class is registered with Craft too, as the plugin's own element type, so Craft resolves its
+     * reference handle.
      *
      * @template T
      * @param callable(): T $callback
@@ -1087,12 +1091,19 @@ final class Schema
         $register = function(RegisterElementTypesEvent $event) use ($name, $definition) {
             $event->types[$name] = $definition;
         };
+        $registerWithCraft = function(RegisterComponentTypesEvent $event) use ($definition) {
+            if ($definition instanceof ElementTypeDefinition) {
+                $event->types[] = $definition->elementClass();
+            }
+        };
         Event::on(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
+        Event::on(Elements::class, Elements::EVENT_REGISTER_ELEMENT_TYPES, $registerWithCraft);
         Plugin::getInstance()->set('portage', Portage::class);
         try {
             return $callback();
         } finally {
             Event::off(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
+            Event::off(Elements::class, Elements::EVENT_REGISTER_ELEMENT_TYPES, $registerWithCraft);
             Plugin::getInstance()->set('portage', Portage::class);
         }
     }

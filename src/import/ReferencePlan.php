@@ -174,6 +174,14 @@ final class ReferencePlan
     }
 
     /**
+     * What the Reference's element type is called in messages and the Preview: "entry", "form".
+     */
+    public function typeName(): string
+    {
+        return ElementTypes::displayName($this->elementType);
+    }
+
+    /**
      * A name for the Reference in messages: its title, or its UID.
      */
     public function name(): string

@@ -765,13 +765,13 @@ final class ImportPlanner
             $element === null => sprintf(
                 'The replacement for the Reference %s doesn\'t exist: there\'s no %s with the ID %d in this environment.',
                 $reference->name(),
-                $reference->elementType ?? 'element',
+                $reference->typeName(),
                 $id,
             ),
             $user && !Craft::$app->getElements()->canView($element, $user) => sprintf(
                 'The replacement for the Reference %s can\'t be used: you don\'t have permission to view the %s with the ID %d.',
                 $reference->name(),
-                $reference->elementType ?? 'element',
+                $reference->typeName(),
                 $id,
             ),
             $element instanceof Entry && $element->getPrimaryOwnerId() !== null => sprintf(
@@ -782,7 +782,7 @@ final class ImportPlanner
             $source !== null && !$definition->isInSource($element, $source) => sprintf(
                 'The replacement for the Reference %s can\'t be used: the %s with the ID %d isn\'t in the same %s as the Reference.',
                 $reference->name(),
-                $reference->elementType ?? 'element',
+                $reference->typeName(),
                 $id,
                 $definition->sourceName(),
             ),

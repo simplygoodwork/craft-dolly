@@ -170,7 +170,7 @@ Event::on(
 );
 ```
 
-Register the type in every environment, under the same short name: a Payload naming a type that isn't registered is refused. Short names are letters and digits, starting with a letter. Register the handler before Portage is first used in the request, as for adapters. A definition that doesn't extend `ElementTypeDefinition`, an invalid or reserved name, or a class already registered under another name throws an `InvalidConfigException`. `tests/_support/WidgetDefinition.php` is a complete example.
+Register the type in every environment, under the same short name: a Payload naming a type that isn't registered is refused. Short names are letters and digits, starting with a letter. The short name is only what the Payload carries: messages and the Preview call an element of the type by its class's `lowerDisplayName()` ("form", "event"), and an imported reference tag uses the class's `refHandle()` in the Target environment. Register the handler before Portage is first used in the request, as for adapters. A definition that doesn't extend `ElementTypeDefinition`, an invalid or reserved name, or a class already registered under another name throws an `InvalidConfigException`. `tests/_support/WidgetDefinition.php` is a complete example.
 
 ## Limits
 
@@ -298,7 +298,7 @@ $photos = Schema::volume('photos', FileServer::start() . '/files');
 $photo = Schema::asset($photos, 'photo.png', 'blog/2026', ['title' => 'Red square', 'alt' => 'A red square']);
 ```
 
-`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. `Schema::form()` saves a Formie form with no fields. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
+`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, with Portage and with Craft, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. `Schema::form()` saves a Formie form with no fields. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
 $payload = Plugin::getInstance()->getPortage()->export([$entry]);

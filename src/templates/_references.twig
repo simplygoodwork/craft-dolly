@@ -22,7 +22,7 @@
                 {% set selected = reference.pending ?? want.choice ?? reference.choice %}
                 <tr data-portage-reference="{{ uid }}">
                     <td>{{ reference.name() }}</td>
-                    <td>{{ reference.elementType|capitalize }}</td>
+                    <td>{{ reference.typeName()|capitalize }}</td>
                     <td>
                         <div class="portage-outcome">{{ reference.outcome() }}</div>
                         {% if unresolved %}

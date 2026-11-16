@@ -153,7 +153,7 @@ final class RefTags
         if (!$reference || $reference->elementType !== $tag['elementType']) {
             return null;
         }
-        $name = "$reference->elementType {$reference->name()}";
+        $name = $reference->typeName() . ' ' . $reference->name();
 
         if (StringHelper::isUUID($tag['site'])) {
             $site = $context->site($tag['site'], sprintf('in a reference tag to the %s in the field "%s"', $name, $field->name), $outcome);

@@ -50,6 +50,17 @@ final class ElementTypes
     }
 
     /**
+     * What an element of the type is called in messages: its element class's lower display name in this environment
+     * ("entry", "asset", "form"), never the short name the Payload carries. "element" when the type isn't registered.
+     */
+    public static function displayName(mixed $name): string
+    {
+        $class = self::classFor($name);
+
+        return $class ? $class::lowerDisplayName() : 'element';
+    }
+
+    /**
      * Returns whether a Root element is a Matrix or Neo block (pasted into a field) rather than a whole entry: a Neo
      * block, or a nested entry, which names the field it was exported from.
      *
