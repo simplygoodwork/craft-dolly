@@ -147,7 +147,7 @@ final class ImportContext
 
         $target = $this->resolveReference($uid, $field, $allowedKinds);
         if (!$target) {
-            $this->plan->warn(sprintf('The %s %s %s in the field "%s" doesn\'t exist in this environment. %s', $reference->elementType, $reference->name(), $usage, $field->name, $outcome));
+            $this->plan->warn(sprintf('The %s %s %s in the field "%s" doesn\'t exist in this environment. %s', $reference->typeName(), $reference->name(), $usage, $field->name, $outcome));
             return null;
         }
 

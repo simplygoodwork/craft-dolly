@@ -137,6 +137,24 @@ class DynamicFieldsTest extends Unit
         $this->assertSame('', $this->entry($result->roots[0]->elementId)->getFieldValue('featuredEntry'));
     }
 
+    public function testAnUnresolvedElementOfARegisteredTypeIsNamedByItsDisplayName(): void
+    {
+        $field = Schema::field(Dropdown::class, 'featuredForm', ['name' => 'Featured Form', 'dropdownOptions' => '']);
+        $contact = Schema::form('Contact', 'contact');
+        $source = $this->page($field, ['featuredForm' => (string)$contact->id]);
+        $settings = ['dynamicFields' => ['featuredForm' => 'formieForm']];
+        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        Schema::deleteElement($contact);
+
+        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload));
+
+        $this->assertSame(
+            ['The form "Contact" selected in the field "Featured Form" doesn\'t exist in this environment. It will be dropped from the field.'],
+            $result->roots[0]->warnings,
+        );
+        $this->assertSame('', $this->entry($result->roots[0]->elementId)->getFieldValue('featuredForm'));
+    }
+
     public function testFetchedAssetsGetTheirIdsAndAFailedFetchIsDropped(): void
     {
         $photos = Schema::volume('photos', FileServer::start() . '/files');
