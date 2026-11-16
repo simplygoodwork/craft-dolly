@@ -9,7 +9,8 @@ use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
 
 /**
- * Relation fields (Entries, Categories, Tags, Users): the related elements travel as References (ADR-0002), in order.
+ * Relation fields (Entries, Categories, Tags, Users, Assets, and any other relation field to a registered element type):
+ * the related elements travel as References (ADR-0002), in order.
  */
 final class RelationFieldAdapter implements FieldAdapter
 {

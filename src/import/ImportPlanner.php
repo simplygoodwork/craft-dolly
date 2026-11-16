@@ -569,6 +569,11 @@ final class ImportPlanner
             return "The user {$reference->name()} can't be Stubbed: Portage never creates users. Skip it or choose a replacement user.";
         }
 
+        $class = ElementTypes::classFor($reference->elementType);
+        if ($class && !ElementTypes::definition($reference->elementType)?->canBeStubbed()) {
+            return sprintf('The Reference %s can\'t be Stubbed: Portage never Stubs %s. Skip it or choose a replacement.', $reference->name(), $class::pluralLowerDisplayName());
+        }
+
         $whyForbidden = $stubs->whyForbidden($reference);
         if ($whyForbidden !== null) {
             return "The Reference {$reference->name()} can't be Stubbed: $whyForbidden. Skip it or choose a replacement.";
@@ -750,10 +755,10 @@ final class ImportPlanner
      */
     private function replacement(ReferencePlan $reference, int $id): ElementInterface
     {
-        $class = ElementTypes::classFor($reference->elementType);
-        $element = $class ? $class::find()->id($id)->status(null)->site('*')->unique()->one() : null;
+        $definition = ElementTypes::definition($reference->elementType);
+        $element = $definition?->elementClass()::find()->id($id)->status(null)->site('*')->unique()->one();
         $user = Craft::$app->getUser()->getIdentity();
-        $source = ElementTypes::sourceFor($reference->elementType, (array)($reference->reference['naturalKey'] ?? []));
+        $source = $definition?->sourceFor((array)($reference->reference['naturalKey'] ?? []));
 
         $why = match (true) {
             $element === null => sprintf(
@@ -773,12 +778,12 @@ final class ImportPlanner
                 $reference->name(),
                 $id,
             ),
-            $source !== null && !ElementTypes::isInSource($element, $source) => sprintf(
+            $source !== null && !$definition->isInSource($element, $source) => sprintf(
                 'The replacement for the Reference %s can\'t be used: the %s with the ID %d isn\'t in the same %s as the Reference.',
                 $reference->name(),
                 $reference->elementType ?? 'element',
                 $id,
-                ['section' => 'section', 'group' => 'category group', 'taggroup' => 'tag group', 'volume' => 'volume'][explode(':', $source)[0]],
+                $definition->sourceName(),
             ),
             default => null,
         };

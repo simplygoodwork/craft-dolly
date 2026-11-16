@@ -18,6 +18,7 @@ use simplygoodwork\craftportage\jobs\ImportJob;
 use simplygoodwork\craftportage\payload\InvalidPayloadException;
 use simplygoodwork\craftportage\payload\PayloadCodec;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\references\ElementTypeRegistry;
 use Throwable;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -28,6 +29,8 @@ use yii\base\InvalidConfigException;
 class Portage extends Component
 {
     private ?FieldAdapterRegistry $adapters = null;
+
+    private ?ElementTypeRegistry $elementTypes = null;
 
     /**
      * Exports Root elements as Payload text.
@@ -190,6 +193,16 @@ class Portage extends Component
         $settings = Plugin::getInstance()->getSettings();
 
         return new PayloadCodec(Craft::$app->getVersion(), $settings->resolveSharedKey(), $settings->maxPayloadSize);
+    }
+
+    /**
+     * The element types a Payload may carry, built (and its registration event triggered) on first use.
+     *
+     * @throws InvalidConfigException if a registered element type isn't valid
+     */
+    public function getElementTypes(): ElementTypeRegistry
+    {
+        return $this->elementTypes ??= new ElementTypeRegistry();
     }
 
     private function adapters(): FieldAdapterRegistry

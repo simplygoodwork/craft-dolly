@@ -9,6 +9,7 @@ use craft\services\Elements;
 use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
 use simplygoodwork\craftportage\import\PendingRefTag;
+use simplygoodwork\craftportage\import\ReferencePlan;
 use simplygoodwork\craftportage\references\ElementTypes;
 
 /**
@@ -175,11 +176,11 @@ final class RefTags
         }
 
         if ($target->id !== null) {
-            return $this->build((string)$reference->elementType, (string)$target->id, $tag);
+            return $this->build($this->refHandle($reference), (string)$target->id, $tag);
         }
 
         // A Stub or fetched asset, saved by the Importer.
-        [$before, $after] = explode(self::ID_MARKER, $this->build((string)$reference->elementType, self::ID_MARKER, $tag), 2);
+        [$before, $after] = explode(self::ID_MARKER, $this->build($this->refHandle($reference), self::ID_MARKER, $tag), 2);
         $pending = new PendingRefTag($target, $before, $after, $tag['fallback']);
         $context->plan->pendingRefTags[$pending->token] = $pending;
 
@@ -207,6 +208,17 @@ final class RefTags
 
             return $translate($tag) ?? $match[0];
         }, $text);
+    }
+
+    /**
+     * The handle a reference tag names the Reference's element type by in this environment. The Payload's tags name
+     * it by its registered short name, which for the core types is also its handle.
+     */
+    private function refHandle(ReferencePlan $reference): string
+    {
+        $class = ElementTypes::classFor($reference->elementType);
+
+        return ($class ? $class::refHandle() : null) ?? (string)$reference->elementType;
     }
 
     /**

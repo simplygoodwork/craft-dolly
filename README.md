@@ -140,6 +140,28 @@ Event::on(
 
 Register the handler while your plugin initializes, before Portage is first used in the request: the registry is built once and an adapter registered later is ignored. Every registered value must implement `FieldAdapter`, or building the registry throws an `InvalidConfigException`. During `export()`, `$context->element()` is the element that holds the value, for a field whose `serializeValue()` needs it; Import never has a Target element while it plans, so `import()` has none. Use `ExportContext::addReference()` and `ImportContext::resolveReference()` for any elements the value points at, and `$context->plan->warn()` for anything the Import drops.
 
+### Registering an element type
+
+A Payload carries related elements as References to the element types Portage knows: entries, categories, tags, users and assets. A plugin can register its own element type with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`, under a short name that the Payload carries instead of the class (ADR-0004). Then any relation field to that type moves its relations, matched by UID and then by the type's Natural key, with no Field adapter of its own. So do Link and Hyper links to it.
+
+Extend `simplygoodwork\craftportage\references\ElementTypeDefinition`. Only `elementClass()`, `naturalKey()` (the identifying attributes the Reference carries, JSON-safe) and `find()` (the ID of the one element matching them, or null) are required. By default a Reference of the type isn't limited to an element source and is never Stubbed. Override `sourceFor()`, `isInSource()` and `sourceName()` to limit replacements to the Reference's own source, and `canBeStubbed()` and `stub()` to allow Stubs.
+
+```php
+use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
+use simplygoodwork\craftportage\references\ElementTypeRegistry;
+use yii\base\Event;
+
+Event::on(
+    ElementTypeRegistry::class,
+    ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES,
+    function(RegisterElementTypesEvent $event) {
+        $event->types['widget'] = new WidgetDefinition();
+    },
+);
+```
+
+Register the type in every environment, under the same short name: a Payload naming a type that isn't registered is refused. Short names are letters and digits, starting with a letter. Register the handler before Portage is first used in the request, as for adapters. A definition that doesn't extend `ElementTypeDefinition`, an invalid or reserved name, or a class already registered under another name throws an `InvalidConfigException`. `tests/_support/WidgetDefinition.php` is a complete example.
+
 ## Limits
 
 An Import refuses a Payload larger than `maxPayloadSize` bytes (8 MB by default), whether as text or decompressed, and stops decompressing as soon as it passes the limit, so a small Payload that decompresses to gigabytes can't exhaust memory. Raise it in `config/portage.php`:
@@ -150,7 +172,7 @@ return [
 ];
 ```
 
-The envelope is validated before anything is planned: a Payload with an unknown format version, a malformed section, or a Root element or Reference whose element type isn't an entry, category, tag, user or asset is refused.
+The envelope is validated before anything is planned: a Payload with an unknown format version, a malformed section, or a Root element or Reference whose element type isn't registered in this environment (see "Registering an element type"; by default entries, categories, tags, users and assets) is refused.
 
 ## Development
 
@@ -220,7 +242,7 @@ $photos = Schema::volume('photos', FileServer::start() . '/files');
 $photo = Schema::asset($photos, 'photo.png', 'blog/2026', ['title' => 'Red square', 'alt' => 'A red square']);
 ```
 
-`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
+`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
 $payload = Plugin::getInstance()->getPortage()->export([$entry]);

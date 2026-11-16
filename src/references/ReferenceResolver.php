@@ -14,15 +14,15 @@ final class ReferenceResolver
      */
     public function resolve(array $reference): Resolution
     {
-        $class = ElementTypes::classFor($reference['elementType'] ?? null);
-        if (!$class) {
+        $definition = ElementTypes::definition($reference['elementType'] ?? null);
+        if (!$definition) {
             return Resolution::unresolved();
         }
 
         $uid = $reference['uid'] ?? null;
         if (is_string($uid) && StringHelper::isUUID($uid)) {
             // Trashed elements are excluded, so a Reference to one is unresolved.
-            $id = $class::find()
+            $id = $definition->elementClass()::find()
                 ->uid($uid)
                 ->status(null)
                 ->site('*')
@@ -34,7 +34,8 @@ final class ReferenceResolver
             }
         }
 
-        $id = NaturalKey::find($class, $reference['naturalKey'] ?? null);
+        $naturalKey = $reference['naturalKey'] ?? null;
+        $id = is_array($naturalKey) ? $definition->find($naturalKey) : null;
 
         return $id ? Resolution::matched($id, Resolution::RULE_NATURAL_KEY) : Resolution::unresolved();
     }

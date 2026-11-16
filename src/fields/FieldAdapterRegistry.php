@@ -4,6 +4,7 @@ namespace simplygoodwork\craftportage\fields;
 
 use benf\neo\Field as NeoField;
 use craft\base\ElementContainerFieldInterface;
+use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\ckeditor\Field as CkEditorField;
 use craft\elements\Asset;
@@ -12,6 +13,7 @@ use craft\elements\Entry;
 use craft\elements\Tag;
 use craft\elements\User;
 use craft\fields\Assets;
+use craft\fields\BaseRelationField;
 use craft\fields\ButtonGroup;
 use craft\fields\Categories;
 use craft\fields\Checkboxes;
@@ -40,6 +42,7 @@ use craft\fields\Users;
 use nystudio107\seomatic\fields\SeoSettings;
 use presseddigital\linkit\fields\LinkitField;
 use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
+use simplygoodwork\craftportage\references\ElementTypes;
 use verbb\hyper\fields\HyperField;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -62,6 +65,12 @@ final class FieldAdapterRegistry extends Component
     private readonly FieldAdapter $fallback;
 
     private readonly FieldAdapter $nestedContent;
+
+    /**
+     * @var array<class-string<ElementInterface>, RelationFieldAdapter> adapters for relation fields with no adapter of
+     * their own, by the element type they relate to
+     */
+    private array $relations = [];
 
     public function __construct($config = [])
     {
@@ -118,8 +127,10 @@ final class FieldAdapterRegistry extends Component
     }
 
     /**
-     * Returns the adapter for a field's exact class (or Matrix's, for a Matrix subclass), the fallback if it has none (or, for a field that holds Owned content, an adapter that skips it), or null for a field that's missing its
-     * type (a `MissingField`), which holds nothing to move.
+     * Returns the adapter for a field's exact class (or Matrix's, for a Matrix subclass). A relation field with no
+     * adapter of its own, relating to a registered element type, gets `RelationFieldAdapter`. Any other field gets the
+     * fallback (or, for a field that holds Owned content, an adapter that skips it). Returns null for a field that's
+     * missing its type (a `MissingField`), which holds nothing to move.
      */
     public function adapterFor(FieldInterface $field): ?FieldAdapter
     {
@@ -134,6 +145,10 @@ final class FieldAdapterRegistry extends Component
         // A Matrix subclass (Super Table 4, for one) stores its blocks as Matrix does: nested entries of its entry types.
         if ($field instanceof Matrix && isset($this->adapters[Matrix::class])) {
             return $this->adapters[Matrix::class];
+        }
+
+        if ($field instanceof BaseRelationField && ElementTypes::supports($field::elementType())) {
+            return $this->relations[$field::elementType()] ??= new RelationFieldAdapter($field::elementType());
         }
 
         // Raw serialization of nested content would skip Resolution of everything inside it.

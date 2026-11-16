@@ -2,6 +2,7 @@
 
 namespace simplygoodwork\craftportage\fields;
 
+use Craft;
 use craft\base\FieldInterface;
 use craft\fields\data\LinkData;
 use craft\fields\Link;
@@ -121,10 +122,12 @@ final class LinkAdapter implements FieldAdapter
 
     /**
      * Returns whether Portage can move links of an element link type: the type's ID is its element type's reference
-     * handle, which `ElementTypes` knows.
+     * handle, and that element type is registered.
      */
     private function isSupportedElementType(mixed $typeId): bool
     {
-        return ElementTypes::classFor($typeId) !== null;
+        $class = is_string($typeId) ? Craft::$app->getElements()->getElementTypeByRefHandle($typeId) : null;
+
+        return $class !== null && ElementTypes::supports($class);
     }
 }

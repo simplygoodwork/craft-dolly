@@ -45,8 +45,11 @@ use nystudio107\seomatic\seoelements\SeoEntry;
 use presseddigital\linkit\fields\LinkitField;
 use ReflectionProperty;
 use RuntimeException;
+use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
 use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\references\ElementTypeRegistry;
+use simplygoodwork\craftportage\services\Portage;
 use verbb\hyper\base\Link as HyperLink;
 use verbb\hyper\fieldlayoutelements\UrlSuffixField;
 use verbb\hyper\fields\HyperField;
@@ -982,6 +985,43 @@ final class Schema
     public static function withPortageSettings(array $values, callable $callback): mixed
     {
         return self::withProperties(Plugin::getInstance()->getSettings(), $values, $callback);
+    }
+
+    /**
+     * Runs a callback in an environment where a plugin registers an element type with Portage, under a short name,
+     * then unregisters it. Portage's element types are read once per service, so the service is rebuilt both times.
+     * `$definition` is usually an `ElementTypeDefinition`; anything else tests that the registration is refused.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withElementType(string $name, mixed $definition, callable $callback): mixed
+    {
+        $register = function(RegisterElementTypesEvent $event) use ($name, $definition) {
+            $event->types[$name] = $definition;
+        };
+        Event::on(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
+        Plugin::getInstance()->set('portage', Portage::class);
+        try {
+            return $callback();
+        } finally {
+            Event::off(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
+            Plugin::getInstance()->set('portage', Portage::class);
+        }
+    }
+
+    /**
+     * Saves a widget, the element type of `tests/_support/Widget.php`.
+     */
+    public static function widget(string $title, string $slug): Widget
+    {
+        $widget = new Widget(['title' => $title, 'slug' => $slug]);
+        if (!Craft::$app->getElements()->saveElement($widget)) {
+            throw new RuntimeException('Couldn\'t save the widget: ' . implode(' ', $widget->getFirstErrors()));
+        }
+
+        return $widget;
     }
 
     /**

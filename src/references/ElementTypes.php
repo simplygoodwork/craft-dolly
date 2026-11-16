@@ -2,42 +2,51 @@
 
 namespace simplygoodwork\craftportage\references;
 
-use Craft;
 use craft\base\ElementInterface;
-use craft\elements\Asset;
-use craft\elements\Category;
-use craft\elements\Entry;
-use craft\elements\Tag;
-use craft\elements\User;
+use simplygoodwork\craftportage\Plugin;
 
 /**
- * The whitelist of element types a Payload may name. The Payload never decides which PHP class is used.
+ * The element types a Payload may name, from the `ElementTypeRegistry`. The Payload never decides which PHP class is
+ * used: it names a type by its registered short name.
  */
 final class ElementTypes
 {
     /**
      * The element type of a Neo block that is a Root element. Only Root elements are blocks: a block is never a
-     * Reference, so it isn't in the whitelist of classes.
+     * Reference, so it isn't a registered element type.
      */
     public const NEO_BLOCK = 'neoBlock';
 
     /**
-     * @var array<string, class-string<ElementInterface>>
+     * The registry of this request's Portage service.
      */
-    private const CLASSES = [
-        'entry' => Entry::class,
-        'category' => Category::class,
-        'tag' => Tag::class,
-        'user' => User::class,
-        'asset' => Asset::class,
-    ];
+    public static function registry(): ElementTypeRegistry
+    {
+        return Plugin::getInstance()->getPortage()->getElementTypes();
+    }
+
+    /**
+     * Returns the definition registered under a short name, which may come from a Payload, or null if there's none.
+     */
+    public static function definition(mixed $name): ?ElementTypeDefinition
+    {
+        return self::registry()->get($name);
+    }
+
+    /**
+     * Returns the definition of an element's type, matched on its exact class, or null if it isn't registered.
+     */
+    public static function definitionOf(ElementInterface $element): ?ElementTypeDefinition
+    {
+        return self::definition(self::nameOf($element));
+    }
 
     /**
      * @return class-string<ElementInterface>|null
      */
     public static function classFor(mixed $name): ?string
     {
-        return is_string($name) ? (self::CLASSES[$name] ?? null) : null;
+        return self::definition($name)?->elementClass();
     }
 
     /**
@@ -56,34 +65,24 @@ final class ElementTypes
      */
     public static function supports(string $class): bool
     {
-        return in_array($class, self::CLASSES, true);
+        return self::registry()->nameOfClass($class) !== null;
     }
 
     public static function nameOf(ElementInterface $element): ?string
     {
-        $name = array_search($element::class, self::CLASSES, true);
-
-        return $name === false ? null : $name;
+        return self::registry()->nameOfClass($element::class);
     }
 
     /**
-     * Returns the element source (`section:<uid>`, `group:<uid>`, `taggroup:<uid>` or `volume:<uid>`) a Reference of
-     * the type is limited to, from its Natural key, or null when it isn't limited: users, or a section, group or
-     * volume that doesn't exist in this environment.
+     * Returns the element source (`section:<uid>`, `group:<uid>`, `taggroup:<uid>` or `volume:<uid>` for the core
+     * types) a Reference of the type is limited to, from its Natural key, or null when it isn't limited: users, or a
+     * section, group or volume that doesn't exist in this environment.
      *
      * @param array<mixed> $naturalKey
      */
     public static function sourceFor(?string $type, array $naturalKey): ?string
     {
-        $container = static fn(string $key) => is_string($naturalKey[$key] ?? null) ? $naturalKey[$key] : null;
-
-        return match ($type) {
-            'entry' => ($uid = $container('section')) && Craft::$app->getEntries()->getSectionByUid($uid) ? "section:$uid" : null,
-            'category' => ($uid = $container('group')) && Craft::$app->getCategories()->getGroupByUid($uid) ? "group:$uid" : null,
-            'tag' => ($uid = $container('group')) && Craft::$app->getTags()->getTagGroupByUid($uid) ? "taggroup:$uid" : null,
-            'asset' => ($uid = $container('volume')) && Craft::$app->getVolumes()->getVolumeByUid($uid) ? "volume:$uid" : null,
-            default => null,
-        };
+        return self::definition($type)?->sourceFor($naturalKey);
     }
 
     /**
@@ -91,14 +90,6 @@ final class ElementTypes
      */
     public static function isInSource(ElementInterface $element, string $source): bool
     {
-        [$kind, $uid] = explode(':', $source, 2);
-
-        return match (true) {
-            $element instanceof Entry => $kind === 'section' && $element->getSection()?->uid === $uid,
-            $element instanceof Category => $kind === 'group' && $element->getGroup()->uid === $uid,
-            $element instanceof Tag => $kind === 'taggroup' && $element->getGroup()->uid === $uid,
-            $element instanceof Asset => $kind === 'volume' && $element->getVolume()->uid === $uid,
-            default => false,
-        };
+        return self::definitionOf($element)?->isInSource($element, $source) ?? false;
     }
 }
