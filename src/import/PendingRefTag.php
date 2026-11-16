@@ -15,6 +15,9 @@ final class PendingRefTag
 {
     private const TOKEN_PREFIX = '{portage-pending:';
 
+    /** A token in a URL, where braces would be percent-encoded (as HTML Purifier does). */
+    private const URL_TOKEN_PREFIX = 'portage-pending-';
+
     public readonly string $token;
 
     /**
@@ -27,8 +30,19 @@ final class PendingRefTag
         private readonly string $before,
         private readonly string $after,
         private readonly string $unsaved,
+        bool $inUrl = false,
     ) {
-        $this->token = self::TOKEN_PREFIX . StringHelper::randomString(16) . '}';
+        $random = StringHelper::randomString(16);
+        $this->token = $inUrl ? self::URL_TOKEN_PREFIX . $random : self::TOKEN_PREFIX . $random . '}';
+    }
+
+    /**
+     * A token for an element in a link's URL (a TableMaker link fragment, `#entry:12@1:url`) rather than a tag, made
+     * only of characters a URL keeps as they are. It renders as nothing if the element isn't saved.
+     */
+    public static function inUrl(ElementInterface $target, string $before, string $after): self
+    {
+        return new self($target, $before, $after, '', true);
     }
 
     /**
@@ -52,7 +66,7 @@ final class PendingRefTag
      */
     public static function renderIn(string $text, array $pending): string
     {
-        if (!str_contains($text, self::TOKEN_PREFIX)) {
+        if (!str_contains($text, self::TOKEN_PREFIX) && !str_contains($text, self::URL_TOKEN_PREFIX)) {
             return $text;
         }
 

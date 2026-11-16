@@ -17,6 +17,8 @@ use simplygoodwork\craftportage\references\ElementTypes;
  *
  * On Export, a tag's element ID becomes a Reference UID, and a numeric site becomes the site's UID. On Import, the
  * Reference resolves with the same rules and choices as a relation Reference.
+ *
+ * It translates TableMaker's link fragments (`<a href="…#entry:12@1:url">`) the same way, through their own methods.
  */
 final class RefTags
 {
@@ -37,6 +39,13 @@ final class RefTags
     /x';
 
     /**
+     * A link fragment at the end of a link's URL, as TableMaker's rich text cells store a link to an element:
+     * `<a href="https://…/page#entry:12@1:url">`. TableMaker resolves it to the element's URL when it renders the cell.
+     * In the Payload, the ID and site are UIDs.
+     */
+    private const LINK_FRAGMENT_PATTERN = '/(?<prefix><a\b[^>]*?\shref="[^"]*?)(?<marker>#|%23)(?<elementType>entry|category|asset):(?<ref>[0-9A-Za-z-]+)(?:@(?<site>[0-9A-Za-z-]+))?(?::(?<attr>url))?"/';
+
+    /**
      * Replaces the element IDs in the text's reference tags with Reference UIDs, recording the References.
      *
      * The tag names the element type by its handle (`{entry:…}`), never a class. Tags that don't name an element by
@@ -45,22 +54,72 @@ final class RefTags
      */
     public function export(string $text, ExportContext $context): string
     {
-        return $this->replaceTags($text, function(array $tag) use ($context): ?string {
-            if (!ctype_digit($tag['ref'])) {
-                return null;
-            }
-            $class = Craft::$app->getElements()->getElementTypeByRefHandle($tag['elementType']);
-            $element = $class ? Craft::$app->getElements()->getElementById((int)$tag['ref'], $class, '*') : null;
-            if (!$element || ElementTypes::nameOf($element) === null) {
-                return null;
-            }
+        return $this->replaceTags($text, fn(array $tag): ?string => $this->exportTag($tag, $context));
+    }
 
-            if (ctype_digit($tag['site'])) {
-                $tag['site'] = $context->siteUid((int)$tag['site']) ?? $tag['site'];
-            }
-
-            return $this->build((string)ElementTypes::nameOf($element), $context->addReference($element), $tag);
+    /**
+     * Replaces the element IDs in the text's link fragments (`<a href="…#entry:12@1:url">`) with Reference UIDs, and
+     * numeric sites with site UIDs, recording the References. Fragments whose element doesn't exist are left as they
+     * are.
+     */
+    public function exportLinkFragments(string $html, ExportContext $context): string
+    {
+        return $this->replaceLinkFragments($html, function(array $tag, string $marker) use ($context): ?string {
+            return $this->exportTag($tag, $context, $marker);
         });
+    }
+
+    /**
+     * Replaces the Reference UIDs in the text's link fragments with the IDs of the elements they resolve to. A link
+     * whose fragment is unresolved is removed and its text kept, with a warning.
+     */
+    public function importLinkFragments(string $html, FieldInterface $field, ImportContext $context): string
+    {
+        if (!preg_match('/(?:#|%23)(?:entry|category|asset):/', $html)) {
+            return $html;
+        }
+
+        $outcome = 'The link will be removed and its text kept.';
+        $parts = preg_split('/(<a\b[^>]*>.*?<\/a>)/is', $html, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$html];
+        foreach ($parts as $i => $part) {
+            if ($i % 2 === 0 || !preg_match('/^(<a\b[^>]*>)(.*)<\/a>$/is', $part, $match)) {
+                continue;
+            }
+
+            $unresolved = false;
+            $openingTag = $this->replaceLinkFragments($match[1], function(array $tag, string $marker) use ($field, $context, $outcome, &$unresolved): ?string {
+                $translated = $this->importTag($tag, $field, $context, 'linked', $outcome, $marker);
+                $unresolved = $unresolved || $translated === false;
+
+                return $translated === false ? null : $translated;
+            });
+            $parts[$i] = $unresolved ? $match[2] : "$openingTag{$match[2]}</a>";
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * @param array{elementType: string, ref: string, site: string, attr: string, fallback: string} $tag
+     * @param string|null $fragmentMarker the `#` (or `%23`) a link fragment starts with, or null for a reference tag
+     * @return string|null the translated tag or link fragment, or null to leave it as it is
+     */
+    private function exportTag(array $tag, ExportContext $context, ?string $fragmentMarker = null): ?string
+    {
+        if (!ctype_digit($tag['ref'])) {
+            return null;
+        }
+        $class = Craft::$app->getElements()->getElementTypeByRefHandle($tag['elementType']);
+        $element = $class ? Craft::$app->getElements()->getElementById((int)$tag['ref'], $class, '*') : null;
+        if (!$element || ElementTypes::nameOf($element) === null) {
+            return null;
+        }
+
+        if (ctype_digit($tag['site'])) {
+            $tag['site'] = $context->siteUid((int)$tag['site']) ?? $tag['site'];
+        }
+
+        return $this->build((string)ElementTypes::nameOf($element), $context->addReference($element), $tag, $fragmentMarker);
     }
 
     /**
@@ -141,12 +200,14 @@ final class RefTags
      * @param array{elementType: string, ref: string, site: string, attr: string, fallback: string} $tag
      * @param string $usage how the field uses the tag, in a warning: "linked" or "referenced"
      * @param string $outcome what happens to an unresolved tag, in a warning
+     * @param string|null $fragmentMarker the `#` (or `%23`) a link fragment starts with, or null for a reference tag
      * @return string|false|null the translated tag, false if it's unresolved, or null if it isn't an Embedded reference
      * (it doesn't name a whitelisted element by ID or by the UID of a Reference of its type) and stays as it is
      */
-    private function importTag(array $tag, FieldInterface $field, ImportContext $context, string $usage, string $outcome): string|false|null
+    private function importTag(array $tag, FieldInterface $field, ImportContext $context, string $usage, string $outcome, ?string $fragmentMarker = null): string|false|null
     {
         $ref = $tag['ref'];
+        $kind = $fragmentMarker === null ? 'reference tag' : 'link';
         // Export names every whitelisted element type by its handle and translates its IDs, so an ID left in such a tag
         // named an element that didn't exist in the Source environment. Other element types aren't Embedded references.
         if (ctype_digit($ref)) {
@@ -154,7 +215,8 @@ final class RefTags
                 return null;
             }
             $context->plan->warn(sprintf(
-                'A reference tag in the field "%s" points at an element that didn\'t exist in the Source environment. %s',
+                'A %s in the field "%s" points at an element that didn\'t exist in the Source environment. %s',
+                $kind,
                 $field->name,
                 $outcome,
             ));
@@ -169,7 +231,7 @@ final class RefTags
         $name = $reference->typeName() . ' ' . $reference->name();
 
         if (StringHelper::isUUID($tag['site'])) {
-            $site = $context->site($tag['site'], sprintf('in a reference tag to the %s in the field "%s"', $name, $field->name), $outcome);
+            $site = $context->site($tag['site'], sprintf('in a %s to the %s in the field "%s"', $kind, $name, $field->name), $outcome);
             if (!$site) {
                 return false;
             }
@@ -189,12 +251,15 @@ final class RefTags
         }
 
         if ($target->id !== null) {
-            return $this->build($this->refHandle($reference), (string)$target->id, $tag);
+            return $this->build($this->refHandle($reference), (string)$target->id, $tag, $fragmentMarker);
         }
 
-        // A Stub or fetched asset, saved by the Importer.
-        [$before, $after] = explode(self::ID_MARKER, $this->build($this->refHandle($reference), self::ID_MARKER, $tag), 2);
-        $pending = new PendingRefTag($target, $before, $after, $tag['fallback']);
+        // A Stub or fetched asset, saved by the Importer. A link fragment's token must survive URL normalisation, and
+        // an unsaved element (a failed fetch) drops the fragment, leaving the link's URL as it is.
+        [$before, $after] = explode(self::ID_MARKER, $this->build($this->refHandle($reference), self::ID_MARKER, $tag, $fragmentMarker), 2);
+        $pending = $fragmentMarker === null
+            ? new PendingRefTag($target, $before, $after, $tag['fallback'])
+            : PendingRefTag::inUrl($target, $before, $after);
         $context->plan->pendingRefTags[$pending->token] = $pending;
 
         return $pending->token;
@@ -224,6 +289,26 @@ final class RefTags
     }
 
     /**
+     * @param callable(array{elementType: string, ref: string, site: string, attr: string, fallback: string}, string): (string|null) $translate
+     * gets a link fragment as a tag and its marker, and returns the translated fragment, or null to leave it as it is
+     */
+    private function replaceLinkFragments(string $html, callable $translate): string
+    {
+        return (string)preg_replace_callback(self::LINK_FRAGMENT_PATTERN, function(array $match) use ($translate): string {
+            $tag = [
+                'elementType' => $match['elementType'],
+                'ref' => $match['ref'],
+                'site' => $match['site'] ?? '',
+                'attr' => $match['attr'] ?? '',
+                'fallback' => '',
+            ];
+            $translated = $translate($tag, $match['marker']);
+
+            return $translated === null ? $match[0] : $match['prefix'] . $translated . '"';
+        }, $html);
+    }
+
+    /**
      * The handle a reference tag names the Reference's element type by in this environment. The Payload's tags name
      * it by its registered short name, which for the core types is also its handle.
      */
@@ -236,9 +321,17 @@ final class RefTags
 
     /**
      * @param array{site: string, attr: string, fallback: string} $tag
+     * @param string|null $fragmentMarker builds a link fragment starting with it (`#entry:12@1:url`), rather than a
+     * reference tag
      */
-    private function build(string $elementType, string $ref, array $tag): string
+    private function build(string $elementType, string $ref, array $tag, ?string $fragmentMarker = null): string
     {
+        if ($fragmentMarker !== null) {
+            return $fragmentMarker . $elementType . ':' . $ref
+                . ($tag['site'] !== '' ? '@' . $tag['site'] : '')
+                . ($tag['attr'] !== '' ? ':' . $tag['attr'] : '');
+        }
+
         return '{' . $elementType . ':' . $ref
             . ($tag['site'] !== '' ? '@' . $tag['site'] : '')
             . ($tag['attr'] !== '' ? ':' . $tag['attr'] : '')

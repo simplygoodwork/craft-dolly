@@ -2,64 +2,97 @@
 
 namespace simplygoodwork\craftportage\fields;
 
+use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\helpers\Json;
 use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
+use verbb\tablemaker\models\TableMakerData;
 
 /**
  * TableMaker fields: the columns, rows and caption travel as TableMaker stores them.
  *
- * A rich text cell can link to an entry, category or asset by its ID (a `#entry:12@1:url` fragment in a link, or a
- * reference tag), which Portage doesn't translate. Those cells are imported as they are, with a warning that the links
- * may point at different elements in the Target environment.
+ * A rich text cell can link to an entry, category or asset by its ID, as a link fragment (`<a href="…#entry:12@1:url">`)
+ * or a reference tag (`{entry:12:url}`). Both are Embedded references: their IDs become References on Export and
+ * resolve on Import. A link that doesn't resolve is removed and its text kept, with a warning.
  */
-final class TableMakerAdapter implements FieldAdapter
+final class TableMakerAdapter implements CompletesTokens
 {
-    private const ELEMENT_LINK = '/(?:#|%23|\{)(?:entry|category|asset):\d/';
-
-    public function __construct(private readonly SerializedValueAdapter $serialized = new SerializedValueAdapter())
-    {
+    public function __construct(
+        private readonly SerializedValueAdapter $serialized = new SerializedValueAdapter(),
+        private readonly RefTags $refTags = new RefTags(),
+    ) {
     }
 
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
-        return $this->serialized->export($field, $value, $context);
+        return $this->mapRichTextCells(
+            $this->serialized->export($field, $value, $context),
+            fn(string $html) => $this->refTags->export($this->refTags->exportLinkFragments($html, $context), $context),
+        );
     }
 
     public function import(FieldInterface $field, mixed $portable, ImportContext $context): mixed
     {
-        if ($this->linksToElements($portable)) {
-            $context->plan->warn(sprintf(
-                'The field "%s" has rich text cells that link to entries, categories or assets, which Portage can\'t translate. They will be imported as they are, and the links may point at different elements in this environment.',
-                $field->name,
-            ));
-        }
-
-        return $this->serialized->import($field, $portable, $context);
+        return $this->mapRichTextCells(
+            $this->serialized->import($field, $portable, $context),
+            fn(string $html) => $this->refTags->import($this->refTags->importLinkFragments($html, $field, $context), $field, $context),
+        );
     }
 
-    private function linksToElements(mixed $portable): bool
+    /**
+     * Completes the links and reference tags to Stubs and fetched assets in rich text cells. TableMaker stores each
+     * cell as a JSON-encoded string, which keeps the tokens and the IDs that replace them as they are.
+     */
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
     {
-        if (!is_array($portable) || !is_array($portable['columns'] ?? null) || !is_array($portable['rows'] ?? null)) {
-            return false;
+        if (!$value instanceof TableMakerData) {
+            return null;
+        }
+
+        $storage = $value->toStorage();
+
+        return $render($storage) ? $storage : null;
+    }
+
+    /**
+     * Applies a translation to the HTML of each rich text cell of a stored table value. TableMaker 5.1+ stores each
+     * cell JSON-encoded (`cellEncoding: json-v1`), so a cell is decoded first and encoded again only if it changed.
+     *
+     * @param callable(string): string $translate
+     */
+    private function mapRichTextCells(mixed $table, callable $translate): mixed
+    {
+        if (!is_array($table) || !is_array($table['columns'] ?? null) || !is_array($table['rows'] ?? null)) {
+            return $table;
         }
 
         $richText = [];
-        foreach ($portable['columns'] as $id => $column) {
+        foreach ($table['columns'] as $id => $column) {
             if (is_array($column) && ($column['type'] ?? null) === 'richtext') {
-                $richText[] = (string)$id;
+                $richText[] = $id;
             }
         }
+        if (!$richText) {
+            return $table;
+        }
 
-        foreach ($portable['rows'] as $row) {
+        $jsonEncoded = ($table['cellEncoding'] ?? null) === 'json-v1';
+        foreach ($table['rows'] as $rowId => $row) {
             foreach ($richText as $id) {
                 $cell = is_array($row) ? ($row[$id] ?? null) : null;
-                if (is_string($cell) && preg_match(self::ELEMENT_LINK, $cell)) {
-                    return true;
+                $html = $jsonEncoded && is_string($cell) ? Json::decodeIfJson($cell) : $cell;
+                if (!is_string($html)) {
+                    continue;
+                }
+
+                $translated = $translate($html);
+                if ($translated !== $html) {
+                    $table['rows'][$rowId][$id] = $jsonEncoded ? Json::encode($translated, 0) : $translated;
                 }
             }
         }
 
-        return false;
+        return $table;
     }
 }
