@@ -68,6 +68,8 @@ use verbb\formie\elements\Form as FormieForm;
 use verbb\hyper\base\Link as HyperLink;
 use verbb\hyper\fieldlayoutelements\UrlSuffixField;
 use verbb\hyper\fields\HyperField;
+use verbb\hyper\Hyper;
+use verbb\hyper\models\LinkTypeConfig;
 use verbb\hyper\services\Links as HyperLinks;
 use yii\base\Event;
 
@@ -318,6 +320,45 @@ final class Schema
         $errors = self::withConsoleFlagCleared($saveChange);
         if ($errors !== null) {
             self::fail("field \"$saved->handle\"", $errors);
+        }
+        self::refresh();
+    }
+
+    /**
+     * Saves a shared link type config (Hyper 3) with the given link types, built with `hyperLinkType()`, and returns
+     * its UID. A Hyper field uses it when saved with it as its `linkTypeConfig` and no link types of its own:
+     * `Schema::hyper('links', [], ['linkTypeConfig' => $uid])`.
+     *
+     * @param list<array<string, mixed>> $linkTypes
+     */
+    public static function hyperLinkTypeConfig(string $handle, array $linkTypes): string
+    {
+        $config = new LinkTypeConfig(['name' => self::nameFor($handle), 'handle' => $handle, 'linkTypes' => $linkTypes]);
+        self::saveHyperLinkTypeConfig($config);
+
+        return (string)$config->uid;
+    }
+
+    /**
+     * Changes the link types of a shared link type config (Hyper 3), given its UID or handle (`default` for Hyper's
+     * Default config), and saves it. The callback gets the link types' configs and returns the new ones.
+     *
+     * @param callable(list<array<string, mixed>>): list<array<string, mixed>> $change
+     */
+    public static function changeHyperLinkTypeConfig(string $ref, callable $change): void
+    {
+        $configs = Hyper::$plugin->getLinkTypeConfigs();
+        $config = $configs->getConfigByUid($ref) ?? $configs->getConfigByHandle($ref);
+        assert($config instanceof LinkTypeConfig);
+        $config->linkTypes = array_values($change($config->linkTypes));
+        self::saveHyperLinkTypeConfig($config);
+    }
+
+    private static function saveHyperLinkTypeConfig(LinkTypeConfig $config): void
+    {
+        $saved = self::withConsoleFlagCleared(fn() => Hyper::$plugin->getLinkTypeConfigs()->saveConfig($config));
+        if (!$saved) {
+            self::fail("link type config \"$config->handle\"", $config->getErrors());
         }
         self::refresh();
     }

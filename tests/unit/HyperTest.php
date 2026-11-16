@@ -3,7 +3,6 @@
 namespace simplygoodwork\craftportage\tests\unit;
 
 use Codeception\Test\Unit;
-use Craft;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\fields\Entries;
@@ -13,6 +12,7 @@ use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
 use simplygoodwork\craftportage\tests\support\FileServer;
 use simplygoodwork\craftportage\tests\support\GlobalSetHyperLinkType;
+use simplygoodwork\craftportage\tests\support\Requires;
 use simplygoodwork\craftportage\tests\support\Schema;
 use verbb\hyper\base\Link;
 use verbb\hyper\fields\HyperField;
@@ -47,7 +47,7 @@ class HyperTest extends Unit
         // The links name their link types by UID, never by class.
         $exported = json_encode($this->portage()->preview($payload)->envelope['roots'][0]['fields']);
         $this->assertStringNotContainsString('verbb', $exported);
-        $this->assertStringContainsString($this->linkTypeUid($article->getFieldLayout()->getFieldByHandle('links'), 'url'), $exported);
+        $this->assertStringContainsString('"linkType":"url"', $exported);
         Schema::deleteElement($source);
 
         $result = $this->portage()->import($payload);
@@ -60,10 +60,10 @@ class HyperTest extends Unit
         $this->assertSame('Our site', $links[0]->linkTitle);
         $this->assertSame('button', $links[0]->classes);
         $this->assertSame('#team', $links[0]->urlSuffix);
-        $this->assertSame([$craft->id], $links[1]->linkValue);
+        $this->assertSame([$craft->id], $this->linkedIds($links[1]));
         $this->assertSame(1, $links[1]->linkSiteId);
         $this->assertSame('Read', $links[1]->linkText);
-        $this->assertSame([$photo->id], $links[2]->linkValue);
+        $this->assertSame([$photo->id], $this->linkedIds($links[2]));
         $this->assertSame('hello@example.com', $links[3]->linkValue);
         $this->assertSame('A video', $links[4]->linkValue['title']);
         $this->assertSame('https://example.com/video', $links[4]->linkValue['url']);
@@ -87,7 +87,7 @@ class HyperTest extends Unit
 
         $result = $this->portage()->import($payload);
 
-        $this->assertSame([$newCraft->id], $this->importedLinks($result->roots[0]->elementId)[0]->linkValue);
+        $this->assertSame([$newCraft->id], $this->linkedIds($this->importedLinks($result->roots[0]->elementId)[0]));
         $this->assertSame([], $result->roots[0]->warnings);
     }
 
@@ -117,7 +117,7 @@ class HyperTest extends Unit
         $this->assertNotNull($stub, 'No Stub with the source UID');
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame(['url', 'entry', 'email'], array_map(fn($link) => $link->handle, $links));
-        $this->assertSame([$stub->id], $links[1]->linkValue);
+        $this->assertSame([$stub->id], $this->linkedIds($links[1]));
         $this->assertSame('Read', $links[1]->linkText);
         $this->assertSame([], $result->roots[0]->warnings);
     }
@@ -130,7 +130,7 @@ class HyperTest extends Unit
         $result = $this->portage()->import($payload, [$goneUid => $other->id]);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
-        $this->assertSame([$other->id], $links[1]->linkValue);
+        $this->assertSame([$other->id], $this->linkedIds($links[1]));
     }
 
     public function testAnAssetLinkCanBeFetchedAndPointsAtTheFetchedAsset(): void
@@ -151,7 +151,7 @@ class HyperTest extends Unit
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
-        $this->assertSame([$fetched->id], $this->importedLinks($result->roots[0]->elementId)[0]->linkValue);
+        $this->assertSame([$fetched->id], $this->linkedIds($this->importedLinks($result->roots[0]->elementId)[0]));
         $this->assertSame([], $result->roots[0]->warnings);
     }
 
@@ -233,18 +233,18 @@ class HyperTest extends Unit
         ]]);
 
         $payload = $this->portage()->export([$source]);
-        $emailUid = $this->linkTypeUid($field, 'email');
+        $emailKey = $this->linkTypeKey($field, 'email');
         Schema::deleteElement($source);
         Schema::removeHyperLinkType($field, 'email');
 
         $plan = $this->portage()->preview($payload);
         $result = $this->portage()->import($payload);
 
-        $this->assertSame('missing', $plan->drift->get('hyperLinkTypes', $emailUid)?->state);
+        $this->assertSame('missing', $plan->drift->get('hyperLinkTypes', $emailKey)?->state);
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $links));
         $this->assertContains(
-            'The Hyper link type "Email" doesn\'t exist in this environment. Links of that type will be skipped.',
+            'The Hyper link type "Email" in the field "Links" doesn\'t exist in this environment. Links of that type will be skipped.',
             $result->roots[0]->warnings,
         );
         $this->assertContains(
@@ -263,19 +263,19 @@ class HyperTest extends Unit
         ]]);
 
         $payload = $this->portage()->export([$source]);
-        $uid = $this->linkTypeUid($field, 'url');
+        $key = $this->linkTypeKey($field, 'url');
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, fn(array $linkTypes) => array_map(fn(array $config) => ['label' => 'Website'] + $config, $linkTypes));
 
         $plan = $this->portage()->preview($payload);
         $result = $this->portage()->import($payload);
 
-        $this->assertSame('drifted', $plan->drift->get('hyperLinkTypes', $uid)?->state);
+        $this->assertSame('drifted', $plan->drift->get('hyperLinkTypes', $key)?->state);
         $this->assertSame('https://example.com', $this->importedLinks($result->roots[0]->elementId)[0]->linkValue);
         $this->assertSame(
             [
                 'The field "Links" has different settings in this environment than where it was exported. Its values will be imported, but check them.',
-                'The Hyper link type "Url" has different settings in this environment than where it was exported. Its links will be imported, but check them.',
+                'The Hyper link type "Url" in the field "Links" has different settings in this environment than where it was exported. Its links will be imported, but check them.',
             ],
             $result->roots[0]->warnings,
         );
@@ -352,7 +352,7 @@ class HyperTest extends Unit
         $result = $this->portage()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
-        $this->assertSame([$craft->id], $links[0]->linkValue);
+        $this->assertSame([$craft->id], $this->linkedIds($links[0]));
         $this->assertNull($links[0]->linkSiteId);
         $this->assertContains('The site "French" of a link in the field "Links" doesn\'t exist in this environment. The link will use the site it is saved in.', $result->roots[0]->warnings);
     }
@@ -412,16 +412,16 @@ class HyperTest extends Unit
         ]]);
 
         $payload = $this->portage()->export([$source]);
-        $uid = $this->linkTypeUid($field, 'email');
+        $key = $this->linkTypeKey($field, 'email');
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, fn(array $linkTypes) => array_map(fn(array $config) => $config['handle'] === 'email' ? ['type' => linkTypes\Phone::class] + $config : $config, $linkTypes));
         $plan = $this->portage()->preview($payload);
         $result = $this->portage()->import($payload);
 
-        $this->assertSame('type-changed', $plan->drift->get('hyperLinkTypes', $uid)?->state);
+        $this->assertSame('type-changed', $plan->drift->get('hyperLinkTypes', $key)?->state);
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
         $this->assertContains(
-            'The Hyper link type "Email" is a Phone link type in this environment but was a Email link type where it was exported. Its links will be skipped.',
+            'The Hyper link type "Email" in the field "Links" is a Phone link type in this environment but was a Email link type where it was exported. Its links will be skipped.',
             $result->roots[0]->warnings,
         );
     }
@@ -480,6 +480,121 @@ class HyperTest extends Unit
         );
     }
 
+    public function testLinksInFieldsThatShareALinkTypeConfigRoundTrip(): void
+    {
+        Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $craft = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
+        [$news, $article, $primary, $secondary] = $this->newsWithSharedLinkTypes();
+        $source = Schema::entry($news, $article, ['title' => 'Shared', 'primaryLinks' => [
+            ['handle' => 'url', 'linkValue' => 'https://example.com', 'linkText' => 'Example', 'newWindow' => true],
+            ['handle' => 'entry', 'linkValue' => [$craft->id], 'linkSiteId' => 1, 'linkText' => 'Read'],
+        ], 'secondaryLinks' => [
+            ['handle' => 'url', 'linkValue' => 'https://example.org'],
+        ]]);
+
+        $payload = $this->portage()->export([$source]);
+        Schema::deleteElement($source);
+        $plan = $this->portage()->preview($payload);
+        $result = $this->portage()->import($payload);
+
+        $this->assertSame('matched', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'url'))?->state);
+        $this->assertSame('matched', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'entry'))?->state);
+        $this->assertSame('matched', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($secondary, 'url'))?->state);
+        $links = $this->importedLinks($result->roots[0]->elementId, 'primaryLinks');
+        $this->assertSame(['url', 'entry'], array_map(fn($link) => $link->handle, $links));
+        $this->assertSame('https://example.com', $links[0]->linkValue);
+        $this->assertSame('Example', $links[0]->linkText);
+        $this->assertTrue($links[0]->newWindow);
+        $this->assertSame([$craft->id], $this->linkedIds($links[1]));
+        $this->assertSame('Read', $links[1]->linkText);
+        $secondaryLinks = $this->importedLinks($result->roots[0]->elementId, 'secondaryLinks');
+        $this->assertSame(['url'], array_map(fn($link) => $link->handle, $secondaryLinks));
+        $this->assertSame('https://example.org', $secondaryLinks[0]->linkValue);
+        $this->assertSame([], $result->roots[0]->warnings);
+    }
+
+    public function testALinkInAFieldOnTheDefaultLinkTypeConfigCanPointAtAStub(): void
+    {
+        Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
+        $topic = Schema::entryType('topic');
+        $topics = Schema::section('topics', [$topic]);
+        $gone = Schema::entry($topics, $topic, ['title' => 'Gone topic', 'slug' => 'gone-topic']);
+        $goneUid = $gone->uid;
+        $field = Schema::hyper('links', [], ['linkTypeConfig' => 'default', 'defaultLinkType' => 'url']);
+        $article = Schema::entryType('article', [$field]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Default', 'links' => [
+            ['handle' => 'entry', 'linkValue' => [$gone->id], 'linkSiteId' => 1],
+            ['handle' => 'url', 'linkValue' => 'https://example.com'],
+        ]]);
+
+        $payload = $this->portage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::deleteElement($gone);
+        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+
+        $stub = Entry::find()->uid($goneUid)->status(null)->one();
+        $this->assertNotNull($stub, 'No Stub with the source UID');
+        $links = $this->importedLinks($result->roots[0]->elementId);
+        $this->assertSame(['entry', 'url'], array_map(fn($link) => $link->handle, $links));
+        $this->assertSame([$stub->id], $this->linkedIds($links[0]));
+        $this->assertSame([], $result->roots[0]->warnings);
+    }
+
+    public function testALinkTypeRemovedFromASharedLinkTypeConfigIsSkippedWithAWarning(): void
+    {
+        Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
+        [$news, $article, $primary] = $this->newsWithSharedLinkTypes();
+        $source = Schema::entry($news, $article, ['title' => 'Shared', 'primaryLinks' => [
+            ['handle' => 'email', 'linkValue' => 'hello@example.com'],
+            ['handle' => 'url', 'linkValue' => 'https://example.com'],
+        ]]);
+
+        $payload = $this->portage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::changeHyperLinkTypeConfig('navigation', fn(array $linkTypes) => array_filter($linkTypes, fn(array $config) => $config['handle'] !== 'email'));
+        $plan = $this->portage()->preview($payload);
+        $result = $this->portage()->import($payload);
+
+        $this->assertSame('missing', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'email'))?->state);
+        $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId, 'primaryLinks')));
+        $this->assertSame(
+            [
+                'The Hyper link type "Email" in the field "Primary Links" doesn\'t exist in this environment. Links of that type will be skipped.',
+                'A link of type "Email" in "Primary Links" will be skipped: its link type doesn\'t exist in that field in this environment.',
+            ],
+            $result->roots[0]->warnings,
+        );
+    }
+
+    public function testADriftedSharedLinkTypeConfigWarnsForEachFieldThatUsesIt(): void
+    {
+        Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
+        [$news, $article] = $this->newsWithSharedLinkTypes();
+        $source = Schema::entry($news, $article, ['title' => 'Shared', 'primaryLinks' => [
+            ['handle' => 'url', 'linkValue' => 'https://example.com'],
+        ], 'secondaryLinks' => [
+            ['handle' => 'url', 'linkValue' => 'https://example.org'],
+        ]]);
+
+        $payload = $this->portage()->export([$source]);
+        Schema::deleteElement($source);
+        Schema::changeHyperLinkTypeConfig('navigation', fn(array $linkTypes) => array_map(fn(array $config) => $config['handle'] === 'url' ? ['label' => 'Website'] + $config : $config, $linkTypes));
+        $result = $this->portage()->import($payload);
+
+        $this->assertSame('https://example.com', $this->importedLinks($result->roots[0]->elementId, 'primaryLinks')[0]->linkValue);
+        $this->assertSame('https://example.org', $this->importedLinks($result->roots[0]->elementId, 'secondaryLinks')[0]->linkValue);
+        $this->assertEqualsCanonicalizing(
+            [
+                'The Hyper link type "Url" in the field "Primary Links" has different settings in this environment than where it was exported. Its links will be imported, but check them.',
+                'The Hyper link type "Url" in the field "Secondary Links" has different settings in this environment than where it was exported. Its links will be imported, but check them.',
+            ],
+            $result->roots[0]->warnings,
+        );
+    }
+
     /**
      * @return array{0: Section, 1: EntryType}
      */
@@ -495,6 +610,26 @@ class HyperTest extends Unit
         $article = Schema::entryType('article', [$field]);
 
         return [Schema::section('news', [$article]), $article];
+    }
+
+    /**
+     * A section whose entry type has two Hyper fields on the shared link type config "navigation" (Hyper 3), which has
+     * URL, entry and email link types.
+     *
+     * @return array{0: Section, 1: EntryType, 2: HyperField, 3: HyperField}
+     */
+    private function newsWithSharedLinkTypes(): array
+    {
+        $navigation = Schema::hyperLinkTypeConfig('navigation', [
+            Schema::hyperLinkType(linkTypes\Url::class, 'url'),
+            Schema::hyperLinkType(linkTypes\Entry::class, 'entry'),
+            Schema::hyperLinkType(linkTypes\Email::class, 'email'),
+        ]);
+        $primary = Schema::hyper('primaryLinks', [], ['linkTypeConfig' => $navigation, 'defaultLinkType' => 'url']);
+        $secondary = Schema::hyper('secondaryLinks', [], ['linkTypeConfig' => $navigation, 'defaultLinkType' => 'url']);
+        $article = Schema::entryType('article', [$primary, $secondary]);
+
+        return [Schema::section('news', [$article]), $article, $primary, $secondary];
     }
 
     /**
@@ -524,23 +659,33 @@ class HyperTest extends Unit
         return [$payload, $goneUid];
     }
 
-    private function linkTypeUid(HyperField $field, string $handle): string
+    /**
+     * The key of a field's link type in the Drift report: the field's UID and the link type's handle.
+     */
+    private function linkTypeKey(HyperField $field, string $handle): string
     {
-        $saved = Craft::$app->getFields()->getFieldByUid($field->uid);
-        assert($saved instanceof HyperField);
+        return "$field->uid/$handle";
+    }
 
-        return (string)$saved->getLinkTypeByHandle($handle)?->layoutUid;
+    /**
+     * The IDs an element link points at. Hyper 2.0 keeps a link's element ID bare, later versions as a list of one.
+     *
+     * @return list<mixed>
+     */
+    private function linkedIds(Link $link): array
+    {
+        return is_array($link->linkValue) ? $link->linkValue : [$link->linkValue];
     }
 
     /**
      * @return list<Link>
      */
-    private function importedLinks(?int $id): array
+    private function importedLinks(?int $id, string $field = 'links'): array
     {
         $this->assertNotNull($id, 'The Import result has no element ID');
         $entry = Entry::find()->id($id)->status(null)->one();
         $this->assertNotNull($entry, "No entry with ID $id");
-        $value = $entry->getFieldValue('links');
+        $value = $entry->getFieldValue($field);
         $this->assertInstanceOf(LinkCollection::class, $value);
 
         return array_values($value->getLinks());

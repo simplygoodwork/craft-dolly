@@ -6,9 +6,11 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\helpers\ArrayHelper;
+use craft\helpers\StringHelper;
 use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
 use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftportage\schema\SchemaManifest;
 use verbb\hyper\base\ElementLink;
 use verbb\hyper\base\Link;
 use verbb\hyper\fields\HyperField;
@@ -18,10 +20,13 @@ use verbb\hyper\models\LinkCollection;
 /**
  * Verbb Hyper: any number of links in a field, each of a link type configured on the field.
  *
- * A link names its link type by the UID of its field layout, a Schema reference with its own Fingerprint and Drift,
- * never by class. A link to an element (an Embedded reference) holds the element as a Reference and resolves with the
- * usual rules, Stub and replacement choices. The values of the custom fields in a link type's field layout travel
- * with the link, through their own Field adapters.
+ * A link names its link type by handle, never by class. The link type is a Schema reference of its field (its field's
+ * UID and its handle, see `SchemaManifest::hyperLinkTypeKey()`), with its own Fingerprint and Drift, whether the field
+ * has link types of its own or uses one of Hyper 3's shared link type configs. A link to an element (an Embedded
+ * reference) holds the element as a Reference and resolves with the usual rules, Stub and replacement choices. The
+ * values of the custom fields in a link type's field layout travel with the link, through their own Field adapters.
+ *
+ * Works with Hyper 2 and 3. Links are imported in the form Hyper stores them, so Hyper builds them itself.
  */
 final class HyperAdapter implements CompletesTokens
 {
@@ -29,6 +34,18 @@ final class HyperAdapter implements CompletesTokens
      * The plain settings of a link, copied as they are.
      */
     private const ATTRIBUTES = ['newWindow', 'linkText', 'ariaLabel', 'urlSuffix', 'linkTitle', 'classes', 'customAttributes'];
+
+    /**
+     * The tokens of the Stubs and fetched assets that imported links point at, by the link's UID.
+     *
+     * Hyper 3 casts a link's element ID to an integer whenever it builds the link, which it does again each time the
+     * value is normalized, so a token in `linkValue` doesn't survive until the element is saved. Hyper 3 keeps a link's
+     * UID, so the token is found again by it. Hyper 2 doesn't keep a link's UID, but keeps the link itself, with the
+     * token `import()` set in its `linkValue`.
+     *
+     * @var array<string, string>
+     */
+    private array $tokens = [];
 
     /**
      * @return list<array<string, mixed>>|null the links with the tokens of Stubs and fetched assets replaced. A link to
@@ -41,9 +58,24 @@ final class HyperAdapter implements CompletesTokens
             return null;
         }
 
-        $serialized = $value->serializeValues($element);
+        $links = $value->serializeValues($element);
+        foreach ($links as &$link) {
+            $token = is_string($link['uid'] ?? null) ? ($this->tokens[$link['uid']] ?? null) : null;
+            if ($token !== null) {
+                $link['linkValue'] = [$token];
+            }
+        }
+        unset($link);
 
-        return $render($serialized) ? array_values(array_filter($serialized, fn(array $link) => ($link['linkValue'] ?? null) !== [''])) : null;
+        $before = $links;
+        if (!$render($links)) {
+            return null;
+        }
+
+        // Hyper 2.0 stores an element link's ID bare, later versions as a list of one.
+        $removed = fn(array $link, int $i) => ($link['linkValue'] ?? null) !== ($before[$i]['linkValue'] ?? null) && in_array($link['linkValue'] ?? null, ['', ['']], true);
+
+        return array_values(array_filter($links, fn(array $link, int $i) => !$removed($link, $i), ARRAY_FILTER_USE_BOTH));
     }
 
     /**
@@ -55,7 +87,7 @@ final class HyperAdapter implements CompletesTokens
     {
         $links = [];
         foreach ($value instanceof LinkCollection ? $value->getLinks() : [] as $link) {
-            if ($link instanceof Link && $link->layoutUid && ($exported = $this->exportLink($link, $context)) !== null) {
+            if ($link instanceof Link && $link->handle && ($exported = $this->exportLink($field, $link, $context)) !== null) {
                 $links[] = $exported;
             }
         }
@@ -73,12 +105,17 @@ final class HyperAdapter implements CompletesTokens
             return null;
         }
 
-        /** @var array<string, Link> $linkTypes */
-        $linkTypes = ArrayHelper::index(array_filter($field->getLinkTypes(), fn($linkType) => $linkType instanceof Link), 'layoutUid');
+        $linkTypes = [];
+        foreach ($field->getLinkTypes() as $linkType) {
+            if ($linkType instanceof Link && $linkType->handle) {
+                $linkTypes[SchemaManifest::hyperLinkTypeKey((string)$field->uid, $linkType->handle)] = $linkType;
+            }
+        }
 
         $links = [];
         foreach (is_array($portable) ? $portable : [] as $link) {
-            $linkType = is_array($link) ? $context->allowedLinkType($field, $linkTypes, $link['linkType'] ?? null) : null;
+            $key = is_array($link) && is_string($link['linkType'] ?? null) ? SchemaManifest::hyperLinkTypeKey((string)$field->uid, $link['linkType']) : null;
+            $linkType = is_array($link) ? $context->allowedLinkType($field, $linkTypes, $key) : null;
             if (!is_array($link) || !$linkType) {
                 continue;
             }
@@ -98,16 +135,29 @@ final class HyperAdapter implements CompletesTokens
             }
         }
 
-        return new LinkCollection($field, $links);
+        $collection = new LinkCollection($field, $links);
+
+        // Hyper casts the element ID of a link it builds to an integer, which turns a token into null. Hyper 2 keeps
+        // the links it built, so the token is set on them again. (Hyper 3 builds them again anyway; see `$tokens`.)
+        $built = array_values($collection->getLinks());
+        foreach ($links as $i => $link) {
+            $token = $this->tokens[$link['uid'] ?? ''] ?? null;
+            if ($token !== null && ($built[$i] ?? null) instanceof ElementLink && $built[$i]->handle === $link['handle']) {
+                $built[$i]->linkValue = [$token];
+            }
+        }
+
+        return $collection;
     }
 
     /**
      * @return array<string, mixed>|null
      */
-    private function exportLink(Link $link, ExportContext $context): ?array
+    private function exportLink(FieldInterface $field, Link $link, ExportContext $context): ?array
     {
         $serialized = $link->getSerializedValues();
-        $exported = ['linkType' => $context->recordLinkType((string)$link->layoutUid)];
+        $context->recordLinkType(SchemaManifest::hyperLinkTypeKey((string)$field->uid, (string)$link->handle));
+        $exported = ['linkType' => $link->handle];
         $exported += array_intersect_key($serialized, array_flip(self::ATTRIBUTES));
 
         if ($link instanceof ElementLink) {
@@ -145,21 +195,26 @@ final class HyperAdapter implements CompletesTokens
     }
 
     /**
+     * Returns the link as Hyper stores it, for `LinkCollection` to build.
+     *
      * @param array<mixed> $portable
+     * @return array<string, mixed>|null
      */
-    private function importLink(HyperField $field, array $portable, Link $linkType, ImportContext $context): ?Link
+    private function importLink(HyperField $field, array $portable, Link $linkType, ImportContext $context): ?array
     {
         $values = ['handle' => $linkType->handle] + array_intersect_key($portable, array_flip(self::ATTRIBUTES));
         $subject = sprintf('of a link in the field "%s"', $field->name);
 
-        $token = null;
         if ($linkType instanceof ElementLink) {
             $id = $this->importElement($field, $portable, $linkType, $context);
             if ($id === null) {
                 return null;
             }
-            $token = is_string($id) ? $id : null;
-            $values['linkValue'] = [$token === null ? $id : null];
+            $values['linkValue'] = [$id];
+            if (is_string($id)) {
+                $values['uid'] = StringHelper::UUID();
+                $this->tokens[$values['uid']] = $id;
+            }
 
             if (is_string($portable['linkSiteId'] ?? null)) {
                 $site = $context->site($portable['linkSiteId'], $subject, 'The link will use the site it is saved in.');
@@ -181,15 +236,7 @@ final class HyperAdapter implements CompletesTokens
         $fields = is_array($portable['fields'] ?? null) ? $portable['fields'] : [];
         $values['fields'] = array_map(fn($value) => $this->storedValue($value, $context), $context->fieldValues($linkType, $fields, ownerless: true));
 
-        $link = clone $linkType;
-        $link->field = $field;
-        $link->setAttributes($values, false);
-        if ($token !== null) {
-            // Set after the attributes, which cast the ID of an element link to an integer.
-            $link->linkValue = [$token];
-        }
-
-        return $link;
+        return $values;
     }
 
     /**

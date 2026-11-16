@@ -68,7 +68,7 @@ A pointer in a Payload to an element that is related but not owned. It carries i
 _Avoid_: Link, relation stub, dependency
 
 **Schema reference**:
-A pointer in a Payload to a project-config-defined thing (site, section, entry type, field, volume, group, block type, Hyper link type), expressed by its UID.
+A pointer in a Payload to a project-config-defined thing (site, section, entry type, field, volume, group, block type, Hyper link type), expressed by its UID. A Hyper link type is expressed by its field's UID and its handle, since fields on one of Hyper 3's shared link type configs share its link types.
 _Avoid_: Config ID, handle reference
 
 ### Resolving References

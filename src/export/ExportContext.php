@@ -240,13 +240,11 @@ final class ExportContext
     }
 
     /**
-     * Records a Hyper link type, identified by its field layout's UID, as a Schema reference and returns the UID.
+     * Records a Hyper link type, identified by its key (`SchemaManifest::hyperLinkTypeKey()`), as a Schema reference.
      */
-    public function recordLinkType(string $uid): string
+    public function recordLinkType(string $key): void
     {
-        $this->schema['hyperLinkTypes'][$uid] = true;
-
-        return $uid;
+        $this->schema['hyperLinkTypes'][$key] = true;
     }
 
     /**

@@ -308,14 +308,15 @@ final class ImportContext
     /**
      * Returns the link type of a Hyper link if the field has it, or null after warning that the link will be skipped.
      *
-     * @param array<string, HyperLink> $allowed the field's link types, by field layout UID
+     * @param array<string, HyperLink> $allowed the field's link types, by their key (`SchemaManifest::hyperLinkTypeKey()`)
+     * @param string|null $key the key of the link's link type
      */
-    public function allowedLinkType(FieldInterface $field, array $allowed, mixed $typeUid): ?HyperLink
+    public function allowedLinkType(FieldInterface $field, array $allowed, ?string $key): ?HyperLink
     {
-        $type = $this->allowedType('hyperLinkTypes', $field, $allowed, $typeUid, fn(string $ofType) => "A link$ofType in \"$field->name\" will be skipped: its link type doesn't exist in that field in this environment.");
+        $type = $this->allowedType('hyperLinkTypes', $field, $allowed, $key, fn(string $ofType) => "A link$ofType in \"$field->name\" will be skipped: its link type doesn't exist in that field in this environment.");
 
         // A link type whose type changed is skipped; the Drift has warned about it.
-        return $type && !$this->drift->get('hyperLinkTypes', $typeUid)?->isSkipped() ? $type : null;
+        return $type && $key !== null && !$this->drift->get('hyperLinkTypes', $key)?->isSkipped() ? $type : null;
     }
 
     /**

@@ -8,6 +8,8 @@
 - LJ Dynamic Fields' fields declared in the `dynamicFields` setting move their values as the sections, entry types, category groups, volumes, sites or elements they're the IDs of, and become those IDs in the Target environment. Undeclared ones keep the fallback and its warning.
 - SimpleMap, Position, Code and TableMaker fields move without the "no adapter" warning. SimpleMap's location travels without its source IDs, and a TableMaker table whose rich text cells link to elements by ID is imported with a warning.
 - Preparse fields are left out of the Payload, and the Target environment recalculates them from the field's template.
+- Hyper 3 is supported. Fields on a shared link type config move their links, and links to Stubs and fetched assets keep their element. A link now matches its link type by handle, and the Preview reports Drift for each field's link types. Hyper links in a Payload exported by an earlier version of Portage are skipped with a warning that their link type doesn't exist.
+- Hyper 2.0 links to assets whose fetch failed are removed, as on later Hyper versions, rather than kept with no asset.
 - Imports from the utility of more than 10 Root elements, or with an asset Fetch, run in the queue, with their progress in the Import log.
 
 ## 1.0.0

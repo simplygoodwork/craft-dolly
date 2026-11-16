@@ -19,6 +19,11 @@ parameters:
                 - tests/_support/Schema.php
             reportUnmatched: false
         -
+            # Hyper 3's shared link type configs, which only the Hyper 3 tests use.
+            message: '#verbb\\hyper\\(models\\LinkTypeConfig\b|Hyper::getLinkTypeConfigs\(\))#'
+            path: tests/_support/Schema.php
+            reportUnmatched: false
+        -
             # Field action menus (Craft 5.7), which are only listened for when the event exists.
             message: '#^Access to an undefined property craft\\base\\Field::\$static\.$#'
             path: src/Plugin.php
