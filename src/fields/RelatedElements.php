@@ -12,7 +12,7 @@ use craft\elements\ElementCollection;
  * An asset whose fetch failed is never saved, and Craft can't save a relation to an element without an ID, so the
  * Importer drops it from the value before saving the owner, skipping the relation.
  *
- * @extends ElementCollection<array-key, ElementInterface>
+ * It declares no `@extends` generics, since `ElementCollection` has two template types from Craft 5.2 and one before.
  */
 final class RelatedElements extends ElementCollection
 {

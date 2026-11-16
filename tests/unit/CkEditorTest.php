@@ -5,10 +5,9 @@ namespace simplygoodwork\craftportage\tests\unit;
 use Codeception\Test\Unit;
 use Craft;
 use craft\base\Field;
-use craft\ckeditor\data\Entry as EntryChunk;
-use craft\ckeditor\data\FieldData;
 use craft\elements\Entry;
 use craft\fields\Entries;
+use craft\htmlfield\HtmlFieldData;
 use craft\models\Site;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
@@ -19,6 +18,16 @@ use simplygoodwork\craftportage\tests\support\Schema;
  */
 class CkEditorTest extends Unit
 {
+    protected function _before(): void
+    {
+        // CKEditor before 4.1 renders nested entries into the HTML whenever it normalizes a value in a site request.
+        // Portage reads and sets values in the control panel, the console and the queue, never a site request, and
+        // these tests run as one, so they run as the control panel there.
+        if (!class_exists(\craft\ckeditor\data\FieldData::class)) {
+            Craft::$app->getRequest()->setIsCpRequest(true);
+        }
+    }
+
     public function testRoundTripsFormattedHtmlRefTagLinksAndNestedEntriesWithTheirContentAndUids(): void
     {
         $topic = Schema::entryType('topic');
@@ -281,13 +290,14 @@ class CkEditorTest extends Unit
     private function nestedEntries(Entry $entry, string $handle): array
     {
         $value = $entry->getFieldValue($handle);
-        $this->assertInstanceOf(FieldData::class, $value);
+        $this->assertInstanceOf(HtmlFieldData::class, $value);
 
+        // From the markers in the raw HTML, since CKEditor before 4.1 has no chunks to read the entries from.
+        preg_match_all('/<craft-entry\b[^>]*?data-entry-id="(\d+)"/i', $value->getRawContent(), $matches);
         $nested = [];
-        foreach ($value->getChunks(false) as $chunk) {
-            if ($chunk instanceof EntryChunk) {
-                $nested[] = $chunk->getEntry() ?? $this->fail("A marker in the field \"$handle\" points at no entry");
-            }
+        foreach ($matches[1] as $id) {
+            $nested[] = Entry::find()->id((int)$id)->siteId($entry->siteId)->status(null)->drafts(null)->one()
+                ?? $this->fail("A marker in the field \"$handle\" points at no entry");
         }
 
         return $nested;

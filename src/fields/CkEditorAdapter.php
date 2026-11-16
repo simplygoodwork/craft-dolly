@@ -4,11 +4,10 @@ namespace simplygoodwork\craftportage\fields;
 
 use Craft;
 use craft\base\FieldInterface;
-use craft\ckeditor\data\Entry as EntryChunk;
-use craft\ckeditor\data\FieldData;
 use craft\ckeditor\Field;
 use craft\elements\Entry;
 use craft\helpers\ArrayHelper;
+use craft\htmlfield\HtmlFieldData;
 use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
 use simplygoodwork\craftportage\import\PendingNestedEntry;
@@ -29,21 +28,30 @@ final class CkEditorAdapter implements RequiresOwner
     {
     }
 
+    /**
+     * Reads the field's raw HTML and finds its nested entries by the IDs in their markers, which works on every
+     * CKEditor version: before 4.1 the value is plain `HtmlFieldData`, with no `FieldData` chunks to read entries from.
+     */
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
-        if (!$value instanceof FieldData) {
+        if (!$value instanceof HtmlFieldData) {
             return null;
         }
 
-        $entries = [];
-        foreach ($value->getChunks(false) as $chunk) {
-            if ($chunk instanceof EntryChunk && ($entry = $chunk->getEntry())) {
-                $entries[$chunk->entryId] = $entry;
-            }
-        }
+        $raw = $value->getRawContent();
+        preg_match_all(self::MARKER_PATTERN, $raw, $matches);
+        $entries = $matches[1] ? Entry::find()
+            ->id(array_map('intval', $matches[1]))
+            ->siteId($context->element()?->siteId)
+            ->status(null)
+            ->drafts(null)
+            ->revisions(null)
+            ->trashed(null)
+            ->indexBy('id')
+            ->all() : [];
 
         $nested = [];
-        $html = $this->refTags->export($value->getRawContent(), $context);
+        $html = $this->refTags->export($raw, $context);
         $html = (string)preg_replace_callback(self::MARKER_PATTERN, function(array $match) use ($entries, $context, &$nested): string {
             $entry = $entries[(int)$match[1]] ?? null;
             if (!$entry instanceof Entry) {

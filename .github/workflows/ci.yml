@@ -27,12 +27,15 @@ jobs:
       matrix:
         include:
           # The oldest versions Portage supports.
+          # CKEditor before 4.0.4 replaces nested entries with their rendered HTML when it saves outside the control
+          # panel, so Portage skips its fields. Formie before 3.0.22 reports forms' UIDs out of sync with their
+          # elements', and from then until 3.1.1 it uses an element query parameter Craft added in 5.2.
           - name: Craft 5.0 (lowest), Hyper 2, CKEditor 4.0, Formie 3
             php: '8.2'
             craft: '~5.0.0'
             hyper: '^2.0'
-            ckeditor: '~4.0.0'
-            formie: '^3.0'
+            ckeditor: '~4.0.4'
+            formie: '^3.1.1'
             prefer-lowest: true
             allow-insecure: true
           # The first Craft with block copy/paste.

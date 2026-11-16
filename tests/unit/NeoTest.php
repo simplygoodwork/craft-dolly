@@ -26,32 +26,32 @@ class NeoTest extends Unit
         $craft = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
 
         $text = Schema::blockType('text', [Schema::plainText('body')]);
-        $section = Schema::neoBlockType('section', [
+        $chapter = Schema::neoBlockType('chapter', [
             Schema::plainText('heading'),
             Schema::field(Entries::class, 'relatedTopics'),
             Schema::matrix('items', [$text]),
         ]);
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$section, $paragraph]);
+        $content = Schema::neo('contentBlocks', [$chapter, $paragraph]);
         $article = Schema::entryType('article', [$content]);
         $news = Schema::section('news', [$article]);
 
         $source = Schema::entry($news, $article, [
             'title' => 'Nested',
-            'content' => [
-                ['type' => 'section', 'level' => 1, 'fields' => [
+            'contentBlocks' => [
+                ['type' => 'chapter', 'level' => 1, 'fields' => [
                     'heading' => 'One',
                     'relatedTopics' => [$craft->id],
                     'items' => ['new1' => ['type' => 'text', 'fields' => ['body' => 'In matrix']]],
                 ]],
-                ['type' => 'section', 'level' => 2, 'fields' => ['heading' => 'One.A']],
+                ['type' => 'chapter', 'level' => 2, 'fields' => ['heading' => 'One.A']],
                 ['type' => 'paragraph', 'level' => 3, 'fields' => ['copy' => 'Deep']],
                 ['type' => 'paragraph', 'level' => 3, 'enabled' => false, 'fields' => ['copy' => 'Deep, disabled']],
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'One.B']],
-                ['type' => 'section', 'level' => 1, 'fields' => ['heading' => 'Two']],
+                ['type' => 'chapter', 'level' => 1, 'fields' => ['heading' => 'Two']],
             ],
         ]);
-        $sourceBlocks = $this->blocks($source, 'content');
+        $sourceBlocks = $this->blocks($source, 'contentBlocks');
         $this->assertCount(6, $sourceBlocks);
 
         $payload = $this->portage()->export([$source]);
@@ -61,22 +61,22 @@ class NeoTest extends Unit
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertSame([], $result->roots[0]->warnings);
-        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'content');
+        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks');
         $this->assertCount(6, $blocks);
         $this->assertSame(
             [
-                ['section', 1, true],
-                ['section', 2, true],
+                ['chapter', 1, true],
+                ['chapter', 2, true],
                 ['paragraph', 3, true],
                 ['paragraph', 3, false],
                 ['paragraph', 2, true],
-                ['section', 1, true],
+                ['chapter', 1, true],
             ],
             array_map(fn(Block $block) => [$block->getType()->handle, (int)$block->level, $block->enabled], $blocks),
         );
         $this->assertSame(
             ['One', 'One.A', null, null, null, 'Two'],
-            array_map(fn(Block $block) => $block->getType()->handle === 'section' ? $block->getFieldValue('heading') : null, $blocks),
+            array_map(fn(Block $block) => $block->getType()->handle === 'chapter' ? $block->getFieldValue('heading') : null, $blocks),
         );
         $this->assertSame(
             ['Deep', 'Deep, disabled', 'One.B'],
@@ -94,13 +94,13 @@ class NeoTest extends Unit
     {
         $quote = Schema::neoBlockType('quote', [Schema::plainText('quoteText')]);
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$quote, $paragraph]);
+        $content = Schema::neo('contentBlocks', [$quote, $paragraph]);
         $article = Schema::entryType('article', [$content]);
         $news = Schema::section('news', [$article]);
 
         $source = Schema::entry($news, $article, [
             'title' => 'Skips',
-            'content' => [
+            'contentBlocks' => [
                 ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Before']],
                 ['type' => 'quote', 'level' => 1, 'fields' => ['quoteText' => 'Gone']],
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Child of gone']],
@@ -120,10 +120,10 @@ class NeoTest extends Unit
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertContains(
-            'A block of type "Quote" in "Content" will be skipped, with the blocks nested under it: its block type doesn\'t exist in that field in this environment.',
+            'A block of type "Quote" in "Content Blocks" will be skipped, with the blocks nested under it: its block type doesn\'t exist in that field in this environment.',
             $result->roots[0]->warnings,
         );
-        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'content');
+        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks');
         $this->assertSame(
             [['Before', 1], ['Sibling', 1], ['Child of sibling', 2]],
             array_map(fn(Block $block) => [$block->getFieldValue('copy'), (int)$block->level], $blocks),
@@ -133,13 +133,13 @@ class NeoTest extends Unit
     public function testImportsABlockOfADriftedBlockTypeWithAWarning(): void
     {
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$paragraph]);
+        $content = Schema::neo('contentBlocks', [$paragraph]);
         $article = Schema::entryType('article', [$content]);
         $news = Schema::section('news', [$article]);
 
         $source = Schema::entry($news, $article, [
             'title' => 'Drift',
-            'content' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Kept']]],
+            'contentBlocks' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Kept']]],
         ]);
         $payload = $this->portage()->export([$source]);
         Schema::deleteElement($source);
@@ -155,29 +155,29 @@ class NeoTest extends Unit
             ['The Neo block type "Paragraph" has different settings in this environment than where it was exported. Its content will be imported, but check it.'],
             $result->roots[0]->warnings,
         );
-        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'content');
+        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks');
         $this->assertSame(['Kept'], array_map(fn(Block $block) => $block->getFieldValue('copy'), $blocks));
     }
 
     public function testGeneratesNewUidsForBlocksWhoseUidsAreTaken(): void
     {
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$paragraph]);
+        $content = Schema::neo('contentBlocks', [$paragraph]);
         $article = Schema::entryType('article', [$content]);
         $news = Schema::section('news', [$article]);
 
         $source = Schema::entry($news, $article, [
             'title' => 'Collide',
-            'content' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Same']]],
+            'contentBlocks' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Same']]],
         ]);
-        $sourceUid = $this->blocks($source, 'content')[0]->uid;
+        $sourceUid = $this->blocks($source, 'contentBlocks')[0]->uid;
         $payload = $this->portage()->export([$source]);
 
         // The source entry still exists, so the Import creates a new entry whose block can't keep the UID.
         $result = $this->portage()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
-        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'content');
+        $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks');
         $this->assertCount(1, $blocks);
         $this->assertNotSame($sourceUid, $blocks[0]->uid);
         $this->assertSame('Same', $blocks[0]->getFieldValue('copy'));
@@ -190,19 +190,19 @@ class NeoTest extends Unit
             Schema::plainText('copy', ['translationMethod' => Field::TRANSLATION_METHOD_SITE]),
             Schema::plainText('anchor'),
         ]);
-        $content = Schema::neo('content', [$paragraph]);
+        $content = Schema::neo('contentBlocks', [$paragraph]);
         $page = Schema::entryType('page', [$content]);
         $pages = Schema::section('pages', [$page]);
         $source = Schema::entry($pages, $page, [
             'title' => 'About',
-            'content' => [
+            'contentBlocks' => [
                 ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Intro', 'anchor' => 'intro']],
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Detail', 'anchor' => 'detail']],
                 ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Outro', 'anchor' => 'outro']],
             ],
         ]);
-        $germanBlocks = $this->blocks($this->entryIn($source->id, $german), 'content');
-        Schema::translate($source, $german, ['content' => [
+        $germanBlocks = $this->blocks($this->entryIn($source->id, $german), 'contentBlocks');
+        Schema::translate($source, $german, ['contentBlocks' => [
             'blocks' => [
                 $germanBlocks[0]->id => ['fields' => ['copy' => 'Einleitung']],
                 $germanBlocks[1]->id => ['fields' => ['copy' => 'Einzelheit']],
@@ -217,8 +217,8 @@ class NeoTest extends Unit
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $id = $result->roots[0]->elementId;
-        $english = $this->blocks($this->entryIn($id, Craft::$app->getSites()->getPrimarySite()), 'content');
-        $translated = $this->blocks($this->entryIn($id, $german), 'content');
+        $english = $this->blocks($this->entryIn($id, Craft::$app->getSites()->getPrimarySite()), 'contentBlocks');
+        $translated = $this->blocks($this->entryIn($id, $german), 'contentBlocks');
         $this->assertSame([['Intro', 1], ['Detail', 2], ['Outro', 1]], $this->copyAndLevel($english));
         $this->assertSame([['Einleitung', 1], ['Einzelheit', 2], ['Schluss', 1]], $this->copyAndLevel($translated));
         $this->assertSame(['intro', 'detail', 'outro'], array_map(fn(Block $block) => $block->getFieldValue('anchor'), $translated));
@@ -229,17 +229,17 @@ class NeoTest extends Unit
     {
         $german = Schema::site('german', ['language' => 'de']);
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$paragraph], ['propagationMethod' => PropagationMethod::None]);
+        $content = Schema::neo('contentBlocks', [$paragraph], ['propagationMethod' => PropagationMethod::None]);
         $page = Schema::entryType('page', [$content]);
         $pages = Schema::section('pages', [$page]);
         $source = Schema::entry($pages, $page, [
             'title' => 'About',
-            'content' => [
+            'contentBlocks' => [
                 ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Intro']],
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Detail']],
             ],
         ]);
-        Schema::translate($source, $german, ['content' => [
+        Schema::translate($source, $german, ['contentBlocks' => [
             ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Nur auf Deutsch']],
         ]]);
 
@@ -249,8 +249,8 @@ class NeoTest extends Unit
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $id = $result->roots[0]->elementId;
-        $english = $this->blocks($this->entryIn($id, Craft::$app->getSites()->getPrimarySite()), 'content');
-        $translated = $this->blocks($this->entryIn($id, $german), 'content');
+        $english = $this->blocks($this->entryIn($id, Craft::$app->getSites()->getPrimarySite()), 'contentBlocks');
+        $translated = $this->blocks($this->entryIn($id, $german), 'contentBlocks');
         $this->assertSame([['Intro', 1], ['Detail', 2]], $this->copyAndLevel($english));
         $this->assertSame([['Nur auf Deutsch', 1]], $this->copyAndLevel($translated));
     }
@@ -258,19 +258,19 @@ class NeoTest extends Unit
     public function testOverwriteReplacesANeoFieldsBlocksAsAWholeOnTheDraft(): void
     {
         $paragraph = Schema::neoBlockType('paragraph', [Schema::plainText('copy')]);
-        $content = Schema::neo('content', [$paragraph]);
+        $content = Schema::neo('contentBlocks', [$paragraph]);
         $article = Schema::entryType('article', [$content]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, [
             'title' => 'Page',
-            'content' => [
+            'contentBlocks' => [
                 ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'First']],
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Second']],
             ],
         ]);
         $payload = $this->portage()->export([$source]);
-        $blockIds = array_map(fn(Block $block) => $block->id, $this->blocks($source, 'content'));
-        Schema::updateEntry($source, ['content' => [
+        $blockIds = array_map(fn(Block $block) => $block->id, $this->blocks($source, 'contentBlocks'));
+        Schema::updateEntry($source, ['contentBlocks' => [
             'blocks' => [
                 $blockIds[0] => [],
                 $blockIds[1] => [],
@@ -279,15 +279,15 @@ class NeoTest extends Unit
             'sortOrder' => [...$blockIds, 'new3'],
         ]]);
         $canonical = Entry::find()->id($source->id)->status(null)->one();
-        $this->assertSame([['First', 1], ['Second', 2], ['Prod only', 1]], $this->copyAndLevel($this->blocks($canonical, 'content')));
+        $this->assertSame([['First', 1], ['Second', 2], ['Prod only', 1]], $this->copyAndLevel($this->blocks($canonical, 'contentBlocks')));
 
         $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $this->assertSame('overwritten', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $draft = Entry::find()->draftId($result->roots[0]->draftId)->status(null)->one();
-        $this->assertSame([['First', 1], ['Second', 2]], $this->copyAndLevel($this->blocks($draft, 'content')));
+        $this->assertSame([['First', 1], ['Second', 2]], $this->copyAndLevel($this->blocks($draft, 'contentBlocks')));
         $untouched = Entry::find()->id($source->id)->status(null)->one();
-        $this->assertSame([['First', 1], ['Second', 2], ['Prod only', 1]], $this->copyAndLevel($this->blocks($untouched, 'content')));
+        $this->assertSame([['First', 1], ['Second', 2], ['Prod only', 1]], $this->copyAndLevel($this->blocks($untouched, 'contentBlocks')));
     }
 
     /**

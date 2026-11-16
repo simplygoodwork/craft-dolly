@@ -3,6 +3,8 @@
 namespace simplygoodwork\craftportage\fields;
 
 use benf\neo\Field as NeoField;
+use Composer\InstalledVersions;
+use Composer\Semver\VersionParser;
 use craft\base\ElementContainerFieldInterface;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
@@ -94,9 +96,7 @@ final class FieldAdapterRegistry extends Component
         $this->nestedContent = new UnsupportedNestedContentAdapter();
         $this->adapters = [
             PlainText::class => new PlainTextAdapter(),
-            Link::class => new LinkAdapter(),
             Matrix::class => new MatrixAdapter(),
-            CkEditorField::class => new CkEditorAdapter(),
             NeoField::class => new NeoAdapter(),
             HyperField::class => new HyperAdapter(),
             SeoSettings::class => new SeoSettingsAdapter(),
@@ -112,17 +112,33 @@ final class FieldAdapterRegistry extends Component
             Color::class => $serialized,
             Email::class => $serialized,
             Money::class => new MoneyAdapter(),
-            Range::class => $serialized,
             Table::class => $serialized,
-            Json::class => $serialized,
             Country::class => $serialized,
             Icon::class => $serialized,
             Dropdown::class => $options,
             RadioButtons::class => $options,
             Checkboxes::class => $options,
             MultiSelect::class => $options,
-            ButtonGroup::class => $options,
         ];
+        // Core field types added after Craft 5.0: registered only when this Craft version has them.
+        if (class_exists(Link::class)) { // Craft 5.3
+            $this->adapters[Link::class] = new LinkAdapter();
+        }
+        if (class_exists(Range::class)) { // Craft 5.5
+            $this->adapters[Range::class] = $serialized;
+        }
+        if (class_exists(Json::class)) { // Craft 5.7
+            $this->adapters[Json::class] = $serialized;
+        }
+        if (class_exists(ButtonGroup::class)) { // Craft 5.7
+            $this->adapters[ButtonGroup::class] = $options;
+        }
+        // CKEditor before 4.0.4 replaces nested entries with their rendered HTML whenever it normalizes a value outside
+        // the control panel, so it would lose them in a console or queued Export and when an Import sets the value. Its
+        // fields are skipped like other nested content Portage can't move.
+        if (!InstalledVersions::isInstalled('craftcms/ckeditor') || InstalledVersions::satisfies(new VersionParser(), 'craftcms/ckeditor', '>=4.0.4')) {
+            $this->adapters[CkEditorField::class] = new CkEditorAdapter();
+        }
         // Optional plugins: their adapters are registered only when the plugin's field class exists.
         if (class_exists(LinkitField::class)) {
             $this->adapters[LinkitField::class] = new LinkitAdapter();

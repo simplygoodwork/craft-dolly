@@ -69,7 +69,9 @@ class ImportModesTest extends Unit
         // After the Export, the Target environment gains a field the Payload doesn't carry, and changes the type of another.
         Schema::addFieldToEntryType($article, Schema::plainText('notes'));
         Schema::changeFieldType($teaser->uid, Number::class);
-        Schema::updateEntry($source, ['summary' => 'Prod summary', 'notes' => 'Prod notes']);
+        // The teaser's text stays in the entry after the type change. Craft 5.0 keeps it as it is, which the Number field
+        // won't validate, so it's cleared.
+        Schema::updateEntry($source, ['summary' => 'Prod summary', 'notes' => 'Prod notes', 'teaser' => null]);
 
         $plan = $this->portage()->preview($payload, [], [$source->uid => ['mode' => 'overwrite']]);
         $this->assertSame(

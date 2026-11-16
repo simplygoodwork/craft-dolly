@@ -1173,7 +1173,8 @@ final class ImportPlanner
             }
         }
 
-        return array_slice(array_values($authors), 0, $section->maxAuthors ?? null);
+        // `maxAuthors` is an int before Craft 5.7, and nullable (no limit) from then.
+        return array_slice(array_values($authors), 0, $section->maxAuthors);
     }
 
     /**

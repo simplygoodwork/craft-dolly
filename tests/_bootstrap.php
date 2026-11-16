@@ -13,6 +13,11 @@ use simplygoodwork\craftportage\Plugin;
 
 ini_set('date.timezone', 'UTC');
 
+// Buffer the output, so a notice PHP prints (such as the deprecations that old dependencies of the lowest supported
+// versions raise on PHP 8.2, which Craft's test setup displays) can't send headers before a functional test starts its
+// session. The buffer is printed when the run ends.
+ob_start();
+
 define('CRAFT_ROOT_PATH', dirname(__DIR__));
 define('CRAFT_TESTS_PATH', __DIR__);
 define('CRAFT_STORAGE_PATH', __DIR__ . '/_craft/storage');

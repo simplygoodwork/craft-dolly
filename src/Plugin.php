@@ -132,9 +132,12 @@ class Plugin extends BasePlugin
             $this->addEditorMenuItem($event);
         });
 
-        Event::on(Field::class, Field::EVENT_DEFINE_ACTION_MENU_ITEMS, function(DefineMenuItemsEvent $event) {
-            $this->addFieldMenuItems($event);
-        });
+        // Fields have action menus from Craft 5.7. Below that, Matrix and Neo blocks can't be copied or pasted.
+        if (defined(Field::class . '::EVENT_DEFINE_ACTION_MENU_ITEMS')) {
+            Event::on(Field::class, constant(Field::class . '::EVENT_DEFINE_ACTION_MENU_ITEMS'), function(DefineMenuItemsEvent $event) {
+                $this->addFieldMenuItems($event);
+            });
+        }
 
         Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $event) {
             $event->rules['portage/log/<importId:\\d+>'] = 'portage/log/view';

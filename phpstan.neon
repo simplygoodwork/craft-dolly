@@ -6,3 +6,25 @@ parameters:
     paths:
         - src
         - tests/_support/Schema.php
+
+    # APIs that only some of the supported Craft and plugin versions have. The code guards each at runtime
+    # (`class_exists()`, `defined()`, `property_exists()`), and phpstan checks it in full in the CI jobs whose versions
+    # have it. Each error is only reported by the other jobs, hence `reportUnmatched: false`.
+    ignoreErrors:
+        -
+            # The Link field and its link types (Craft 5.3). Its adapter is registered only when the field type exists.
+            message: '#craft\\fields\\(Link|data\\LinkData|linktypes\\\w+)\b#'
+            paths:
+                - src/fields/LinkAdapter.php
+                - tests/_support/Schema.php
+            reportUnmatched: false
+        -
+            # Field action menus (Craft 5.7), which are only listened for when the event exists.
+            message: '#^Access to an undefined property craft\\base\\Field::\$static\.$#'
+            path: src/Plugin.php
+            reportUnmatched: false
+        -
+            # CKEditor configs (CKEditor 4), which CKEditor 5 replaced with settings on the field.
+            message: '#craft\\ckeditor\\(CkeConfig\b|Plugin::getCkeConfigs\(\))#'
+            path: tests/_support/Schema.php
+            reportUnmatched: false

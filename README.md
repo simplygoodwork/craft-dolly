@@ -4,7 +4,18 @@ Easily port content from one environment to another.
 
 ## Requirements
 
-This plugin requires Craft CMS 5.10.0 or later, and PHP 8.2 or later.
+This plugin requires Craft CMS 5.0.0 or later, and PHP 8.2 or later.
+
+A few features need a newer Craft, and turn themselves off on older versions:
+
+- Copying and pasting Matrix and Neo blocks needs Craft 5.7 or later, which adds the field action menus they live in. Copying whole entries works on every version.
+- The Link (Craft 5.3), Range (5.5), JSON and Button Group (5.7) fields only exist from those versions, so Portage only moves them where Craft has them.
+
+Some plugin releases allow Craft 5.0 but don't work with it, or with Portage:
+
+- Hyper 2.3.1 and later use a class Craft 5.8 added, so a site on Craft 5.0–5.7 needs Hyper 2.3.0 or earlier.
+- Formie 3.0.22–3.1.0 use an element query parameter Craft added in 5.2, so a site on Craft 5.0 or 5.1 needs Formie 3.1.1 or later. Before 3.0.22, forms' UIDs are out of sync, so Portage matches forms only by their handle.
+- CKEditor 4.0.0–4.0.3 replace nested entries with their rendered HTML whenever an entry is saved outside the control panel (Craft's `resave` commands included), so Portage skips CKEditor fields on those versions, with a warning in the Preview. Update to CKEditor 4.0.4 or later.
 
 ## Installation
 
@@ -88,7 +99,7 @@ Preparse fields aren't carried in the Payload. Preparse renders their value from
 
 Position and Code fields move their values as they are (a Code field with its language). TableMaker fields move their columns, rows and caption as they are. A rich text cell can link to an entry, category or asset by its ID, which Portage doesn't translate, so a table with such links is imported with a Preview warning that they may point at different elements in the Target environment.
 
-Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4). Formie 4 limits form queries in the control panel to the forms the user can view in Formie, but Formie's own Forms field doesn't, and nor does Portage: an Import from the control panel relates a form its user can't view in Formie, as editing the field there can. A replacement form must still be one the user can view.
+Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. (Before Formie 3.0.22, which fixed forms whose UIDs were out of sync, a form only ever matches by its handle.) An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4). Formie 4 limits form queries in the control panel to the forms the user can view in Formie, but Formie's own Forms field doesn't, and nor does Portage: an Import from the control panel relates a form its user can't view in Formie, as editing the field there can. A replacement form must still be one the user can view.
 
 When Solspace Calendar is installed, its events are a registered element type (`calendarEvent`), so a Calendar Events field moves its relations like any relation field. An event is matched by UID, then by its calendar and its slug. The slug is the event's slug in the site the entry was exported from, and it matches the event in any site, since an event's slug can differ per site. A replacement for an unresolved event must be in the same calendar. Events are never Stubbed: skip the Reference or choose a replacement.
 
@@ -103,7 +114,7 @@ The Payload goes to the clipboard, with a confirmation. A Payload larger than `c
 
 ### Copying blocks in Matrix and Neo fields
 
-Users with the "Export content" permission can copy blocks, and users with the "Import content" permission can paste them, in the entry editor:
+Users with the "Export content" permission can copy blocks, and users with the "Import content" permission can paste them, in the entry editor (Craft 5.7 or later):
 
 - **Copy.** Select one or more blocks with their checkboxes, then choose **Copy for another environment** in a block's menu (it copies every selected block when the block is one of them; the page's block IDs are checked against the draft, so a page that's out of date is refused rather than copying the wrong block), or **Copy selected for another environment** in the field's menu. It works for Matrix fields in the cards and inline views, and for Neo fields. A Neo block is copied with the blocks nested under it, and the Payload's Root elements are the blocks you selected. Unsaved changes are saved to your draft first, and the Payload goes to the clipboard like an entry's.
 - **Paste.** Choose **Paste from another environment** in a Matrix or Neo field's menu. A Payload on the clipboard is previewed straight away; otherwise the modal asks for the text or a `.portage` file. The modal's Preview has the same choices for Unresolved references as the utility's. **Paste** adds the blocks to the end of the field in your draft of the entry (the provisional draft is created if there's none), as normal edits: the live entry is never changed, and you save or apply the draft as usual. A paste is recorded in the Import log. Only the draft's own site is written, as Craft's editor does; Craft propagates the blocks to the entry's other sites as the field's propagation method says, so a site the user may not edit is never saved. If the paste takes the field past its maximum number of blocks, the Preview warns, and the draft saves anyway (Craft checks the maximum when the draft is applied).
@@ -128,7 +139,7 @@ With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted wit
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches, Retour short link, SimpleMap (Maps), Preparse, Position, Code and TableMaker fields with a Field adapter each, and LJ Dynamic Fields' fields that are declared in config (see "Dynamic Fields"). Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches, Retour short link, SimpleMap (Maps), Preparse, Position, Code and TableMaker fields with a Field adapter each, and LJ Dynamic Fields' fields that are declared in config (see "Dynamic Fields"). Adapters for third-party fields are registered only when their plugin is installed, and those for the Link, Range, JSON and Button Group fields only on the Craft versions that have them (see Requirements). CKEditor fields move the same way on every CKEditor version from 4.0.4. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
 A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
 
@@ -229,7 +240,7 @@ ddev exec --dir /var/www/html/plugins/portage vendor/bin/codecept run unit Harne
 
 The bootstrap creates the test database if it's missing. It connects to `db` as `root`/`root` by default. Override that with `PORTAGE_TEST_DB_HOST`, `PORTAGE_TEST_DB_PORT`, `PORTAGE_TEST_DB_NAME`, `PORTAGE_TEST_DB_USER` and `PORTAGE_TEST_DB_PASSWORD`. The database name must contain `test`.
 
-Each test runs in a transaction that is rolled back afterwards, so schema and content created in one test don't leak into the next.
+Each test runs in a transaction that is rolled back afterwards, so schema and content created in one test don't leak into the next. The suites use `tests/_support/CraftModule.php`, Craft's test module with Craft 5.2.7's fix for that rollback backported, since before 5.2.7 no test's transaction ever began.
 
 Before committing, run every check (phpstan, coding standards, the whole suite):
 
@@ -243,7 +254,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs `composer check` against each v
 
 | Job | PHP | Craft | Hyper | CKEditor | Formie |
 |---|---|---|---|---|---|
-| Lowest (`--prefer-lowest`) | 8.2 | 5.0.x | 2 | 4.0.x | 3 |
+| Lowest (`--prefer-lowest`) | 8.2 | 5.0.x | 2 | 4.0.4 | 3.1.1 |
 | Craft 5.7 (first with block copy/paste) | 8.2 | 5.7.x | 2 | 4 | 3 |
 | Latest with Hyper 3 | 8.4 | latest | 3 | 5 | 4 |
 | Latest with Hyper 2 | 8.4 | latest | 2 | 5 | 3 |
@@ -259,13 +270,15 @@ ddev exec bash -c '
   cd /tmp/portage-lowest
   composer config audit.block-insecure false
   composer require --no-update "craftcms/cms:~5.0.0"
-  composer require --dev --no-update "verbb/hyper:^2.0" "craftcms/ckeditor:~4.0.0" "verbb/formie:^3.0"
+  composer require --dev --no-update "verbb/hyper:^2.0" "craftcms/ckeditor:~4.0.4" "verbb/formie:^3.1.1"
   php8.2 /usr/local/bin/composer update --prefer-lowest --no-interaction
-  PORTAGE_TEST_DB_NAME=portage_test_lowest php8.2 vendor/bin/codecept run
+  PORTAGE_TEST_DB_NAME=portage_test_lowest php8.2 -d display_errors=0 -d "error_reporting=E_ALL & ~E_DEPRECATED" vendor/bin/codecept run
 '
 ```
 
 Composer 2.9+ refuses to install versions with published security advisories, which includes Craft 5.0.0 and many early 5.x releases, hence `audit.block-insecure false`. Use a test database of its own (`PORTAGE_TEST_DB_NAME`), since the suite wipes it. Swap the constraints for another job's.
+
+The `-d` options give PHP the error settings of CI's production `php.ini`. DDEV's PHP CLI displays deprecations, and the oldest versions of Craft's dependencies raise some on PHP 8.2 as Codeception starts, before the test bootstrap can buffer the output, which makes the tests fail with "headers have already been sent".
 
 A test of a feature that doesn't exist in every supported version skips itself with `simplygoodwork\craftportage\tests\support\Requires`, rather than failing. Call it first in the test, or in `_before()` for a whole class:
 
@@ -274,6 +287,8 @@ Requires::classes('The JSON field', \craft\fields\Json::class); // a field type 
 Requires::craft('5.7.0', 'Block copy/paste');                     // behaviour that starts at a Craft version
 Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
 ```
+
+phpstan also runs against each job's versions. Code that uses a Craft or plugin API only some supported versions have guards it at runtime (`class_exists()`, `defined()`, `property_exists()`), and the errors phpstan reports for it on older versions are ignored in `phpstan.neon`, each scoped to its file and message with `reportUnmatched: false`, so the jobs whose versions have the API still check it in full.
 
 Console tests use `consoleCommand($command, $params, $ignoreStdOut)`. Pass `false` as the third argument whenever the test asserts `->stdout()`: with `true`, every stdout expectation is skipped and the test passes without checking the output.
 

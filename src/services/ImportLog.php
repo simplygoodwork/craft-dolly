@@ -162,11 +162,12 @@ class ImportLog extends Component
     }
 
     /**
-     * @param ActiveQuery<ImportLogRecord> $query
+     * @param ActiveQuery $query a query for `ImportLogRecord`s (not typed as generic, since `ActiveQuery` isn't generic in Yii 2.0.52 and earlier)
      * @return list<ImportLogEntry> newest first
      */
     private function entries(ActiveQuery $query): array
     {
+        /** @var ImportLogRecord[] $records */
         $records = $query->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC])->all();
 
         return array_values(array_map(fn(ImportLogRecord $record) => $this->entry($record), $records));

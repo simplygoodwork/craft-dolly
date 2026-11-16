@@ -5,7 +5,6 @@ namespace simplygoodwork\craftportage\fields;
 use Craft;
 use craft\base\FieldInterface;
 use craft\helpers\StringHelper;
-use craft\services\Elements;
 use simplygoodwork\craftportage\export\ExportContext;
 use simplygoodwork\craftportage\import\ImportContext;
 use simplygoodwork\craftportage\import\PendingRefTag;
@@ -22,6 +21,20 @@ use simplygoodwork\craftportage\references\ElementTypes;
 final class RefTags
 {
     private const ID_MARKER = "\0id\0";
+
+    /**
+     * A reference tag: `{elementType:ref@site:attr||fallback}`. Copied from `Elements::REF_TAG_PATTERN`, which Craft
+     * added in 5.10. Craft's `parseRefs()` matches the same tags with an inline pattern before that.
+     */
+    private const REF_TAG_PATTERN = '/
+        \{                                      # Tags always begin with a `{`
+            (?P<elementType>[\w\\\\]+)          # Ref handle or element type class
+            \:(?P<ref>[^@\:\}\|]+)              # Identifier (ID, or another format supported by the element type)
+            (?:@(?P<site>[^\:\}\|]+))?          # [Optional] Site handle, ID, or UUID
+            (?:\:(?P<attr>[^\}\| ]+))?          # [Optional] Attribute, property, or field
+            (?:\ *\|\|\ *(?P<fallback>[^\}]+))? # [Optional] Fallback text (if the ref fails to resolve)
+        \}                                      # Tags always close with a `}`
+    /x';
 
     /**
      * Replaces the element IDs in the text's reference tags with Reference UIDs, recording the References.
@@ -197,7 +210,7 @@ final class RefTags
             return $text;
         }
 
-        return (string)preg_replace_callback(Elements::REF_TAG_PATTERN, function(array $match) use ($translate): string {
+        return (string)preg_replace_callback(self::REF_TAG_PATTERN, function(array $match) use ($translate): string {
             $tag = [
                 'elementType' => $match['elementType'],
                 'ref' => $match['ref'],

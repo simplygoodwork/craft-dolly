@@ -1,5 +1,5 @@
 actor: FunctionalTester
 modules:
   enabled:
-    - \craft\test\Craft
+    - \simplygoodwork\craftportage\tests\support\CraftModule
     - Asserts

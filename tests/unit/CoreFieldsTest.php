@@ -93,7 +93,8 @@ class CoreFieldsTest extends Unit
             [
                 Schema::field(Date::class, 'published', ['showTime' => true]),
                 Schema::field(Time::class, 'opens'),
-                Schema::field(Color::class, 'accent', ['allowCustomColors' => true]),
+                // Craft 5.6 added colour palettes, and custom colours that a field must allow. Before that, every colour is custom.
+                Schema::field(Color::class, 'accent', property_exists(Color::class, 'allowCustomColors') ? ['allowCustomColors' => true] : []),
                 Schema::field(Country::class, 'country'),
             ],
             ['published' => '2026-03-04T05:06:07+00:00', 'opens' => '09:30:00', 'accent' => '#ff8800', 'country' => 'NZ'],
@@ -102,7 +103,9 @@ class CoreFieldsTest extends Unit
         $this->assertSame('2026-03-04 05:06:07', $values->getFieldValue('published')->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'));
         $this->assertSame('09:30', $values->getFieldValue('opens')->format('H:i'));
         $this->assertSame('#ff8800', $values->getFieldValue('accent')->getHex());
-        $this->assertSame('NZ', $values->getFieldValue('country')->getCountryCode());
+        // The value is a country from Craft 5.3, and the code itself before.
+        $country = $values->getFieldValue('country');
+        $this->assertSame('NZ', is_string($country) ? $country : $country->getCountryCode());
     }
 
     public function testMoneyTableAndIconRoundTrip(): void

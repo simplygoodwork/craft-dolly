@@ -11,7 +11,9 @@ use benf\neo\services\BlockTypes;
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\ckeditor\CkeConfig;
 use craft\ckeditor\Field as CkEditorField;
+use craft\ckeditor\Plugin as CkEditorPlugin;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -48,6 +50,7 @@ use nystudio107\retour\services\Redirects as RetourRedirects;
 use nystudio107\seomatic\seoelements\SeoEntry;
 use percipiolondon\colourswatches\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
+use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
@@ -169,8 +172,9 @@ final class Schema
     public static function withLinkType(string $class, callable $callback): mixed
     {
         // Craft caches the registered types in a private static, so it's replaced for the callback and restored after.
+        // `Link::types()` fills it, and is private before Craft 5.10.
         $property = new ReflectionProperty(Link::class, '_types');
-        $original = Link::types();
+        $original = (new ReflectionMethod(Link::class, 'types'))->invoke(null);
         $property->setValue(null, [$class::id() => $class] + $original);
         try {
             return $callback();
@@ -448,10 +452,21 @@ final class Schema
      */
     public static function ckeditor(string $handle, array $entryTypes = [], array $config = []): CkEditorField
     {
-        return self::field(CkEditorField::class, $handle, array_merge([
-            'entryTypes' => $entryTypes,
-            'toolbar' => ['heading', '|', 'bold', 'italic', 'link', 'createEntry'],
-        ], $config));
+        // The toolbar needs "createEntry", or CKEditor strips the nested entries' markup when it purifies the HTML.
+        // CKEditor 5 sets the toolbar on the field. CKEditor 4 has none: the toolbar belongs to a CKEditor config.
+        $toolbar = ['heading', '|', 'bold', 'italic', 'link', 'createEntry'];
+        $settings = ['entryTypes' => $entryTypes];
+        if (property_exists(CkEditorField::class, 'toolbar')) {
+            $settings['toolbar'] = $toolbar;
+        } elseif (class_exists(CkeConfig::class)) {
+            $ckeConfig = new CkeConfig(['uid' => StringHelper::UUID(), 'name' => self::nameFor($handle), 'toolbar' => $toolbar]);
+            if (!CkEditorPlugin::getInstance()->getCkeConfigs()->save($ckeConfig)) {
+                self::fail("CKEditor config \"$handle\"", $ckeConfig->getErrors());
+            }
+            $settings['ckeConfig'] = $ckeConfig->uid;
+        }
+
+        return self::field(CkEditorField::class, $handle, array_merge($settings, $config));
     }
 
     /**
@@ -1371,6 +1386,7 @@ final class Schema
     public static function draft(Entry $entry, array $values, bool $provisional = false): Entry
     {
         $entry = Entry::find()->id($entry->id)->status(null)->one() ?? throw new RuntimeException("No entry with ID $entry->id");
+        /** @var Entry $draft */
         $draft = Craft::$app->getDrafts()->createDraft($entry, (int)User::find()->admin()->one()->id, $provisional ? null : 'Staging edits', provisional: $provisional);
         self::saveElement($draft, $values);
 

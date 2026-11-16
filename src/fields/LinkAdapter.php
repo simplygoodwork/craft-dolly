@@ -31,13 +31,13 @@ final class LinkAdapter implements FieldAdapter
      */
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
-        if (!$value instanceof LinkData) {
+        if (!$field instanceof Link || !$value instanceof LinkData) {
             return null;
         }
 
         $link = $value->serialize();
         $type = $link['type'] ?? null;
-        if ($this->linksToElement($type)) {
+        if ($this->linksToElement($field, $type)) {
             if (!$this->isSupportedElementType($type) || !is_string($link['value'] ?? null)) {
                 return null;
             }
@@ -63,7 +63,7 @@ final class LinkAdapter implements FieldAdapter
             return null;
         }
 
-        if ($this->linksToElement($type)) {
+        if ($this->linksToElement($field, $type)) {
             if (!$this->isSupportedElementType($type)) {
                 $context->plan->warn(sprintf('The field "%s" links to a %s, which Portage can\'t move between environments. The link will be cleared.', $field->name, $type));
                 return null;
@@ -111,13 +111,12 @@ final class LinkAdapter implements FieldAdapter
     }
 
     /**
-     * Returns whether a link type points at an element, as opposed to a URL, email address or phone number.
+     * Returns whether a link type the field enables points at an element, as opposed to a URL, email address or phone
+     * number. It asks the field rather than `Link::types()`, which is private before Craft 5.10.
      */
-    private function linksToElement(mixed $typeId): bool
+    private function linksToElement(Link $field, mixed $typeId): bool
     {
-        $class = is_string($typeId) ? Link::types()[$typeId] ?? null : null;
-
-        return $class !== null && is_subclass_of($class, BaseElementLinkType::class);
+        return is_string($typeId) && ($field->getLinkTypes()[$typeId] ?? null) instanceof BaseElementLinkType;
     }
 
     /**
