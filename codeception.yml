@@ -40,6 +40,16 @@ modules:
           handle: retour
         - class: '\lewisjenkins\craftdynamicfields\CraftDynamicFields'
           handle: craft-dynamic-fields
+        - class: '\ether\simplemap\SimpleMap'
+          handle: simplemap
+        - class: '\jalendport\preparse\PreparseField'
+          handle: preparse-field
+        - class: '\rias\positionfieldtype\PositionFieldtype'
+          handle: position-fieldtype
+        - class: '\nystudio107\codefield\CodeField'
+          handle: codefield
+        - class: '\verbb\tablemaker\TableMaker'
+          handle: tablemaker
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

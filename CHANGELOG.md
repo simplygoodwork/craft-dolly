@@ -5,6 +5,8 @@
 - Formie's Forms field moves its relations. A form matches by UID or else by its handle, and is never Stubbed.
 - Colour Swatches fields move their selected swatch by label. A label the Target palette doesn't have is dropped with a Preview warning instead of being silently replaced.
 - LJ Dynamic Fields' fields declared in the `dynamicFields` setting move their values as the sections, entry types, category groups, volumes, sites or elements they're the IDs of, and become those IDs in the Target environment. Undeclared ones keep the fallback and its warning.
+- SimpleMap, Position, Code and TableMaker fields move without the "no adapter" warning. SimpleMap's location travels without its source IDs, and a TableMaker table whose rich text cells link to elements by ID is imported with a warning.
+- Preparse fields are left out of the Payload, and the Target environment recalculates them from the field's template.
 - Imports from the utility of more than 10 Root elements, or with an asset Fetch, run in the queue, with their progress in the Import log.
 
 ## 1.0.0

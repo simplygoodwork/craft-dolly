@@ -40,17 +40,22 @@ use craft\fields\Tags;
 use craft\fields\Time;
 use craft\fields\Users;
 use ether\seo\fields\SeoField as EtherSeoField;
+use ether\simplemap\fields\MapField;
+use jalendport\preparse\fields\PreparseFieldType;
 use lewisjenkins\craftdynamicfields\fields\Checkboxes as DynamicCheckboxes;
 use lewisjenkins\craftdynamicfields\fields\Dropdown as DynamicDropdown;
 use lewisjenkins\craftdynamicfields\fields\Multiselect as DynamicMultiselect;
 use lewisjenkins\craftdynamicfields\fields\Radiobuttons as DynamicRadioButtons;
+use nystudio107\codefield\fields\Code;
 use nystudio107\retour\fields\ShortLink;
 use nystudio107\seomatic\fields\SeoSettings;
 use percipiolondon\colourswatches\fields\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
+use rias\positionfieldtype\fields\Position;
 use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
 use simplygoodwork\craftportage\references\ElementTypes;
 use verbb\hyper\fields\HyperField;
+use verbb\tablemaker\fields\TableMakerField;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 
@@ -135,6 +140,20 @@ final class FieldAdapterRegistry extends Component
         foreach ([DynamicDropdown::class, DynamicRadioButtons::class, DynamicCheckboxes::class, DynamicMultiselect::class] as $class) {
             if (class_exists($class)) {
                 $this->adapters[$class] = $dynamic;
+            }
+        }
+        if (class_exists(MapField::class)) {
+            $this->adapters[MapField::class] = new SimpleMapAdapter();
+        }
+        if (class_exists(PreparseFieldType::class)) {
+            $this->adapters[PreparseFieldType::class] = new PreparseAdapter();
+        }
+        if (class_exists(TableMakerField::class)) {
+            $this->adapters[TableMakerField::class] = new TableMakerAdapter();
+        }
+        foreach ([Position::class, Code::class] as $class) {
+            if (class_exists($class)) {
+                $this->adapters[$class] = $serialized;
             }
         }
 

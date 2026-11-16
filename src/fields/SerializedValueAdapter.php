@@ -13,7 +13,7 @@ use simplygoodwork\craftportage\import\ImportContext;
 /**
  * A field whose value is portable as Craft's own `serializeValue()` returns it, and goes back through the field's
  * `normalizeValue()` when it's set on the Target element: number, range, lightswitch, date, time, color, email, table,
- * JSON, country and icon.
+ * JSON, country and icon, and the Position and Code fields of the plugins of those names.
  *
  * A date whose field shows the time zone travels as `{date, tz}`, as Craft stores it, so its named time zone survives.
  */
