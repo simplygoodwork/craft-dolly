@@ -52,6 +52,11 @@ use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\references\ElementTypeRegistry;
 use simplygoodwork\craftportage\services\Portage;
+use Solspace\Calendar\Calendar;
+use Solspace\Calendar\Elements\Event as CalendarEvent;
+use Solspace\Calendar\Models\CalendarModel;
+use Solspace\Calendar\Models\CalendarSiteSettingsModel;
+use Solspace\Calendar\Services\CalendarsService;
 use verbb\formie\elements\Form as FormieForm;
 use verbb\hyper\base\Link as HyperLink;
 use verbb\hyper\fieldlayoutelements\UrlSuffixField;
@@ -622,6 +627,54 @@ final class Schema
         self::saveElement($category, $values);
 
         return $category;
+    }
+
+    /**
+     * Saves a Solspace Calendar calendar enabled for every site, without URLs.
+     */
+    public static function calendar(string $handle): CalendarModel
+    {
+        $calendar = CalendarModel::create();
+        $calendar->name = self::nameFor($handle);
+        $calendar->handle = $handle;
+
+        $siteSettings = [];
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            $siteSettings[] = new CalendarSiteSettingsModel([
+                'uid' => StringHelper::UUID(),
+                'siteId' => $site->id,
+                'enabledByDefault' => true,
+                'hasUrls' => false,
+            ]);
+        }
+        $calendar->setSiteSettings($siteSettings);
+        $calendar->setFieldLayout(new FieldLayout(['type' => CalendarEvent::class]));
+
+        if (!Calendar::getInstance()->calendars->saveCalendar($calendar)) {
+            self::fail("calendar \"$handle\"", $calendar->getErrors());
+        }
+        // Calendar memoizes its calendars privately, so swap in a fresh service.
+        Calendar::getInstance()->set('calendars', CalendarsService::class);
+
+        return $calendar;
+    }
+
+    /**
+     * Saves a one-hour Calendar event starting on a date (`Y-m-d H:i`). Pass `rrule` in `$values` to make it repeat.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function calendarEvent(CalendarModel $calendar, string $startDate, array $values = []): CalendarEvent
+    {
+        $event = new CalendarEvent([
+            'calendarId' => $calendar->id,
+            'startDate' => $startDate,
+            'endDate' => (new \DateTime($startDate))->modify('+1 hour')->format('Y-m-d H:i'),
+            'allDay' => false,
+        ]);
+        self::saveElement($event, $values);
+
+        return $event;
     }
 
     /**

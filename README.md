@@ -82,6 +82,8 @@ Colour Swatches fields move the selected swatch by its label. The field looks a 
 
 Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4).
 
+When Solspace Calendar is installed, its events are a registered element type (`calendarEvent`), so a Calendar Events field moves its relations like any relation field. An event is matched by UID, then by its calendar and its slug. The slug is the event's slug in the site the entry was exported from, and it matches the event in any site, since an event's slug can differ per site. A replacement for an unresolved event must be in the same calendar. Events are never Stubbed: skip the Reference or choose a replacement.
+
 ## Copying content in the control panel
 
 A user with the **Export content** permission gets **Copy for another environment**, separate from Craft's own Copy (which is unchanged):
@@ -280,6 +282,8 @@ $entry = Schema::entry($section, $page, [
 `Schema::withEtherSeoSettings(['robots' => ['noindex']], fn() => ...)` runs a callback with Ether SEO's global settings changed, to simulate an environment with different SEO defaults.
 
 `Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [...]]], fn() => ...)` runs a callback with Colour Swatches' config-file palettes changed, to simulate an environment whose `config/colour-swatches.php` differs.
+
+`Schema::calendar('conferences')` saves a Solspace Calendar calendar enabled for every site, and `Schema::calendarEvent($calendar, '2026-12-01 09:00', ['title' => 'Launch', 'slug' => 'launch'])` saves a one-hour event in it. Calendar registers its project config handlers only on the first app in a PHP process, but each test gets a new app, so `tests/_craft/config/app.php` bootstraps `CalendarProjectConfigHandlers` (in `tests/_support/`) to register them on every later app. Without it, calendars are never written to the database, and any test that saves a site fails in Calendar's site handler.
 
 `Schema::seomaticSectionBundle()` gives a section URLs and SEOmatic a section-level meta bundle for it, and returns its row.
 

@@ -2,14 +2,17 @@
 
 namespace simplygoodwork\craftportage\references;
 
+use Craft;
 use craft\base\ElementInterface;
 use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
 use simplygoodwork\craftportage\references\definitions\AssetDefinition;
+use simplygoodwork\craftportage\references\definitions\CalendarEventDefinition;
 use simplygoodwork\craftportage\references\definitions\CategoryDefinition;
 use simplygoodwork\craftportage\references\definitions\EntryDefinition;
 use simplygoodwork\craftportage\references\definitions\FormieFormDefinition;
 use simplygoodwork\craftportage\references\definitions\TagDefinition;
 use simplygoodwork\craftportage\references\definitions\UserDefinition;
+use Solspace\Calendar\Elements\Event as CalendarEvent;
 use verbb\formie\elements\Form;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -55,9 +58,12 @@ final class ElementTypeRegistry extends Component
             'user' => new UserDefinition(),
             'asset' => new AssetDefinition(),
         ];
-        // Optional plugins: their element types are registered only when the plugin's element class exists.
+        // Plugins Portage supports: registered only when the plugin is installed.
         if (class_exists(Form::class)) {
             $types['formieForm'] = new FormieFormDefinition();
+        }
+        if (class_exists(CalendarEvent::class) && Craft::$app->getPlugins()->isPluginEnabled('calendar')) {
+            $types['calendarEvent'] = new CalendarEventDefinition();
         }
 
         $event = new RegisterElementTypesEvent(['types' => $types]);
