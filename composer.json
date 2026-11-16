@@ -21,10 +21,22 @@
     "craftcms/ckeditor": "^5.9",
     "craftcms/ecs": "dev-main",
     "craftcms/phpstan": "dev-main",
+    "craftpulse/craft-colour-swatches": "^5.0",
+    "ether/seo": "^5.0",
+    "ether/simplemap": "^5.0",
+    "jalendport/craft-preparse": "^3.0@alpha",
+    "lewisjenkins/craft-dynamic-fields": "^5.0",
+    "nystudio107/craft-code-field": "^5.0",
+    "nystudio107/craft-retour": "^5.0",
     "nystudio107/craft-seomatic": "^5.1",
     "phpstan/phpstan": "^2.1",
+    "presseddigital/linkit": "^5.0",
+    "rias/craft-position-fieldtype": "^5.0",
+    "solspace/craft-calendar": "^5.0",
     "spicyweb/craft-neo": "^5.0",
-    "verbb/hyper": "^2.0"
+    "verbb/formie": "^3.0 || ^4.0",
+    "verbb/hyper": "^2.0",
+    "verbb/tablemaker": "^5.0"
   },
   "autoload": {
     "psr-4": {
