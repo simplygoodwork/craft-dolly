@@ -26,6 +26,8 @@ modules:
           handle: hyper
         - class: '\nystudio107\seomatic\Seomatic'
           handle: seomatic
+        - class: '\presseddigital\linkit\Linkit'
+          handle: linkit
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

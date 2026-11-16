@@ -42,6 +42,7 @@ use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
 use nystudio107\seomatic\seoelements\SeoEntry;
+use presseddigital\linkit\fields\LinkitField;
 use ReflectionProperty;
 use RuntimeException;
 use simplygoodwork\craftportage\import\BlockTarget;
@@ -100,6 +101,36 @@ final class Schema
     public static function link(string $handle, array $config = []): Link
     {
         return self::field(Link::class, $handle, $config);
+    }
+
+    /**
+     * Saves a Linkit field that enables the given link types, e.g. `[\presseddigital\linkit\models\Entry::class]`.
+     *
+     * @param list<class-string> $types
+     * @param array<string, mixed> $config
+     */
+    public static function linkit(string $handle, array $types, array $config = []): LinkitField
+    {
+        return self::field(LinkitField::class, $handle, ['types' => self::linkitTypes($types)] + $config);
+    }
+
+    /**
+     * Changes the link types a Linkit field enables.
+     *
+     * @param list<class-string> $types
+     */
+    public static function changeLinkitTypes(LinkitField $field, array $types): void
+    {
+        self::updateField($field->uid, ['types' => self::linkitTypes($types)]);
+    }
+
+    /**
+     * @param list<class-string> $types
+     * @return array<class-string, array{enabled: string}>
+     */
+    private static function linkitTypes(array $types): array
+    {
+        return array_fill_keys($types, ['enabled' => '1']);
     }
 
     /**

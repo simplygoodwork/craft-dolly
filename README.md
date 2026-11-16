@@ -74,6 +74,8 @@ Values for fields that are missing or have changed type in this environment are 
 
 SEOmatic's SEO Settings field moves its values as they are, including Twig and object templates. The SEO, Facebook and Twitter images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Twig written by hand that contains an asset ID, and the images of the site-level identity and creator settings, move untranslated. Section-level SEOmatic bundles are never read or written. A setting that pulls from a field the Target entry doesn't have is imported with a warning.
 
+A Linkit field's link names its link type by Linkit's handle for it (`entry`, `url`, `email`…), never by class. URL, email, phone and social links move as they are, with their custom text and target. An entry, asset, category or user link is a Reference like any other (matched, stubbed, replaced, fetched or cleared with a warning). A Commerce product link, and a link of a type the Target field doesn't enable, is cleared with a warning, before any Reference it holds is resolved.
+
 ## Copying content in the control panel
 
 A user with the **Export content** permission gets **Copy for another environment**, separate from Craft's own Copy (which is unchanged):
@@ -110,7 +112,7 @@ With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted wit
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields) with a Field adapter each. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields) and Linkit fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
 A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
 
@@ -206,6 +208,8 @@ $entry = Schema::entry($section, $page, [
 `Schema::categoryGroup()`, `Schema::category()`, `Schema::tagGroup()`, `Schema::tag()` and `Schema::user()` build related elements. `Schema::site()` adds a site (create sites before the sections that use them), and `Schema::translate($element, $site, [...])` saves an element's content in another site. Use `Schema::field(SomeField::class, 'handle', [...settings])` for any other field type, and `Schema::required($field)` in an entry type's field list to make the field required.
 
 `Schema::hyper()` saves a Hyper field from link types built with `Schema::hyperLinkType(linkTypes\\Url::class, 'url', [...customFields])`, and `Schema::changeHyperLinkTypes()` and `Schema::removeHyperLinkType()` change a Hyper field's link types to simulate a different Target environment. `Schema::withHyperLinkType()` registers an extra link type for a callback, as a plugin would.
+
+`Schema::linkit('cta', [models\\Entry::class, models\\Url::class])` saves a Linkit field that enables those link types, and `Schema::changeLinkitTypes()` changes them to simulate a different Target environment.
 
 `Schema::seomaticSectionBundle()` gives a section URLs and SEOmatic a section-level meta bundle for it, and returns its row.
 

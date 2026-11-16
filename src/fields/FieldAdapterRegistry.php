@@ -38,6 +38,7 @@ use craft\fields\Tags;
 use craft\fields\Time;
 use craft\fields\Users;
 use nystudio107\seomatic\fields\SeoSettings;
+use presseddigital\linkit\fields\LinkitField;
 use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
 use verbb\hyper\fields\HyperField;
 use yii\base\Component;
@@ -101,6 +102,10 @@ final class FieldAdapterRegistry extends Component
             MultiSelect::class => $options,
             ButtonGroup::class => $options,
         ];
+        // Optional plugins: their adapters are registered only when the plugin's field class exists.
+        if (class_exists(LinkitField::class)) {
+            $this->adapters[LinkitField::class] = new LinkitAdapter();
+        }
 
         $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);
         $this->trigger(self::EVENT_REGISTER_ADAPTERS, $event);
