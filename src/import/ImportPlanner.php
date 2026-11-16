@@ -757,7 +757,7 @@ final class ImportPlanner
     private function replacement(ReferencePlan $reference, int $id): ElementInterface
     {
         $definition = ElementTypes::definition($reference->elementType);
-        $element = $definition?->elementClass()::find()->id($id)->status(null)->site('*')->unique()->one();
+        $element = $definition?->query()->id($id)->status(null)->site('*')->unique()->one();
         $user = Craft::$app->getUser()->getIdentity();
         $source = $definition?->sourceFor((array)($reference->reference['naturalKey'] ?? []));
 

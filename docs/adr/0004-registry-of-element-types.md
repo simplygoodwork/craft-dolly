@@ -2,7 +2,7 @@
 
 Portage used to accept exactly five element types as References: entries, categories, tags, users and assets. `ElementTypes`, `NaturalKey` and `Stubs` each hardcoded them, and a Payload naming any other type was refused. Our sites relate to third-party elements too: Formie forms, Calendar events and others, through relation fields Portage had no way to move.
 
-So the five types are now the first entries in a registry of element type definitions (`ElementTypeRegistry`). Each definition gives the element class, how its Natural key is built and matched, the element source a Reference of the type is limited to, and whether and how it's Stubbed. Portage registers the core types; any plugin (or Portage itself, for plugins it supports) can register more through `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`. A relation field with no Field adapter of its own gets the relation adapter when the type it relates to is registered, and the Link and Hyper adapters move links to any registered type.
+So the five types are now the first entries in a registry of element type definitions (`ElementTypeRegistry`). Each definition gives the element class and the query Portage loads its elements with, how its Natural key is built and matched, the element source a Reference of the type is limited to, and whether and how it's Stubbed. Portage registers the core types; any plugin (or Portage itself, for plugins it supports) can register more through `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`. A relation field with no Field adapter of its own gets the relation adapter when the type it relates to is registered, and the Link and Hyper adapters move links to any registered type.
 
 ## "The Payload never names a class" still holds
 

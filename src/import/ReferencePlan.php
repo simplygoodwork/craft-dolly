@@ -77,9 +77,13 @@ final class ReferencePlan
     public function target(): ?ElementInterface
     {
         if ($this->resolution->elementId !== null) {
-            $class = ElementTypes::classFor($this->elementType);
-
-            return $this->matched ??= $class ? $class::find()->id($this->resolution->elementId)->status(null)->site('*')->unique()->one() : null;
+            return $this->matched ??= ElementTypes::definition($this->elementType)
+                ?->query()
+                ->id($this->resolution->elementId)
+                ->status(null)
+                ->site('*')
+                ->unique()
+                ->one();
         }
 
         return $this->replacement ?? $this->stub ?? $this->fetch?->asset;

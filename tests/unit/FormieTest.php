@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\tests\unit;
 
 use Codeception\Test\Unit;
+use Craft;
 use craft\elements\Entry;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
@@ -83,6 +84,31 @@ class FormieTest extends Unit
 
         $result = $this->portage()->import($payload, [$goneUid => 'skip']);
 
+        $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
+        $this->assertSame([$contact->id], $imported->getFieldValue('forms')->status(null)->ids());
+    }
+
+    public function testAnImportFromTheControlPanelRelatesAFormItsUserCannotViewInFormie(): void
+    {
+        $contact = Schema::form('Contact', 'contact');
+        $article = Schema::entryType('article', [Schema::field(Forms::class, 'forms')]);
+        $news = Schema::section('news', [$article]);
+        $source = Schema::entry($news, $article, ['title' => 'Get in touch', 'forms' => [$contact->id]]);
+
+        $payload = $this->portage()->export([$source]);
+        Schema::deleteElement($source);
+        $editor = Schema::user('editor');
+        Schema::grantPermissions($editor, ['accessCp', "viewEntries:$news->uid", "saveEntries:$news->uid", "createEntries:$news->uid"]);
+        Craft::$app->getUser()->setIdentity($editor);
+
+        $result = Schema::asControlPanelRequest(function() use ($payload, $contact) {
+            $plan = $this->portage()->preview($payload);
+            $this->assertSame('uid', $plan->references[$contact->uid]->resolution->rule);
+
+            return $this->portage()->import($payload);
+        });
+
+        $this->assertSame([], $result->roots[0]->warnings);
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame([$contact->id], $imported->getFieldValue('forms')->status(null)->ids());
     }

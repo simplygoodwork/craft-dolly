@@ -3,6 +3,7 @@
 namespace simplygoodwork\craftportage\references;
 
 use craft\base\ElementInterface;
+use craft\elements\db\ElementQueryInterface;
 
 /**
  * How Portage handles References to one element type: its element class, its Natural key, the element source a
@@ -11,8 +12,8 @@ use craft\base\ElementInterface;
  * A definition is registered in the `ElementTypeRegistry` under a short name, which is what the Payload carries. The
  * Payload never names the class: the Target environment's registry maps the short name back to it.
  *
- * Only the element class and the Natural key are required. By default a Reference of the type isn't limited to an
- * element source, and is never Stubbed.
+ * Only the element class and the Natural key are required. By default elements of the type are loaded with the
+ * element class's own query, a Reference of the type isn't limited to an element source, and it's never Stubbed.
  */
 abstract class ElementTypeDefinition
 {
@@ -20,6 +21,16 @@ abstract class ElementTypeDefinition
      * @return class-string<ElementInterface>
      */
     abstract public function elementClass(): string;
+
+    /**
+     * Returns a new query for elements of the type, which Portage uses to match a Reference by UID and to load the
+     * element a Reference matched or was replaced with. Override it when the type's queries are limited by default in
+     * a way a relation isn't, such as to what the current user can see in the control panel.
+     */
+    public function query(): ElementQueryInterface
+    {
+        return $this->elementClass()::find();
+    }
 
     /**
      * Returns the Natural key of an element of the type, which the Reference carries: JSON-safe identifying attributes

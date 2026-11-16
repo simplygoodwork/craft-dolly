@@ -22,7 +22,7 @@ final class ReferenceResolver
         $uid = $reference['uid'] ?? null;
         if (is_string($uid) && StringHelper::isUUID($uid)) {
             // Trashed elements are excluded, so a Reference to one is unresolved.
-            $id = $definition->elementClass()::find()
+            $id = $definition->query()
                 ->uid($uid)
                 ->status(null)
                 ->site('*')

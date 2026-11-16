@@ -58,8 +58,8 @@ final class ElementTypeRegistry extends Component
             'user' => new UserDefinition(),
             'asset' => new AssetDefinition(),
         ];
-        // Plugins Portage supports: registered only when the plugin is installed.
-        if (class_exists(Form::class)) {
+        // Plugins Portage supports: registered only when the plugin is installed and enabled.
+        if (class_exists(Form::class) && Craft::$app->getPlugins()->isPluginEnabled('formie')) {
             $types['formieForm'] = new FormieFormDefinition();
         }
         if (class_exists(CalendarEvent::class) && Craft::$app->getPlugins()->isPluginEnabled('calendar')) {

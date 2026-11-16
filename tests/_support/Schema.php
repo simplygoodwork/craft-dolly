@@ -248,6 +248,26 @@ final class Schema
     }
 
     /**
+     * Runs a callback as a control panel request, as a Preview or Import started from the control panel is. Element
+     * queries of some plugins (Formie 4's forms) are limited to what the current user can view in the control panel.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function asControlPanelRequest(callable $callback): mixed
+    {
+        $request = Craft::$app->getRequest();
+        $was = $request->getIsCpRequest();
+        $request->setIsCpRequest(true);
+        try {
+            return $callback();
+        } finally {
+            $request->setIsCpRequest($was);
+        }
+    }
+
+    /**
      * Runs a callback with an extra Hyper link type registered, as a plugin would.
      *
      * @param class-string<HyperLink> $class
