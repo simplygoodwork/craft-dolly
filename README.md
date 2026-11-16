@@ -80,6 +80,8 @@ A Linkit field's link names its link type by Linkit's handle for it (`entry`, `u
 
 Colour Swatches fields move the selected swatch by its label. The field looks a swatch up by label in its palette (its own colours, or a palette from `config/colour-swatches.php`) every time it saves, so the Target field's palette decides the colour and CSS class. A label the Target palette doesn't have is dropped and the Preview warns about it, rather than the field quietly replacing it. The field then shows its default swatch, if one is flagged as default. It may also save its default setting or a random colour instead, depending on the Craft version and whether the entry is new.
 
+Retour short link fields move their URL as it is, and Retour makes the imported entry's redirect when the entry is saved (for an overwrite, when its draft is applied). A short link whose URL is already a redirect in the Target environment, either another element's short link or a manual redirect, is skipped and the Preview warns about it, rather than the save failing or taking the other redirect over. The entry's own short link is not a collision, so overwriting an entry with its own short link works. A skipped short link leaves a new entry without one, and an overwritten entry's draft keeps the short link it has.
+
 Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4).
 
 When Solspace Calendar is installed, its events are a registered element type (`calendarEvent`), so a Calendar Events field moves its relations like any relation field. An event is matched by UID, then by its calendar and its slug. The slug is the event's slug in the site the entry was exported from, and it matches the event in any site, since an event's slug can differ per site. A replacement for an unresolved event must be in the same calendar. Events are never Stubbed: skip the Reference or choose a replacement.
@@ -120,7 +122,7 @@ With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted wit
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO and Colour Swatches fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches and Retour short link fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
 A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
 
@@ -284,6 +286,8 @@ $entry = Schema::entry($section, $page, [
 `Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [...]]], fn() => ...)` runs a callback with Colour Swatches' config-file palettes changed, to simulate an environment whose `config/colour-swatches.php` differs.
 
 `Schema::calendar('conferences')` saves a Solspace Calendar calendar enabled for every site, and `Schema::calendarEvent($calendar, '2026-12-01 09:00', ['title' => 'Launch', 'slug' => 'launch'])` saves a one-hour event in it. Calendar registers its project config handlers only on the first app in a PHP process, but each test gets a new app, so `tests/_craft/config/app.php` bootstraps `CalendarProjectConfigHandlers` (in `tests/_support/`) to register them on every later app. Without it, calendars are never written to the database, and any test that saves a site fails in Calendar's site handler.
+
+`Schema::retourRedirect('go/summer', 'offers/summer')` saves a manual Retour redirect, and `Schema::applyDraft($draftId)` applies a draft as an editor would, in a request of its own as far as Retour is concerned.
 
 `Schema::seomaticSectionBundle()` gives a section URLs and SEOmatic a section-level meta bundle for it, and returns its row.
 

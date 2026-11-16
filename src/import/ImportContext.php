@@ -17,6 +17,7 @@ use craft\models\Site;
 use craft\models\Volume;
 use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\fields\RequiresOwner;
+use simplygoodwork\craftportage\fields\SkippedValue;
 use simplygoodwork\craftportage\references\ElementTypes;
 use simplygoodwork\craftportage\schema\Drift;
 use simplygoodwork\craftportage\schema\DriftReport;
@@ -40,6 +41,12 @@ final class ImportContext
      * entry is matched in every site
      */
     private array $nestedUids = [];
+
+    /**
+     * @var int|null the ID of the existing entry the Root element's content goes to (the entry being overwritten, or
+     * the entry whose draft blocks are pasted into), or null when the Import creates a new entry
+     */
+    public ?int $existingEntryId = null;
 
     /**
      * @var FieldLayout|null the field layout of the element whose field values are being planned
@@ -359,7 +366,7 @@ final class ImportContext
      * or a volume's assets, keyed by handle.
      *
      * Values for missing or type-changed fields, and for fields that aren't in the field layout of the entry type or block type, are
-     * skipped with a warning. Values for drifted fields are imported with a warning.
+     * skipped with a warning, as are values a Field adapter skips. Values for drifted fields are imported with a warning.
      *
      * @param array<mixed> $portable field UID => portable value
      * @param bool $ownerless whether nothing owns the values (a Hyper link), so fields that hold Owned content are skipped
@@ -411,9 +418,12 @@ final class ImportContext
                 $outer = $this->layout;
                 $this->layout = $owner->getFieldLayout();
                 try {
-                    $values[$field->handle] = $adapter->import($field, $value, $this);
+                    $imported = $adapter->import($field, $value, $this);
                 } finally {
                     $this->layout = $outer;
+                }
+                if ($imported !== SkippedValue::Skipped) {
+                    $values[$field->handle] = $imported;
                 }
             }
         }

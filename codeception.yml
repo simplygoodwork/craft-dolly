@@ -36,6 +36,8 @@ modules:
           handle: colour-swatches
         - class: '\Solspace\Calendar\Calendar'
           handle: calendar
+        - class: '\nystudio107\retour\Retour'
+          handle: retour
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

@@ -40,6 +40,7 @@ use craft\fields\Tags;
 use craft\fields\Time;
 use craft\fields\Users;
 use ether\seo\fields\SeoField as EtherSeoField;
+use nystudio107\retour\fields\ShortLink;
 use nystudio107\seomatic\fields\SeoSettings;
 use percipiolondon\colourswatches\fields\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
@@ -122,6 +123,9 @@ final class FieldAdapterRegistry extends Component
         }
         if (class_exists(ColourSwatches::class)) {
             $this->adapters[ColourSwatches::class] = new ColourSwatchesAdapter();
+        }
+        if (class_exists(ShortLink::class)) {
+            $this->adapters[ShortLink::class] = new RetourShortLinkAdapter();
         }
 
         $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);

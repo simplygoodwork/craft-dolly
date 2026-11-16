@@ -42,6 +42,8 @@ use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
 use ether\seo\Seo as EtherSeo;
+use nystudio107\retour\Retour;
+use nystudio107\retour\services\Redirects as RetourRedirects;
 use nystudio107\seomatic\seoelements\SeoEntry;
 use percipiolondon\colourswatches\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
@@ -1267,6 +1269,38 @@ final class Schema
         self::saveElement($entry, $values);
 
         return $entry;
+    }
+
+    /**
+     * Applies a draft to its entry, as an editor applying it in the entry editor does, and returns the entry.
+     *
+     * It's applied as in a request of its own: Retour removes an element's old short link redirects only on the first
+     * save of the element in a request.
+     */
+    public static function applyDraft(int $draftId): Entry
+    {
+        $draft = Entry::find()->draftId($draftId)->status(null)->one() ?? throw new RuntimeException("No draft with ID $draftId");
+        (new ReflectionProperty(RetourRedirects::class, 'purgedShortLinkElementIds'))->setValue(null, []);
+
+        return Craft::$app->getDrafts()->applyDraft($draft);
+    }
+
+    /**
+     * Saves a manual Retour redirect, one that no element's short link made, from a URL to another.
+     */
+    public static function retourRedirect(string $from, string $to): void
+    {
+        $saved = Retour::getInstance()->getRedirects()->saveRedirect([
+            'redirectSrcUrl' => $from,
+            'redirectDestUrl' => $to,
+            'redirectMatchType' => 'exactmatch',
+            'redirectSrcMatch' => 'pathonly',
+            'redirectHttpCode' => 301,
+            'enabled' => true,
+        ]);
+        if (!$saved) {
+            self::fail("Retour redirect \"$from\"", []);
+        }
     }
 
     /**

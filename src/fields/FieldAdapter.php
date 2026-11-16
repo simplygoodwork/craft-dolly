@@ -17,7 +17,8 @@ interface FieldAdapter
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed;
 
     /**
-     * Returns a value that can be passed to `setFieldValue()` in the Target environment.
+     * Returns a value that can be passed to `setFieldValue()` in the Target environment, or `SkippedValue::Skipped` to
+     * leave the field out of the values set (after warning why).
      */
     public function import(FieldInterface $field, mixed $portable, ImportContext $context): mixed;
 }

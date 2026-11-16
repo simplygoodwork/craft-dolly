@@ -207,6 +207,7 @@ final class ImportPlanner
         // sites as the field's propagation method says, so a site the user may not edit is never saved here.
         $site = $owner->getSite();
         $context->siteUid = $site->uid;
+        $context->existingEntryId = $owner->getCanonicalId();
         $fragment = $adapter->import($target->field, [$root, ...$children], $context);
         if (!is_array($fragment) || !$fragment) {
             $plan->block("None of its blocks can be added to {$target->label()}.");
@@ -1042,6 +1043,7 @@ final class ImportPlanner
     {
         $plan = $context->plan;
         $canonical = $plan->matchedEntry ?? throw new InvalidChoiceException("The entry matching {$plan->label()} can't be loaded.");
+        $context->existingEntryId = $canonical->id;
 
         $existingSiteIds = array_map(
             fn(Entry $entry) => (int)$entry->siteId,
