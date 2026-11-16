@@ -1,0 +1,137 @@
+# Runs `composer check` (phpstan, coding standards, the whole suite)
+# against each Craft and plugin version set Portage supports.
+#
+# composer.lock isn't committed, so every job resolves its own versions.
+# A job pins its versions with `composer require --no-update` before
+# resolving. An empty value leaves composer.json's own constraint in place.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest versions Portage supports.
+          - name: Craft 5.0 (lowest), Hyper 2, CKEditor 4.0, Formie 3
+            php: '8.2'
+            craft: '~5.0.0'
+            hyper: '^2.0'
+            ckeditor: '~4.0.0'
+            formie: '^3.0'
+            prefer-lowest: true
+            allow-insecure: true
+          # The first Craft with block copy/paste.
+          # Hyper 2.3.1+ uses Craft 5.8's ContentBlock unguarded, though it
+          # allows craftcms/cms ^5.0, so it can't boot on Craft 5.7.
+          - name: Craft 5.7, Hyper 2, CKEditor 4, Formie 3
+            php: '8.2'
+            craft: '~5.7.0'
+            hyper: '>=2.0 <2.3.1'
+            ckeditor: '^4.0'
+            formie: '^3.0'
+            prefer-lowest: false
+            allow-insecure: true
+          - name: Craft latest, Hyper 3, CKEditor 5, Formie 4
+            php: '8.4'
+            craft: ''
+            hyper: '^3.0'
+            ckeditor: '^5.0'
+            formie: '^4.0'
+            prefer-lowest: false
+            allow-insecure: false
+          - name: Craft latest, Hyper 2, CKEditor 5, Formie 3
+            php: '8.4'
+            craft: ''
+            hyper: '^2.0'
+            ckeditor: '^5.0'
+            formie: '^3.0'
+            prefer-lowest: false
+            allow-insecure: false
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      # Read by tests/_bootstrap.php, which creates the database.
+      PORTAGE_TEST_DB_HOST: 127.0.0.1
+      PORTAGE_TEST_DB_PORT: 3306
+      PORTAGE_TEST_DB_NAME: portage_test
+      PORTAGE_TEST_DB_USER: root
+      PORTAGE_TEST_DB_PASSWORD: root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: bcmath, curl, dom, gd, intl, mbstring, pdo_mysql, zip
+          coverage: none
+
+      - name: Get the Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}-${{ matrix.name }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      # Composer 2.9+ refuses to install versions with published security
+      # advisories, which includes Craft 5.0.0 and many early 5.x releases.
+      - name: Allow versions with security advisories
+        if: matrix.allow-insecure
+        run: composer config audit.block-insecure false
+
+      - name: Pin this job's versions
+        env:
+          CRAFT: ${{ matrix.craft }}
+          HYPER: ${{ matrix.hyper }}
+          CKEDITOR: ${{ matrix.ckeditor }}
+          FORMIE: ${{ matrix.formie }}
+        run: |
+          if [ -n "$CRAFT" ]; then
+            composer require --no-update --no-interaction "craftcms/cms:$CRAFT"
+          fi
+          dev=()
+          [ -n "$HYPER" ] && dev+=("verbb/hyper:$HYPER")
+          [ -n "$CKEDITOR" ] && dev+=("craftcms/ckeditor:$CKEDITOR")
+          [ -n "$FORMIE" ] && dev+=("verbb/formie:$FORMIE")
+          if [ ${#dev[@]} -gt 0 ]; then
+            composer require --dev --no-update --no-interaction "${dev[@]}"
+          fi
+
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist ${{ matrix.prefer-lowest && '--prefer-lowest' || '' }}
+
+      - name: Show the resolved versions
+        run: composer show | grep -E '^(craftcms/cms|craftcms/ckeditor|verbb/hyper|verbb/formie|spicyweb/craft-neo|nystudio107/craft-seomatic) '
+
+      - name: Check
+        run: composer check

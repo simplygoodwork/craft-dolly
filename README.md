@@ -210,6 +210,44 @@ Before committing, run every check (phpstan, coding standards, the whole suite):
 ddev exec --dir /var/www/html/plugins/portage composer check
 ```
 
+#### Other Craft and plugin versions
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `composer check` against each version set Portage supports. `composer.lock` isn't committed, so each job resolves its own versions:
+
+| Job | PHP | Craft | Hyper | CKEditor | Formie |
+|---|---|---|---|---|---|
+| Lowest (`--prefer-lowest`) | 8.2 | 5.0.x | 2 | 4.0.x | 3 |
+| Craft 5.7 (first with block copy/paste) | 8.2 | 5.7.x | 2 | 4 | 3 |
+| Latest with Hyper 3 | 8.4 | latest | 3 | 5 | 4 |
+| Latest with Hyper 2 | 8.4 | latest | 2 | 5 | 3 |
+
+Every job installs Formie, so its tests run against Formie 3 or 4 as the table says.
+
+To run the suite against another version set locally, copy the plugin to a scratch directory inside the DDEV web container and resolve there, so your own `vendor/` is left alone. For example, the lowest job, from the DDEV project root:
+
+```bash
+ddev exec bash -c '
+  rm -rf /tmp/portage-lowest && mkdir /tmp/portage-lowest
+  tar -C /var/www/html/plugins/portage --exclude=./vendor --exclude=./.git --exclude=./composer.lock -cf - . | tar -xf - -C /tmp/portage-lowest
+  cd /tmp/portage-lowest
+  composer config audit.block-insecure false
+  composer require --no-update "craftcms/cms:~5.0.0"
+  composer require --dev --no-update "verbb/hyper:^2.0" "craftcms/ckeditor:~4.0.0" "verbb/formie:^3.0"
+  php8.2 /usr/local/bin/composer update --prefer-lowest --no-interaction
+  PORTAGE_TEST_DB_NAME=portage_test_lowest php8.2 vendor/bin/codecept run
+'
+```
+
+Composer 2.9+ refuses to install versions with published security advisories, which includes Craft 5.0.0 and many early 5.x releases, hence `audit.block-insecure false`. Use a test database of its own (`PORTAGE_TEST_DB_NAME`), since the suite wipes it. Swap the constraints for another job's.
+
+A test of a feature that doesn't exist in every supported version skips itself with `simplygoodwork\craftportage\tests\support\Requires`, rather than failing. Call it first in the test, or in `_before()` for a whole class:
+
+```php
+Requires::classes('The JSON field', \craft\fields\Json::class); // a field type added after Craft 5.0
+Requires::craft('5.7.0', 'Block copy/paste');                     // behaviour that starts at a Craft version
+Requires::package('verbb/hyper', '^3.0', 'Shared link type configs');
+```
+
 Console tests use `consoleCommand($command, $params, $ignoreStdOut)`. Pass `false` as the third argument whenever the test asserts `->stdout()`: with `true`, every stdout expectation is skipped and the test passes without checking the output.
 
 ### Building schema in tests

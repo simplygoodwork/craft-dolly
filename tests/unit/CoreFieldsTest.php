@@ -18,6 +18,7 @@ use craft\fields\Entries;
 use craft\fields\Icon;
 use craft\fields\Json;
 use craft\fields\Lightswitch;
+use craft\fields\Link;
 use craft\fields\Money;
 use craft\fields\MultiSelect;
 use craft\fields\Number;
@@ -35,6 +36,7 @@ use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
 use simplygoodwork\craftportage\import\ImportContext;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
+use simplygoodwork\craftportage\tests\support\Requires;
 use simplygoodwork\craftportage\tests\support\Schema;
 use simplygoodwork\craftportage\tests\support\UnadaptedField;
 use simplygoodwork\craftportage\tests\support\UnserializableField;
@@ -52,24 +54,36 @@ class CoreFieldsTest extends Unit
         ['label' => 'Large', 'value' => 'l'],
     ];
 
-    public function testNumberLightswitchEmailAndUrlRoundTrip(): void
+    public function testNumberLightswitchAndEmailRoundTrip(): void
     {
         $values = $this->roundTrip(
             [
                 Schema::field(Number::class, 'count', ['decimals' => 2]),
-                Schema::field(Range::class, 'rating'),
                 Schema::field(Lightswitch::class, 'featured'),
                 Schema::field(Email::class, 'contact'),
-                // `Url` is a class alias of `Link`, so this goes through the Link adapter.
-                Schema::field(Url::class, 'website'),
             ],
-            ['count' => 12.5, 'rating' => 40, 'featured' => true, 'contact' => 'hello@example.com', 'website' => ['type' => 'url', 'value' => 'https://example.com']],
+            ['count' => 12.5, 'featured' => true, 'contact' => 'hello@example.com'],
         );
 
         $this->assertSame(12.5, $values->getFieldValue('count'));
-        $this->assertEquals(40, $values->getFieldValue('rating'));
         $this->assertTrue($values->getFieldValue('featured'));
         $this->assertSame('hello@example.com', $values->getFieldValue('contact'));
+    }
+
+    public function testRangeAndUrlRoundTrip(): void
+    {
+        Requires::classes('The Range field and the Link field', Range::class, Link::class);
+
+        $values = $this->roundTrip(
+            [
+                Schema::field(Range::class, 'rating'),
+                // `Url` is a class alias of `Link`, so this goes through the Link adapter.
+                Schema::field(Url::class, 'website'),
+            ],
+            ['rating' => 40, 'website' => ['type' => 'url', 'value' => 'https://example.com']],
+        );
+
+        $this->assertEquals(40, $values->getFieldValue('rating'));
         $this->assertSame('https://example.com', $values->getFieldValue('website')->serialize()['value']);
     }
 
@@ -91,7 +105,7 @@ class CoreFieldsTest extends Unit
         $this->assertSame('NZ', $values->getFieldValue('country')->getCountryCode());
     }
 
-    public function testMoneyTableJsonAndIconRoundTrip(): void
+    public function testMoneyTableAndIconRoundTrip(): void
     {
         $values = $this->roundTrip(
             [
@@ -100,13 +114,11 @@ class CoreFieldsTest extends Unit
                     'col1' => ['heading' => 'Name', 'handle' => 'name', 'width' => '', 'type' => 'singleline'],
                     'col2' => ['heading' => 'Rate', 'handle' => 'rate', 'width' => '', 'type' => 'number'],
                 ]]),
-                Schema::field(Json::class, 'settings'),
                 Schema::field(Icon::class, 'symbol'),
             ],
             [
                 'price' => '1999',
                 'rates' => [['col1' => 'Standard', 'col2' => '10'], ['col1' => 'Reduced', 'col2' => '5']],
-                'settings' => ['a' => [1, 2], 'b' => ['c' => true]],
                 'symbol' => 'star',
             ],
         );
@@ -114,8 +126,21 @@ class CoreFieldsTest extends Unit
         $this->assertSame('1999', $values->getFieldValue('price')->getAmount());
         $this->assertSame('USD', $values->getFieldValue('price')->getCurrency()->getCode());
         $this->assertSame([['col1' => 'Standard', 'col2' => '10'], ['col1' => 'Reduced', 'col2' => '5']], array_map(fn(array $row) => ['col1' => $row['col1'], 'col2' => $row['col2']], $values->getFieldValue('rates')));
+        // Craft 5.7 and earlier return the icon's name; later versions return an IconData.
+        $symbol = $values->getFieldValue('symbol');
+        $this->assertSame('star', is_string($symbol) ? $symbol : $symbol->name);
+    }
+
+    public function testJsonRoundTrip(): void
+    {
+        Requires::classes('The JSON field', Json::class);
+
+        $values = $this->roundTrip(
+            [Schema::field(Json::class, 'settings')],
+            ['settings' => ['a' => [1, 2], 'b' => ['c' => true]]],
+        );
+
         $this->assertSame(['a' => [1, 2], 'b' => ['c' => true]], $values->getFieldValue('settings')->getValue());
-        $this->assertSame('star', $values->getFieldValue('symbol')->name);
     }
 
     public function testOptionFieldsRoundTrip(): void
@@ -126,15 +151,25 @@ class CoreFieldsTest extends Unit
                 Schema::field(RadioButtons::class, 'radio', ['options' => self::OPTIONS]),
                 Schema::field(Checkboxes::class, 'boxes', ['options' => self::OPTIONS]),
                 Schema::field(MultiSelect::class, 'multi', ['options' => self::OPTIONS]),
-                Schema::field(ButtonGroup::class, 'group', ['options' => self::OPTIONS]),
             ],
-            ['size' => 'm', 'radio' => 'l', 'boxes' => ['s', 'l'], 'multi' => ['m'], 'group' => 's'],
+            ['size' => 'm', 'radio' => 'l', 'boxes' => ['s', 'l'], 'multi' => ['m']],
         );
 
         $this->assertSame('m', (string)$values->getFieldValue('size'));
         $this->assertSame('l', (string)$values->getFieldValue('radio'));
         $this->assertSame(['s', 'l'], array_map('strval', iterator_to_array($values->getFieldValue('boxes'))));
         $this->assertSame(['m'], array_map('strval', iterator_to_array($values->getFieldValue('multi'))));
+    }
+
+    public function testButtonGroupRoundTrips(): void
+    {
+        Requires::classes('The Button Group field', ButtonGroup::class);
+
+        $values = $this->roundTrip(
+            [Schema::field(ButtonGroup::class, 'group', ['options' => self::OPTIONS])],
+            ['group' => 's'],
+        );
+
         $this->assertSame('s', (string)$values->getFieldValue('group'));
     }
 
@@ -247,6 +282,8 @@ class CoreFieldsTest extends Unit
 
     public function testAContentBlockIsSkippedWithAWarningInsteadOfCarryingRawElementIds(): void
     {
+        Requires::classes('The Content Block field', ContentBlock::class);
+
         $topic = Schema::entryType('topic');
         $topics = Schema::section('topics', [$topic]);
         $craft = Schema::entry($topics, $topic, ['title' => 'Craft']);

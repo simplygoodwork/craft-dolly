@@ -11,6 +11,7 @@ use craft\models\Section;
 use FunctionalTester;
 use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftportage\tests\support\Requires;
 use simplygoodwork\craftportage\tests\support\Schema;
 
 /**
@@ -19,6 +20,11 @@ use simplygoodwork\craftportage\tests\support\Schema;
  */
 class PasteCest
 {
+    public function _before(FunctionalTester $I): void
+    {
+        Requires::craft('5.7.0', 'Block copy/paste');
+    }
+
     public function copyingBlocksExportsThemByTheirPositionInTheEntrysDraft(FunctionalTester $I): void
     {
         [$entry, $section] = $this->sourceWithBlocks();

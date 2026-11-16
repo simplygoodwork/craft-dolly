@@ -7,10 +7,12 @@ use Craft;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\fields\data\LinkData;
+use craft\fields\Link;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
 use simplygoodwork\craftportage\tests\support\FileServer;
 use simplygoodwork\craftportage\tests\support\GlobalSetLinkType;
+use simplygoodwork\craftportage\tests\support\Requires;
 use simplygoodwork\craftportage\tests\support\Schema;
 
 /**
@@ -20,6 +22,12 @@ use simplygoodwork\craftportage\tests\support\Schema;
 class LinkFieldTest extends Unit
 {
     private const ADVANCED = ['urlSuffix', 'target', 'title', 'class', 'id', 'rel', 'ariaLabel'];
+
+    protected function _before(): void
+    {
+        parent::_before();
+        Requires::classes('The Link field', Link::class);
+    }
 
     public function testNonElementLinkTypesRoundTripAsTheyAre(): void
     {

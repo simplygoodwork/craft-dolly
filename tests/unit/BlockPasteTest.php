@@ -13,6 +13,7 @@ use craft\models\EntryType;
 use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\services\Portage;
+use simplygoodwork\craftportage\tests\support\Requires;
 use simplygoodwork\craftportage\tests\support\Schema;
 
 /**
@@ -26,6 +27,7 @@ class BlockPasteTest extends Unit
     protected function _before(): void
     {
         parent::_before();
+        Requires::craft('5.7.0', 'Block copy/paste');
         Craft::$app->getUser()->setIdentity(User::find()->admin()->one());
     }
 
