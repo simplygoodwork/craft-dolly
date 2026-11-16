@@ -1368,6 +1368,16 @@ final class Schema
     }
 
     /**
+     * Deletes Retour's redirect from a URL, as in a Target environment that never had it.
+     */
+    public static function deleteRetourRedirect(string $from): void
+    {
+        $redirects = Retour::getInstance()->getRedirects();
+        $redirect = $redirects->getRedirectByRedirectSrcUrl($from) ?? throw new RuntimeException("No Retour redirect from \"$from\"");
+        $redirects->deleteRedirectById((int)$redirect['id']);
+    }
+
+    /**
      * Builds the target of a block paste: a Matrix or Neo field of a draft.
      */
     public static function blockTarget(Entry $draft, string $handle): BlockTarget

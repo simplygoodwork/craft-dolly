@@ -44,7 +44,8 @@ final class ImportContext
 
     /**
      * @var int|null the ID of the existing entry the Root element's content goes to (the entry being overwritten, or
-     * the entry whose draft blocks are pasted into), or null when the Import creates a new entry
+     * the entry whose draft blocks are pasted into; for a draft of a nested entry, the entry at the top that owns it),
+     * or null when the Import creates a new entry
      */
     public ?int $existingEntryId = null;
 
@@ -60,9 +61,22 @@ final class ImportContext
         private readonly FieldAdapterRegistry $adapters,
         private readonly array $references,
         private readonly UidClaims $uids,
+        private readonly ValueClaims $claims,
         public readonly DriftReport $drift,
         public readonly RootPlan $plan,
     ) {
+    }
+
+    /**
+     * Claims a value that only one element may take in the Target environment, for the element this Root element's
+     * content goes to (the existing entry, or the one it creates). Returns null if the value is free or already
+     * claimed for that element, or else the plan of the Root element of this Import that claimed it first.
+     *
+     * @param string $value the value, prefixed with what kind of value it is: "retour:/go/summer"
+     */
+    public function claim(string $value): ?RootPlan
+    {
+        return $this->claims->claim($value, $this->existingEntryId ?? $this->plan, $this->plan);
     }
 
     /**

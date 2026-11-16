@@ -63,11 +63,12 @@ final class ImportPlanner
             return ImportPlan::refused($refusal);
         }
         $uids = new UidClaims();
+        $claims = new ValueClaims();
         $references = $this->planReferences($envelope['references'] ?? null);
 
         try {
             $this->applyChoices($references, $choices, new Stubs($uids, $this->rootUids($envelope['roots'])), $uids);
-            $this->planFetchedAssetFields($references, $uids, $drift);
+            $this->planFetchedAssetFields($references, $uids, $claims, $drift);
             $rootChoices = $this->parseRootChoices($rootChoices, $this->rootUids($envelope['roots']));
         } catch (InvalidChoiceException $e) {
             return ImportPlan::refused($e->getMessage(), $e->uid);
@@ -90,7 +91,7 @@ final class ImportPlanner
 
             try {
                 $explicit = $rootChoices[$plan->sourceUid] ?? [];
-                $context = new ImportContext($this->adapters, $references, $uids, $drift, $plan);
+                $context = new ImportContext($this->adapters, $references, $uids, $claims, $drift, $plan);
                 if ($target) {
                     $this->planBlockRoot($root, $context, $target);
                 } else {
@@ -207,7 +208,8 @@ final class ImportPlanner
         // sites as the field's propagation method says, so a site the user may not edit is never saved here.
         $site = $owner->getSite();
         $context->siteUid = $site->uid;
-        $context->existingEntryId = $owner->getCanonicalId();
+        // Retour ties a short link in a block to the entry at the top that owns it.
+        $context->existingEntryId = ElementHelper::rootElement($owner)->getCanonicalId();
         $fragment = $adapter->import($target->field, [$root, ...$children], $context);
         if (!is_array($fragment) || !$fragment) {
             $plan->block("None of its blocks can be added to {$target->label()}.");
@@ -737,7 +739,7 @@ final class ImportPlanner
      *
      * @param array<string, ReferencePlan> $references
      */
-    private function planFetchedAssetFields(array $references, UidClaims $uids, DriftReport $drift): void
+    private function planFetchedAssetFields(array $references, UidClaims $uids, ValueClaims $claims, DriftReport $drift): void
     {
         foreach ($references as $reference) {
             $fetch = $reference->fetch;
@@ -745,7 +747,7 @@ final class ImportPlanner
             if (!$fetch || !is_array($fields) || !$fields) {
                 continue;
             }
-            $context = new ImportContext($this->adapters, $references, $uids, $drift, $fetch->fieldPlan);
+            $context = new ImportContext($this->adapters, $references, $uids, $claims, $drift, $fetch->fieldPlan);
             $fetch->asset->setFieldValues($context->fieldValues($fetch->volume, $fields));
         }
     }
