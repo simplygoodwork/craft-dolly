@@ -550,6 +550,23 @@ final class Schema
      */
     public static function section(string $handle, array $entryTypes, array $config = []): Section
     {
+        $section = self::newSection($handle, $entryTypes, $config);
+
+        if (!Craft::$app->getEntries()->saveSection($section)) {
+            self::fail("section \"$handle\"", $section->getErrors());
+        }
+
+        return $section;
+    }
+
+    /**
+     * An unsaved section enabled for every site, without URLs.
+     *
+     * @param EntryType[] $entryTypes
+     * @param array<string, mixed> $config
+     */
+    private static function newSection(string $handle, array $entryTypes, array $config): Section
+    {
         $section = new Section(array_merge([
             'name' => self::nameFor($handle),
             'handle' => $handle,
@@ -566,10 +583,6 @@ final class Schema
         }
         $section->setSiteSettings($siteSettings);
         $section->setEntryTypes($entryTypes);
-
-        if (!Craft::$app->getEntries()->saveSection($section)) {
-            self::fail("section \"$handle\"", $section->getErrors());
-        }
 
         return $section;
     }
@@ -846,21 +859,24 @@ final class Schema
     }
 
     /**
-     * Deletes a section for good and saves it again with the same UID, handle, name and entry types, so it has a new
-     * ID: the same section as it exists in another environment. Its entries are deleted with it.
+     * Deletes a section for good and applies it again from project config with the same UID, handle, name and entry
+     * types, so it has a new ID: the same section as it exists in another environment. Its entries are deleted with it.
      */
     public static function recreateSection(Section $section): Section
     {
         $uid = (string)$section->uid;
         $entryTypes = $section->getEntryTypes();
         self::deleteSection($section);
-        // Craft restores a soft-deleted section saved with its UID, under its old ID.
+        // Craft restores a soft-deleted section applied with its UID, under its old ID.
         Db::delete(Table::SECTIONS, ['uid' => $uid]);
 
-        $recreated = self::section((string)$section->handle, $entryTypes, ['uid' => $uid, 'name' => $section->name]);
+        // Applied through project config, as another environment gets its sections: before Craft 5.4.9,
+        // saveSection() gives every new section a new UID, even one set on it.
+        $recreated = self::newSection((string)$section->handle, $entryTypes, ['uid' => $uid, 'name' => $section->name]);
+        Craft::$app->getProjectConfig()->set("sections.$uid", $recreated->getConfig());
         self::refresh();
 
-        return $recreated;
+        return Craft::$app->getEntries()->getSectionByUid($uid) ?? throw new RuntimeException("Section \"$section->handle\" wasn't recreated.");
     }
 
     /**
