@@ -51,18 +51,37 @@
     constructor(editor, handle, payload) {
       this.editor = editor;
       this.handle = handle;
-      this.$form = $('<form class="modal portage-paste-modal" method="post" enctype="multipart/form-data"/>').css({
-        width: '56rem',
-        maxWidth: '92vw',
-      });
-      this.$body = $('<div class="body"/>').css({maxHeight: '75vh', overflow: 'auto'}).appendTo(this.$form);
+      // The body scrolls and the footer, with the buttons, stays below it, so the buttons are never cut off however
+      // tall the Preview is. "fitted" makes the modal as tall as its content (Craft's modals are otherwise 66% of the
+      // window), and Garnish caps that at the window less the gutters. The flex column is on an inner element because
+      // Garnish sets the modal's own display when it shows it.
+      this.$form = $('<form class="modal fitted portage-paste-modal" method="post" enctype="multipart/form-data"/>');
+      const $layout = $('<div/>').css({display: 'flex', flexDirection: 'column', height: '100%'}).appendTo(this.$form);
+      this.$body = $('<div class="body"/>').css({flex: '1 1 auto', minHeight: 0, overflow: 'auto'}).appendTo($layout);
+      this.$content = $('<div/>').appendTo(this.$body);
+      this.$footer = $('<div class="footer"/>').css({flex: 'none'}).appendTo($layout);
       this.modal = new Garnish.Modal(this.$form, {
         autoShow: true,
+        minGutter: 40,
         onHide: () => {
+          this.resizeObserver?.disconnect();
           this.modal.destroy();
           this.$form.remove();
         },
       });
+      // Garnish clears an inline width each time it sizes the modal: 56rem, narrowed to fit the window.
+      this.modal.desiredWidth = 56 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+      this.modal.updateSizeAndPosition();
+      // Garnish sets the modal's height when it's shown: size it again whenever the content changes, as when a picker in
+      // the Preview finishes loading or a panel is shown.
+      if (window.ResizeObserver) {
+        let frame = null;
+        this.resizeObserver = new ResizeObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(() => this.modal.updateSizeAndPosition());
+        });
+        this.resizeObserver.observe(this.$content[0]);
+      }
       this.$form.on('submit', (ev) => {
         ev.preventDefault();
         this.submit();
@@ -77,7 +96,7 @@
 
     showInput() {
       this.lastResponse = null;
-      this.$body.empty().append(
+      this.$content.empty().append(
         $('<h2/>').text(t('Paste from another environment')),
         $('<p class="light"/>').text(
           t('Paste Payload text, or upload a .portage file. You will see a Preview before anything is added to your draft.')
@@ -86,7 +105,9 @@
         $('<div class="field"/>').append(
           $('<div class="heading"/>').append($('<label/>').text(t('Or upload a .portage file'))),
           $('<input type="file" name="payloadFile" accept=".portage,text/plain"/>')
-        ),
+        )
+      );
+      this.$footer.empty().append(
         $('<div class="buttons"/>').append(
           $('<button type="submit" class="btn submit"/>').text(t('Preview')),
           $('<button type="button" class="btn"/>').text(t('Cancel')).on('click', () => this.modal.hide())
@@ -126,17 +147,19 @@
     show(response) {
       this.lastResponse = response;
       Craft.appendHeadHtml(response.headHtml);
-      this.$body.html(response.html);
+      this.$content.html(response.html);
       Craft.appendBodyHtml(response.bodyHtml);
       this.step = 'preview';
 
-      const $preview = this.$body.find('#portage-paste-preview');
-      this.$body.find('[data-portage-cancel]').on('click', () => this.modal.hide());
-      this.$body.find('[data-portage-back]').on('click', () => this.showInput());
-      this.$body.find('[data-portage-update]').on('click', () => this.preview());
+      const $preview = this.$content.find('#portage-paste-preview');
+      this.$content.find('[data-portage-cancel]').on('click', () => this.modal.hide());
+      this.$content.find('[data-portage-back]').on('click', () => this.showInput());
+      this.$content.find('[data-portage-update]').on('click', () => this.preview());
       if ($preview.find('button.submit').length) {
+        // Before the buttons move to the footer: the Preview keeps the Paste button off while a choice is being re-planned.
         Portage.bindPreview($preview[0], () => this.preview());
       }
+      this.$footer.empty().append($preview.children('.buttons'));
       this.modal.updateSizeAndPosition();
     }
 

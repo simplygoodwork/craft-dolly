@@ -113,7 +113,7 @@ final class FieldAdapterRegistry extends Component
     }
 
     /**
-     * Returns the adapter for a field's exact class, the fallback if it has none (or, for a field that holds Owned content, an adapter that skips it), or null for a field that's missing its
+     * Returns the adapter for a field's exact class (or Matrix's, for a Matrix subclass), the fallback if it has none (or, for a field that holds Owned content, an adapter that skips it), or null for a field that's missing its
      * type (a `MissingField`), which holds nothing to move.
      */
     public function adapterFor(FieldInterface $field): ?FieldAdapter
@@ -124,6 +124,11 @@ final class FieldAdapterRegistry extends Component
 
         if (isset($this->adapters[$field::class])) {
             return $this->adapters[$field::class];
+        }
+
+        // A Matrix subclass (Super Table 4, for one) stores its blocks as Matrix does: nested entries of its entry types.
+        if ($field instanceof Matrix && isset($this->adapters[Matrix::class])) {
+            return $this->adapters[Matrix::class];
         }
 
         // Raw serialization of nested content would skip Resolution of everything inside it.
