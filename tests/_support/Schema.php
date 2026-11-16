@@ -41,6 +41,7 @@ use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use craft\models\TagGroup;
 use craft\models\Volume;
+use ether\seo\Seo as EtherSeo;
 use nystudio107\seomatic\seoelements\SeoEntry;
 use presseddigital\linkit\fields\LinkitField;
 use ReflectionProperty;
@@ -972,6 +973,20 @@ final class Schema
     public static function withGeneralConfig(array $values, callable $callback): mixed
     {
         return self::withProperties(Craft::$app->getConfig()->getGeneral(), $values, $callback);
+    }
+
+    /**
+     * Runs a callback with Ether SEO's global settings changed, e.g. `['robots' => ['noindex']]`, as in an environment
+     * whose SEO defaults differ, then restores them.
+     *
+     * @template T
+     * @param array<string, mixed> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withEtherSeoSettings(array $values, callable $callback): mixed
+    {
+        return self::withProperties(EtherSeo::$i->getSettings(), $values, $callback);
     }
 
     /**

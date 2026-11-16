@@ -39,6 +39,7 @@ use craft\fields\Table;
 use craft\fields\Tags;
 use craft\fields\Time;
 use craft\fields\Users;
+use ether\seo\fields\SeoField as EtherSeoField;
 use nystudio107\seomatic\fields\SeoSettings;
 use presseddigital\linkit\fields\LinkitField;
 use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
@@ -114,6 +115,9 @@ final class FieldAdapterRegistry extends Component
         // Optional plugins: their adapters are registered only when the plugin's field class exists.
         if (class_exists(LinkitField::class)) {
             $this->adapters[LinkitField::class] = new LinkitAdapter();
+        }
+        if (class_exists(EtherSeoField::class)) {
+            $this->adapters[EtherSeoField::class] = new EtherSeoAdapter();
         }
 
         $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);

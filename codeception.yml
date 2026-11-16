@@ -28,6 +28,8 @@ modules:
           handle: seomatic
         - class: '\presseddigital\linkit\Linkit'
           handle: linkit
+        - class: '\ether\seo\Seo'
+          handle: seo
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }
