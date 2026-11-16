@@ -24,6 +24,11 @@ parameters:
             path: tests/_support/Schema.php
             reportUnmatched: false
         -
+            # TableMaker's value object (TableMaker 5.1). TableMaker 5.0's value is an array, which `instanceof` turns away.
+            message: '#verbb\\tablemaker\\models\\TableMakerData\b#'
+            path: src/fields/TableMakerAdapter.php
+            reportUnmatched: false
+        -
             # Field action menus (Craft 5.7), which are only listened for when the event exists.
             message: '#^Access to an undefined property craft\\base\\Field::\$static\.$#'
             path: src/Plugin.php

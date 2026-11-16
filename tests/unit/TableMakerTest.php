@@ -43,7 +43,7 @@ class TableMakerTest extends Unit
             ],
         ]]);
         // TableMaker's storage format differs between its versions, so the value is compared as the field stores it.
-        $stored = $this->field->serializeValue($source->getFieldValue('data'), $source);
+        $stored = $this->storedValueOf($source);
 
         $payload = $this->portage()->export([$source]);
         $preview = $this->portage()->preview($payload);
@@ -54,7 +54,7 @@ class TableMakerTest extends Unit
 
         $this->assertSame([], $result->roots[0]->warnings);
         $imported = $this->importedEntry($result->roots[0]->elementId);
-        $this->assertSame($stored, $this->field->serializeValue($imported->getFieldValue('data'), $imported));
+        $this->assertSame($stored, $this->storedValueOf($imported));
         $this->assertStringContainsString('Cake', Json::encode($stored));
     }
 
@@ -72,7 +72,7 @@ class TableMakerTest extends Unit
         $result = $this->portage()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
-        $this->assertSame(['row1' => ['col1' => 'See {entry:12:url}']], $this->tableOf($result->roots[0]->elementId)->rowsArray());
+        $this->assertSame([['See {entry:12:url}']], $this->cellsOf($result->roots[0]->elementId));
     }
 
     public function testLinksInRichTextCellsPointAtTheElementsTheyResolveToInThisEnvironment(): void
@@ -223,6 +223,32 @@ class TableMakerTest extends Unit
         $article = Schema::entryType('article', [$this->field]);
 
         return [Schema::section('news', [$article]), $article];
+    }
+
+    /**
+     * The table value as it's saved in the content table. TableMaker 5.0 keeps the table rendered as HTML (Twig
+     * Markup) in its value, which is saved as a string.
+     *
+     * @return array<string, mixed>
+     */
+    private function storedValueOf(Entry $entry): array
+    {
+        return Json::decode(Json::encode($this->field->serializeValue($entry->getFieldValue('data'), $entry)));
+    }
+
+    /**
+     * The cells of an imported table, row by row, whatever the TableMaker version: 5.0 has no TableMakerData, and
+     * keys its rows and cells by position once saved.
+     *
+     * @return list<list<mixed>>
+     */
+    private function cellsOf(?int $entryId): array
+    {
+        $table = $this->importedEntry($entryId)->getFieldValue('data');
+        $rows = $table instanceof TableMakerData ? $table->rowsArray() : ($table['rows'] ?? null);
+        $this->assertIsArray($rows);
+
+        return array_values(array_map(fn(array $row) => array_values($row), $rows));
     }
 
     private function tableOf(?int $entryId): TableMakerData
