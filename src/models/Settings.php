@@ -37,6 +37,15 @@ class Settings extends Model
     public ?string $sharedKey = null;
 
     /**
+     * @var array<string, mixed> what the values of Dynamic fields (LJ Dynamic Fields) are the IDs of, by the field's
+     * handle: `['sectionIDs' => 'section']`. A kind is a Schema reference kind (`section`, `entryType`,
+     * `categoryGroup`, `volume`, `site`) or a registered element type's short name (`entry`, `category`, `tag`, `user`,
+     * `asset`…). Set it in `config/portage.php`, the same in every environment. An undeclared Dynamic field's values
+     * are imported as they are, with a warning.
+     */
+    public array $dynamicFields = [];
+
+    /**
      * Whether a Shared key is configured, even if its env var isn't set in this environment.
      */
     public function hasSharedKey(): bool

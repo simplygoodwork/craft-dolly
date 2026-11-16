@@ -38,6 +38,8 @@ modules:
           handle: calendar
         - class: '\nystudio107\retour\Retour'
           handle: retour
+        - class: '\lewisjenkins\craftdynamicfields\CraftDynamicFields'
+          handle: craft-dynamic-fields
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

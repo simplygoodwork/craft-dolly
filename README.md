@@ -122,11 +122,28 @@ With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted wit
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches and Retour short link fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches and Retour short link fields with a Field adapter each, and LJ Dynamic Fields' fields that are declared in config (see "Dynamic Fields"). Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
 A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
 
 Fields that hold nested content and have no adapter, such as Content Block and Addresses, are skipped with a warning rather than falling back, since Craft's raw serialization would carry the source IDs of every element inside them untranslated.
+
+### Dynamic Fields
+
+LJ Dynamic Fields' fields (dropdown, radio buttons, checkboxes and multi-select) render their options from a Twig template, so their values are often IDs that mean something else in another environment. Declare what a field's values are the IDs of in `config/portage.php`, by the field's own handle (not a handle a field layout overrides it with):
+
+```php
+return [
+    'dynamicFields' => [
+        'sectionIDs' => 'section',
+        'featuredEntry' => 'entry',
+    ],
+];
+```
+
+A kind is one of `section`, `entryType`, `categoryGroup`, `volume` and `site`, which travel as Schema references (listed with their Drift in the Preview), or the short name of a registered element type (`entry`, `category`, `tag`, `user`, `asset`, or any other registered type; see "Registering an element type"), which travel as References and are matched, replaced, Stubbed or fetched like any other. On Import each becomes the ID of the same thing in the Target environment. A value that doesn't resolve, or wasn't the ID of that kind where it was exported, is dropped from the field with a warning. A kind Portage doesn't know makes Export and Import fail with an `InvalidConfigException`.
+
+Declare a field the same way in every environment. The Payload carries the kind the field was declared as, and if the Target environment declares it differently, or only one environment declares it, its values are skipped with a warning rather than read as IDs of something else. A value that selects nothing is imported either way. An undeclared Dynamic field falls back to Craft's serialization, with the fallback's warning.
 
 A Money field travels with its currency: if the Target field's currency differs, the Preview warns that the amount (in minor units) may change magnitude. A Date field that shows its time zone keeps its named time zone.
 

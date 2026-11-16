@@ -40,6 +40,10 @@ use craft\fields\Tags;
 use craft\fields\Time;
 use craft\fields\Users;
 use ether\seo\fields\SeoField as EtherSeoField;
+use lewisjenkins\craftdynamicfields\fields\Checkboxes as DynamicCheckboxes;
+use lewisjenkins\craftdynamicfields\fields\Dropdown as DynamicDropdown;
+use lewisjenkins\craftdynamicfields\fields\Multiselect as DynamicMultiselect;
+use lewisjenkins\craftdynamicfields\fields\Radiobuttons as DynamicRadioButtons;
 use nystudio107\retour\fields\ShortLink;
 use nystudio107\seomatic\fields\SeoSettings;
 use percipiolondon\colourswatches\fields\ColourSwatches;
@@ -126,6 +130,12 @@ final class FieldAdapterRegistry extends Component
         }
         if (class_exists(ShortLink::class)) {
             $this->adapters[ShortLink::class] = new RetourShortLinkAdapter();
+        }
+        $dynamic = new DynamicFieldsAdapter();
+        foreach ([DynamicDropdown::class, DynamicRadioButtons::class, DynamicCheckboxes::class, DynamicMultiselect::class] as $class) {
+            if (class_exists($class)) {
+                $this->adapters[$class] = $dynamic;
+            }
         }
 
         $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);

@@ -14,8 +14,8 @@ interface CompletesTokens extends FieldAdapter
      * Replaces the tokens in a field value as its element is saved.
      *
      * @param callable(array<mixed>&): bool $render replaces the tokens in an array in place, returning whether any changed
-     * @return array<mixed>|null the input for `setFieldValue()` with the tokens replaced, or null to leave the value as
-     * it is (it holds no tokens, or isn't this field's value)
+     * @return mixed the input for `setFieldValue()` with the tokens replaced, or null to leave the value as it is (it
+     * holds no tokens, or isn't this field's value)
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array;
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render): mixed;
 }

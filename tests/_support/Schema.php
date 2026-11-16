@@ -831,6 +831,24 @@ final class Schema
     }
 
     /**
+     * Deletes a section for good and saves it again with the same UID, handle, name and entry types, so it has a new
+     * ID: the same section as it exists in another environment. Its entries are deleted with it.
+     */
+    public static function recreateSection(Section $section): Section
+    {
+        $uid = (string)$section->uid;
+        $entryTypes = $section->getEntryTypes();
+        self::deleteSection($section);
+        // Craft restores a soft-deleted section saved with its UID, under its old ID.
+        Db::delete(Table::SECTIONS, ['uid' => $uid]);
+
+        $recreated = self::section((string)$section->handle, $entryTypes, ['uid' => $uid, 'name' => $section->name]);
+        self::refresh();
+
+        return $recreated;
+    }
+
+    /**
      * Changes a field's type, keeping its UID, name and handle, then refreshes the schema caches.
      *
      * @param class-string<FieldInterface> $class

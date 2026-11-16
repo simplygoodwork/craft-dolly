@@ -34,6 +34,7 @@ final class ExportContext
         'hyperLinkTypes' => [],
         'fields' => [],
         'volumes' => [],
+        'categoryGroups' => [],
     ];
 
     /**
@@ -244,6 +245,20 @@ final class ExportContext
     public function recordLinkType(string $uid): string
     {
         $this->schema['hyperLinkTypes'][$uid] = true;
+
+        return $uid;
+    }
+
+    /**
+     * Records a Schema reference that a field value embeds by ID (a Dynamic field's section), by its kind in the
+     * envelope's `schema` section (`sections`, `categoryGroups`…) and its UID, and returns the UID.
+     */
+    public function recordSchemaReference(string $kind, string $uid): string
+    {
+        if (!isset($this->schema[$kind])) {
+            throw new InvalidArgumentException("Unknown kind of Schema reference: $kind");
+        }
+        $this->schema[$kind][$uid] = true;
 
         return $uid;
     }

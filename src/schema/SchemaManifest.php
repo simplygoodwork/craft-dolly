@@ -28,6 +28,7 @@ final class SchemaManifest
         'hyperLinkTypes' => [null, 'Hyper link type'],
         'fields' => ['fields', 'field'],
         'volumes' => ['volumes', 'volume'],
+        'categoryGroups' => ['categoryGroups', 'category group'],
     ];
 
     /**
