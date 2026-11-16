@@ -32,6 +32,8 @@ modules:
           handle: seo
         - class: '\verbb\formie\Formie'
           handle: formie
+        - class: '\percipiolondon\colourswatches\ColourSwatches'
+          handle: colour-swatches
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

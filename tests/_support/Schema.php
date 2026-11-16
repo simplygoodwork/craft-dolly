@@ -43,6 +43,7 @@ use craft\models\TagGroup;
 use craft\models\Volume;
 use ether\seo\Seo as EtherSeo;
 use nystudio107\seomatic\seoelements\SeoEntry;
+use percipiolondon\colourswatches\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
 use ReflectionProperty;
 use RuntimeException;
@@ -988,6 +989,20 @@ final class Schema
     public static function withEtherSeoSettings(array $values, callable $callback): mixed
     {
         return self::withProperties(EtherSeo::$i->getSettings(), $values, $callback);
+    }
+
+    /**
+     * Runs a callback with Colour Swatches' config-file settings changed, e.g. `['palettes' => ['Brand' => [...]]]`,
+     * to simulate an environment whose `config/colour-swatches.php` defines different palettes, then restores them.
+     *
+     * @template T
+     * @param array<string, mixed> $values
+     * @param callable(): T $callback
+     * @return T
+     */
+    public static function withColourSwatchesSettings(array $values, callable $callback): mixed
+    {
+        return self::withProperties(ColourSwatches::$plugin->getSettings(), $values, $callback);
     }
 
     /**

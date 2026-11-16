@@ -41,6 +41,7 @@ use craft\fields\Time;
 use craft\fields\Users;
 use ether\seo\fields\SeoField as EtherSeoField;
 use nystudio107\seomatic\fields\SeoSettings;
+use percipiolondon\colourswatches\fields\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
 use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
 use simplygoodwork\craftportage\references\ElementTypes;
@@ -118,6 +119,9 @@ final class FieldAdapterRegistry extends Component
         }
         if (class_exists(EtherSeoField::class)) {
             $this->adapters[EtherSeoField::class] = new EtherSeoAdapter();
+        }
+        if (class_exists(ColourSwatches::class)) {
+            $this->adapters[ColourSwatches::class] = new ColourSwatchesAdapter();
         }
 
         $event = new RegisterFieldAdaptersEvent(['adapters' => $this->adapters]);

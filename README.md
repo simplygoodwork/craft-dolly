@@ -78,6 +78,8 @@ Ether SEO's SEO field moves its title, description, keywords, score, social titl
 
 A Linkit field's link names its link type by Linkit's handle for it (`entry`, `url`, `email`…), never by class. URL, email, phone and social links move as they are, with their custom text and target. An entry, asset, category or user link is a Reference like any other (matched, stubbed, replaced, fetched or cleared with a warning). A Commerce product link, and a link of a type the Target field doesn't enable, is cleared with a warning, before any Reference it holds is resolved.
 
+Colour Swatches fields move the selected swatch by its label. The field looks a swatch up by label in its palette (its own colours, or a palette from `config/colour-swatches.php`) every time it saves, so the Target field's palette decides the colour and CSS class. A label the Target palette doesn't have is dropped and the Preview warns about it, rather than the field quietly replacing it. The field then shows its default swatch, if one is flagged as default. It may also save its default setting or a random colour instead, depending on the Craft version and whether the entry is new.
+
 Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4).
 
 ## Copying content in the control panel
@@ -116,7 +118,7 @@ With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted wit
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit fields and Ether SEO fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO and Colour Swatches fields with a Field adapter each. Adapters for third-party fields are registered only when their plugin is installed. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
 A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
 
@@ -238,6 +240,8 @@ $entry = Schema::entry($section, $page, [
 `Schema::linkit('cta', [models\\Entry::class, models\\Url::class])` saves a Linkit field that enables those link types, and `Schema::changeLinkitTypes()` changes them to simulate a different Target environment.
 
 `Schema::withEtherSeoSettings(['robots' => ['noindex']], fn() => ...)` runs a callback with Ether SEO's global settings changed, to simulate an environment with different SEO defaults.
+
+`Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [...]]], fn() => ...)` runs a callback with Colour Swatches' config-file palettes changed, to simulate an environment whose `config/colour-swatches.php` differs.
 
 `Schema::seomaticSectionBundle()` gives a section URLs and SEOmatic a section-level meta bundle for it, and returns its row.
 
