@@ -136,7 +136,7 @@ final class SeoSettingsAdapter implements FieldAdapter, CompletesTokens
      *
      * @return array<string, array<mixed>>|null
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): ?array
     {
         if (!$value instanceof MetaBundle) {
             return null;

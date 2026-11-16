@@ -117,7 +117,7 @@ final class LinkitAdapter implements CompletesTokens
      *
      * @return array{type: string, value: string|null, customText: string|null, target: bool|null}|null
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): ?array
     {
         if (!$value instanceof Link) {
             return null;

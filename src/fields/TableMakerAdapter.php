@@ -44,7 +44,7 @@ final class TableMakerAdapter implements CompletesTokens
      * Completes the links and reference tags to Stubs and fetched assets in rich text cells. TableMaker stores each
      * cell as a JSON-encoded string, which keeps the tokens and the IDs that replace them as they are.
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): ?array
     {
         if (!$value instanceof TableMakerData) {
             return null;

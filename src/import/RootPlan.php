@@ -67,6 +67,12 @@ final class RootPlan
     public array $pendingRefTags = [];
 
     /**
+     * @var array<string, string> the tokens of the Stubs and fetched assets that links point at, by the link's UID, for
+     * a field that loses a link's token when it builds the link again (Hyper 3), so the Importer can restore it
+     */
+    public array $linkTokens = [];
+
+    /**
      * @var array<string, PendingNestedEntry> CKEditor nested entries the Importer saves once the element holding the
      * field is saved, by the UID the entry will have
      */
@@ -190,6 +196,7 @@ final class RootPlan
         $fields = $fetch->fieldPlan;
         $this->stubs += $fields->stubs;
         $this->pendingRefTags += $fields->pendingRefTags;
+        $this->linkTokens += $fields->linkTokens;
         foreach ($fields->fetches as $nested) {
             $this->addFetch($nested);
         }

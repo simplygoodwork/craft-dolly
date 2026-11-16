@@ -44,7 +44,8 @@ final class Importer
     {
         $results = [];
         $pendingRefTags = array_merge(...array_map(fn(RootPlan $root) => $root->pendingRefTags, $plan->roots));
-        $completeRefTags = fn(ElementEvent $event) => $this->completeRefTags($event->element, $pendingRefTags);
+        $linkTokens = array_merge(...array_map(fn(RootPlan $root) => $root->linkTokens, $plan->roots));
+        $completeRefTags = fn(ElementEvent $event) => $this->completeRefTags($event->element, $pendingRefTags, $linkTokens);
         $pendingNestedEntries = array_merge(...array_map(fn(RootPlan $root) => $root->pendingNestedEntries, $plan->roots));
         $completeNested = fn(ElementEvent $event) => $this->completeNestedEntries($event->element, $pendingNestedEntries);
 
@@ -64,8 +65,9 @@ final class Importer
      * The Stubs and assets are saved first, so they have IDs by then (unless an asset's fetch failed).
      *
      * @param array<string, PendingRefTag> $pending by token
+     * @param array<string, string> $linkTokens the tokens links point at, by the link's UID
      */
-    private function completeRefTags(ElementInterface $element, array $pending): void
+    private function completeRefTags(ElementInterface $element, array $pending, array $linkTokens): void
     {
         if (!$pending) {
             return;
@@ -76,7 +78,7 @@ final class Importer
             // A field whose adapter knows where its value holds tokens (Hyper's links, SEOmatic's images).
             $adapter = $this->adapters->adapterFor($field);
             if ($adapter instanceof CompletesTokens) {
-                $completed = $adapter->completeTokens($value, $element, fn(array &$data) => $this->renderTokensIn($data, $pending));
+                $completed = $adapter->completeTokens($value, $element, fn(array &$data) => $this->renderTokensIn($data, $pending), $linkTokens);
                 if ($completed !== null) {
                     $element->setFieldValue($field->handle, $completed);
                 }

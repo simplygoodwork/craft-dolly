@@ -131,7 +131,7 @@ final class EtherSeoAdapter implements CompletesTokens
      *
      * @return array<string, mixed>|null
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): ?array
     {
         if (!$value instanceof SeoData) {
             return null;

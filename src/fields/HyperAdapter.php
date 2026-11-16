@@ -36,23 +36,16 @@ final class HyperAdapter implements CompletesTokens
     private const ATTRIBUTES = ['newWindow', 'linkText', 'ariaLabel', 'urlSuffix', 'linkTitle', 'classes', 'customAttributes'];
 
     /**
-     * The tokens of the Stubs and fetched assets that imported links point at, by the link's UID.
-     *
-     * Hyper 3 casts a link's element ID to an integer whenever it builds the link, which it does again each time the
-     * value is normalized, so a token in `linkValue` doesn't survive until the element is saved. Hyper 3 keeps a link's
-     * UID, so the token is found again by it. Hyper 2 doesn't keep a link's UID, but keeps the link itself, with the
-     * token `import()` set in its `linkValue`.
-     *
-     * @var array<string, string>
-     */
-    private array $tokens = [];
-
-    /**
      * @return list<array<string, mixed>>|null the links with the tokens of Stubs and fetched assets replaced. A link to
      * an asset whose fetch failed has no element left to link to, so it's removed; the fetch failure is already
      * reported.
+     *
+     * Hyper 3 casts a link's element ID to an integer whenever it builds the link, which it does again each time the
+     * value is normalized, so a token in `linkValue` doesn't survive until the element is saved. Hyper 3 keeps a link's
+     * UID, so the token is found again by it in `$linkTokens`. Hyper 2 doesn't keep a link's UID, but keeps the link
+     * itself, with the token `import()` set in its `linkValue`.
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): ?array
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): ?array
     {
         if (!$value instanceof LinkCollection) {
             return null;
@@ -60,7 +53,7 @@ final class HyperAdapter implements CompletesTokens
 
         $links = $value->serializeValues($element);
         foreach ($links as &$link) {
-            $token = is_string($link['uid'] ?? null) ? ($this->tokens[$link['uid']] ?? null) : null;
+            $token = is_string($link['uid'] ?? null) ? ($linkTokens[$link['uid']] ?? null) : null;
             if ($token !== null) {
                 $link['linkValue'] = [$token];
             }
@@ -138,10 +131,10 @@ final class HyperAdapter implements CompletesTokens
         $collection = new LinkCollection($field, $links);
 
         // Hyper casts the element ID of a link it builds to an integer, which turns a token into null. Hyper 2 keeps
-        // the links it built, so the token is set on them again. (Hyper 3 builds them again anyway; see `$tokens`.)
+        // the links it built, so the token is set on them again. (Hyper 3 builds them again anyway; see `completeTokens()`.)
         $built = array_values($collection->getLinks());
         foreach ($links as $i => $link) {
-            $token = $this->tokens[$link['uid'] ?? ''] ?? null;
+            $token = $context->plan->linkTokens[$link['uid'] ?? ''] ?? null;
             if ($token !== null && ($built[$i] ?? null) instanceof ElementLink && $built[$i]->handle === $link['handle']) {
                 $built[$i]->linkValue = [$token];
             }
@@ -213,7 +206,7 @@ final class HyperAdapter implements CompletesTokens
             $values['linkValue'] = [$id];
             if (is_string($id)) {
                 $values['uid'] = StringHelper::UUID();
-                $this->tokens[$values['uid']] = $id;
+                $context->plan->linkTokens[$values['uid']] = $id;
             }
 
             if (is_string($portable['linkSiteId'] ?? null)) {

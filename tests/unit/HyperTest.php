@@ -122,6 +122,27 @@ class HyperTest extends Unit
         $this->assertSame([], $result->roots[0]->warnings);
     }
 
+    public function testASecondImportOfTheSamePayloadPointsItsLinkAtItsOwnStub(): void
+    {
+        [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();
+        $first = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $firstStub = Entry::find()->uid($goneUid)->status(null)->one();
+        $this->assertNotNull($firstStub, 'No Stub from the first Import');
+        $firstStubId = $firstStub->id;
+        Schema::deleteElement(Entry::find()->id($first->roots[0]->elementId)->status(null)->one());
+        Schema::deleteElement($firstStub);
+
+        $second = $this->portage()->import($payload, [$goneUid => 'stub']);
+
+        $stub = Entry::find()->uid($goneUid)->status(null)->one();
+        $this->assertNotNull($stub, 'No Stub from the second Import');
+        $this->assertNotSame($firstStubId, $stub->id);
+        $links = $this->importedLinks($second->roots[0]->elementId);
+        $this->assertSame(['url', 'entry', 'email'], array_map(fn($link) => $link->handle, $links));
+        $this->assertSame([$stub->id], $this->linkedIds($links[1]));
+        $this->assertSame([], $second->roots[0]->warnings);
+    }
+
     public function testChoosingAReplacementForAnUnresolvedElementLinkPointsTheLinkAtTheReplacement(): void
     {
         [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();

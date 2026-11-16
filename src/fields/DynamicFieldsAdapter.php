@@ -140,7 +140,7 @@ final class DynamicFieldsAdapter implements CompletesTokens
      *
      * @return list<string>|string|null
      */
-    public function completeTokens(mixed $value, ElementInterface $element, callable $render): mixed
+    public function completeTokens(mixed $value, ElementInterface $element, callable $render, array $linkTokens): mixed
     {
         if (!is_string($value) || $value === '') {
             return null;
