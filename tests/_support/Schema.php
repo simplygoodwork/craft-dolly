@@ -51,6 +51,7 @@ use simplygoodwork\craftportage\import\BlockTarget;
 use simplygoodwork\craftportage\Plugin;
 use simplygoodwork\craftportage\references\ElementTypeRegistry;
 use simplygoodwork\craftportage\services\Portage;
+use verbb\formie\elements\Form as FormieForm;
 use verbb\hyper\base\Link as HyperLink;
 use verbb\hyper\fieldlayoutelements\UrlSuffixField;
 use verbb\hyper\fields\HyperField;
@@ -1037,6 +1038,19 @@ final class Schema
         }
 
         return $widget;
+    }
+
+    /**
+     * Saves a Formie form with no fields. Forms aren't in project config, so each environment has its own.
+     */
+    public static function form(string $title, string $handle): FormieForm
+    {
+        $form = new FormieForm(['title' => $title, 'handle' => $handle]);
+        if (!Craft::$app->getElements()->saveElement($form)) {
+            self::fail("form \"$handle\"", $form->getErrors());
+        }
+
+        return $form;
     }
 
     /**

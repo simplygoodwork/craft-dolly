@@ -30,6 +30,8 @@ modules:
           handle: linkit
         - class: '\ether\seo\Seo'
           handle: seo
+        - class: '\verbb\formie\Formie'
+          handle: formie
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

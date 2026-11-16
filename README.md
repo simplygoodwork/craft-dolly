@@ -78,6 +78,8 @@ Ether SEO's SEO field moves its title, description, keywords, score, social titl
 
 A Linkit field's link names its link type by Linkit's handle for it (`entry`, `url`, `email`…), never by class. URL, email, phone and social links move as they are, with their custom text and target. An entry, asset, category or user link is a Reference like any other (matched, stubbed, replaced, fetched or cleared with a warning). A Commerce product link, and a link of a type the Target field doesn't enable, is cleared with a warning, before any Reference it holds is resolved.
 
+Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4).
+
 ## Copying content in the control panel
 
 A user with the **Export content** permission gets **Copy for another environment**, separate from Craft's own Copy (which is unchanged):
@@ -144,7 +146,7 @@ Register the handler while your plugin initializes, before Portage is first used
 
 ### Registering an element type
 
-A Payload carries related elements as References to the element types Portage knows: entries, categories, tags, users and assets. A plugin can register its own element type with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`, under a short name that the Payload carries instead of the class (ADR-0004). Then any relation field to that type moves its relations, matched by UID and then by the type's Natural key, with no Field adapter of its own. So do Link and Hyper links to it.
+A Payload carries related elements as References to the element types Portage knows: entries, categories, tags, users and assets, plus Formie forms (`formieForm`) when Formie is installed. A plugin can register its own element type with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`, under a short name that the Payload carries instead of the class (ADR-0004). Then any relation field to that type moves its relations, matched by UID and then by the type's Natural key, with no Field adapter of its own. So do Link and Hyper links to it.
 
 Extend `simplygoodwork\craftportage\references\ElementTypeDefinition`. Only `elementClass()`, `naturalKey()` (the identifying attributes the Reference carries, JSON-safe) and `find()` (the ID of the one element matching them, or null) are required. By default a Reference of the type isn't limited to an element source and is never Stubbed. Override `sourceFor()`, `isInSource()` and `sourceName()` to limit replacements to the Reference's own source, and `canBeStubbed()` and `stub()` to allow Stubs.
 
@@ -174,7 +176,7 @@ return [
 ];
 ```
 
-The envelope is validated before anything is planned: a Payload with an unknown format version, a malformed section, or a Root element or Reference whose element type isn't registered in this environment (see "Registering an element type"; by default entries, categories, tags, users and assets) is refused.
+The envelope is validated before anything is planned: a Payload with an unknown format version, a malformed section, or a Root element or Reference whose element type isn't registered in this environment (see "Registering an element type"; by default entries, categories, tags, users and assets, plus Formie forms when Formie is installed) is refused.
 
 ## Development
 
@@ -246,7 +248,7 @@ $photos = Schema::volume('photos', FileServer::start() . '/files');
 $photo = Schema::asset($photos, 'photo.png', 'blog/2026', ['title' => 'Red square', 'alt' => 'A red square']);
 ```
 
-`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
+`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. `Schema::form()` saves a Formie form with no fields. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
 $payload = Plugin::getInstance()->getPortage()->export([$entry]);

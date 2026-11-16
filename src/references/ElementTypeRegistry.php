@@ -7,8 +7,10 @@ use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
 use simplygoodwork\craftportage\references\definitions\AssetDefinition;
 use simplygoodwork\craftportage\references\definitions\CategoryDefinition;
 use simplygoodwork\craftportage\references\definitions\EntryDefinition;
+use simplygoodwork\craftportage\references\definitions\FormieFormDefinition;
 use simplygoodwork\craftportage\references\definitions\TagDefinition;
 use simplygoodwork\craftportage\references\definitions\UserDefinition;
+use verbb\formie\elements\Form;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 
@@ -46,13 +48,19 @@ final class ElementTypeRegistry extends Component
     {
         parent::__construct($config);
 
-        $event = new RegisterElementTypesEvent(['types' => [
+        $types = [
             'entry' => new EntryDefinition(),
             'category' => new CategoryDefinition(),
             'tag' => new TagDefinition(),
             'user' => new UserDefinition(),
             'asset' => new AssetDefinition(),
-        ]]);
+        ];
+        // Optional plugins: their element types are registered only when the plugin's element class exists.
+        if (class_exists(Form::class)) {
+            $types['formieForm'] = new FormieFormDefinition();
+        }
+
+        $event = new RegisterElementTypesEvent(['types' => $types]);
         $this->trigger(self::EVENT_REGISTER_ELEMENT_TYPES, $event);
 
         foreach ($event->types as $name => $definition) {
