@@ -8,3 +8,5 @@
 /composer.lock
 /cpresources
 /tests/_data/*.dolly
+/AGENTS.md
+/GLOSSARY.md
