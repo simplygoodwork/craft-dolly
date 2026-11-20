@@ -42,7 +42,22 @@ if (!preg_match('/^[A-Za-z0-9_]+$/', $dbName) || !str_contains($dbName, 'test'))
 }
 
 // Create the test database if it doesn't exist yet.
-$pdo = new PDO("mysql:host=$dbHost;port=$dbPort", $dbUser, $dbPassword);
+try {
+    $pdo = new PDO("mysql:host=$dbHost;port=$dbPort", $dbUser, $dbPassword);
+} catch (PDOException $e) {
+    fwrite(STDERR, <<<MSG
+    Couldn't connect to the test database server at $dbHost:$dbPort: {$e->getMessage()}
+
+    Run the tests inside DDEV, where the database host is `db`:
+
+        ddev exec --dir /var/www/html/plugins/dolly composer check
+
+    Or point the suite at another MySQL server with the DOLLY_TEST_DB_HOST, DOLLY_TEST_DB_PORT, DOLLY_TEST_DB_USER and
+    DOLLY_TEST_DB_PASSWORD env vars.
+
+    MSG);
+    exit(1);
+}
 $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 $pdo = null;
 

@@ -1,17 +1,24 @@
 # Release Notes for Dolly
 
-## Unreleased
-- Dolly now requires Craft 5.0 or later, rather than 5.10. Copying and pasting Matrix and Neo blocks needs Craft 5.7 or later. The Link, Range, JSON and Button Group fields are moved on the Craft versions that have them, and CKEditor fields from CKEditor 4.0.
-- Plugins can register their own element types, so a Payload can carry References to them, with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`. A relation field to a registered type needs no Field adapter of its own.
-- Formie's Forms field moves its relations. A form matches by UID or else by its handle, and is never Stubbed.
-- Icon Picker fields move the selected icon with its icon set. An icon whose set doesn't exist in the Target environment, or that the Target field doesn't offer, is dropped with a Preview warning, and an SVG icon whose file is missing from the Target's icon sets folder is imported with one.
-- Colour Swatches fields move their selected swatch by label. A label the Target palette doesn't have is dropped with a Preview warning instead of being silently replaced.
-- LJ Dynamic Fields' fields declared in the `dynamicFields` setting move their values as the sections, entry types, category groups, volumes, sites or elements they're the IDs of, and become those IDs in the Target environment. Undeclared ones keep the fallback and its warning.
-- SimpleMap, Position, Code and TableMaker fields move without the "no adapter" warning. SimpleMap's location travels without its source IDs, and a TableMaker table whose rich text cells link to elements by ID is imported with a warning.
-- Preparse fields are left out of the Payload, and the Target environment recalculates them from the field's template.
-- Hyper 3 is supported. Fields on a shared link type config move their links, and links to Stubs and fetched assets keep their element. A link now matches its link type by handle, and the Preview reports Drift for each field's link types. Hyper links in a Payload exported by an earlier version of Dolly are skipped with a warning that their link type doesn't exist.
-- Hyper 2.0 links to assets whose fetch failed are removed, as on later Hyper versions, rather than kept with no asset.
-- Imports from the utility of more than 10 Root elements, or with an asset Fetch, run in the queue, with their progress in the Import log.
+## 1.0.0-beta.1 - 2026-11-20
 
-## 1.0.0
-- Initial release
+The first beta of Dolly, which copies content from one Craft environment to another.
+
+### Copying and importing
+- Copy entries for another environment from an entry editor's action menu, or several at once with a bulk action in the entry index. The Payload goes to the clipboard, or downloads as a `.dolly` file when it's large.
+- Copy selected Matrix and Neo blocks, and paste them into a Matrix or Neo field in another environment, from the field's action menu (Craft 5.7 or later). Pasted blocks are added to your draft of the entry, never to the live entry.
+- Import entries from **Utilities → Dolly**, or with the `dolly/export` and `dolly/import` console commands.
+- Before anything is imported, a Preview shows what will happen to each entry, related element and field. You choose the section, whether to create a new entry or overwrite a matching one (on a draft), and what to do with related elements that don't exist in this environment: skip them, pick a replacement, create a Stub, or fetch or upload an asset. Imported entries arrive disabled.
+- The Preview reports Drift: sections, entry types, fields, volumes and sites whose settings differ between the two environments.
+- Imports from the utility of more than 10 entries, or with an asset fetch, run in the queue.
+- Every Import and paste is recorded in the Import log.
+- An optional Shared key encrypts and authenticates every Payload.
+- **Export content** and **Import content** permissions.
+
+### Field types
+- Craft's core fields, including Matrix, CKEditor (4.0.4 and later), and the Link, Range, JSON and Button Group fields on the Craft versions that have them.
+- Neo, Hyper 2 and 3, SEOmatic, Linkit, Ether SEO, Colour Swatches, Retour short links, SimpleMap, Preparse, Position, Code, TableMaker, Icon Picker, Formie's Forms field, Solspace Calendar events, and LJ Dynamic Fields fields declared in config.
+- Plugins can register Field adapters for their own field types, and their own element types.
+
+### Requirements
+- Craft CMS 5.0 or later, and PHP 8.2 or later.
