@@ -1,17 +1,17 @@
 <?php
 
-namespace simplygoodwork\craftportage\controllers;
+namespace simplygoodwork\craftdolly\controllers;
 
 use Craft;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
-use simplygoodwork\craftportage\import\ImportPlan;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\import\ImportPlan;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\Plugin;
 use yii\web\Response;
 
 /**
- * The Portage utility's Preview and Import. All behaviour is in the core service; this only reads the request and
+ * The Dolly utility's Preview and Import. All behaviour is in the core service; this only reads the request and
  * renders the outcome.
  */
 class ImportController extends Controller
@@ -40,7 +40,7 @@ class ImportController extends Controller
 
         $payload = $this->payloadText();
         if ($payload === null) {
-            return $this->renderPreview(ImportPlan::refused(Craft::t('portage', 'The .portage file couldn’t be uploaded. Try again, or paste its text instead.')), '');
+            return $this->renderPreview(ImportPlan::refused(Craft::t('dolly', 'The .dolly file couldn’t be uploaded. Try again, or paste its text instead.')), '');
         }
 
         return $this->previewWithChoices($payload, $this->readChoices());
@@ -58,37 +58,37 @@ class ImportController extends Controller
         $request = Craft::$app->getRequest();
         $payload = trim((string)$request->getRequiredBodyParam('payload'));
         $form = $this->readChoices();
-        $portage = Plugin::getInstance()->getPortage();
+        $dolly = Plugin::getInstance()->getDolly();
 
-        $plan = $portage->preview($payload, $form['choices'], $form['rootChoices']);
+        $plan = $dolly->preview($payload, $form['choices'], $form['rootChoices']);
         if ($plan->isRefused()) {
             return $this->previewWithChoices($payload, $form);
         }
         if (!hash_equals($plan->fingerprint(), (string)$request->getBodyParam('previewed'))) {
-            return $this->previewWithChoices($payload, $form, Craft::t('portage', 'Your choices changed since the Preview. Check it, then import.'));
+            return $this->previewWithChoices($payload, $form, Craft::t('dolly', 'Your choices changed since the Preview. Check it, then import.'));
         }
 
         // A large Import runs in the queue, with exactly these choices. Its job discards the uploaded files when it's done.
-        $result = $portage->import($payload, $form['choices'], $form['rootChoices'], queue: true);
+        $result = $dolly->import($payload, $form['choices'], $form['rootChoices'], queue: true);
         if ($result->isRefused()) {
             return $this->previewWithChoices($payload, $form, $result->refusal);
         }
 
         if ($result->queued) {
-            $this->setSuccessFlash(Craft::t('portage', 'The Import is queued. This page shows its progress.'));
+            $this->setSuccessFlash(Craft::t('dolly', 'The Import is queued. This page shows its progress.'));
 
-            return $this->redirect(UrlHelper::cpUrl("portage/log/$result->logId"));
+            return $this->redirect(UrlHelper::cpUrl("dolly/log/$result->logId"));
         }
 
         $this->stagedUploads()->discard($form['staged']);
 
         if ($result->hasFailures()) {
-            $this->setFailFlash(Craft::t('portage', 'Some entries couldn’t be imported.'));
+            $this->setFailFlash(Craft::t('dolly', 'Some entries couldn’t be imported.'));
         } else {
-            $this->setSuccessFlash(Craft::t('portage', 'Imported.'));
+            $this->setSuccessFlash(Craft::t('dolly', 'Imported.'));
         }
 
-        return $this->redirect(UrlHelper::cpUrl("portage/log/$result->logId"));
+        return $this->redirect(UrlHelper::cpUrl("dolly/log/$result->logId"));
     }
 
     /**
@@ -111,7 +111,7 @@ class ImportController extends Controller
      */
     private function renderPreview(ImportPlan $plan, string $payload, array $form = [], ?string $choiceError = null): Response
     {
-        return $this->renderTemplate('portage/_preview', [
+        return $this->renderTemplate('dolly/_preview', [
             'plan' => $plan,
             'payload' => $payload,
             'driftKinds' => $this->driftKinds(),

@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\helpers\Assets as AssetsHelper;
@@ -82,7 +82,7 @@ final class StagedUploads
 
     private function directory(): string
     {
-        $directory = Craft::$app->getPath()->getTempPath() . "/portage-uploads/$this->userId";
+        $directory = Craft::$app->getPath()->getTempPath() . "/dolly-uploads/$this->userId";
         FileHelper::createDirectory($directory);
 
         return $directory;

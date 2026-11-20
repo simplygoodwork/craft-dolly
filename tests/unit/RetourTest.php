@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -10,10 +10,10 @@ use craft\elements\User;
 use craft\models\EntryType;
 use craft\models\Section;
 use nystudio107\retour\fields\ShortLink;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Retour short links: the URL travels as it is, and Retour makes the imported entry's redirect when it saves. A short
@@ -27,13 +27,13 @@ class RetourTest extends Unit
         [$news, $article, $field] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
 
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
         $this->assertSame('go/summer', $preview->envelope['roots'][0]['fields'][$field->uid] ?? null);
         Schema::deleteElement($source);
         $this->assertSame([], $this->redirects());
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $id = $result->roots[0]->elementId;
@@ -46,12 +46,12 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         $warning = 'The short link "go/summer" in the field "Short Link" is already the short link of the entry "Summer sale" in this environment. That value will be skipped.';
-        $this->assertSame([$warning], $this->portage()->preview($payload)->roots[0]->warnings);
+        $this->assertSame([$warning], $this->dolly()->preview($payload)->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertNull($this->entry($result->roots[0]->elementId)->getFieldValue('shortLink'));
@@ -63,11 +63,11 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::retourRedirect('go/summer', 'offers/summer');
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertNull($this->entry($result->roots[0]->elementId)->getFieldValue('shortLink'));
@@ -82,11 +82,11 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks(['redirectSrcMatch' => 'fullurl']);
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         // Retour saves the redirect from the site's full URL, which its own validation doesn't look up.
         $this->assertSame([['http://test.craftcms.test/index.php?p=go/summer', $source->id]], $this->redirects());
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertNull($this->entry($result->roots[0]->elementId)->getFieldValue('shortLink'));
         $this->assertSame([['http://test.craftcms.test/index.php?p=go/summer', $source->id]], $this->redirects());
@@ -100,9 +100,9 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $root = $result->roots[0];
         $this->assertSame('overwritten', $root->status, implode(' ', $root->errors));
@@ -119,10 +119,10 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::updateEntry($source, ['shortLink' => 'go/sale']);
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $root = $result->roots[0];
         $this->assertSame([], $root->warnings);
@@ -139,11 +139,11 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'shortLink' => 'go/summer']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::updateEntry($source, ['shortLink' => 'go/sale']);
         $other = Schema::entry($news, $article, ['title' => 'Summer offers', 'shortLink' => 'go/summer']);
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $root = $result->roots[0];
         $this->assertSame('overwritten', $root->status, implode(' ', $root->errors));
@@ -166,12 +166,12 @@ class RetourTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'blocks' => $this->promo('go/summer')]);
         // Retour ties the redirect to the entry at the top, not to the block.
         $this->assertSame([['/go/summer', $source->id]], $this->redirects());
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         // Retour keeps the redirect of a short link in a block when its entry is deleted.
         Schema::deleteRetourRedirect('/go/summer');
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertSame('created', $root->status, implode(' ', $root->errors));
@@ -184,9 +184,9 @@ class RetourTest extends Unit
     {
         [$news, $article] = $this->newsWithShortLinksInBlocks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'blocks' => $this->promo('go/summer')]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $root = $result->roots[0];
         $this->assertSame('overwritten', $root->status, implode(' ', $root->errors));
@@ -204,10 +204,10 @@ class RetourTest extends Unit
         $this->pastingAsAnAdmin();
         [$news, $article] = $this->newsWithShortLinksInBlocks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'blocks' => $this->promo('go/summer')]);
-        $payload = $this->portage()->export($this->blocks($source));
+        $payload = $this->dolly()->export($this->blocks($source));
         $draft = Schema::draft($source, [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
 
         $root = $result->roots[0];
         $this->assertSame('pasted', $root->status, implode(' ', $root->errors));
@@ -221,11 +221,11 @@ class RetourTest extends Unit
         $this->pastingAsAnAdmin();
         [$news, $article] = $this->newsWithShortLinksInBlocks();
         $source = Schema::entry($news, $article, ['title' => 'Summer sale', 'blocks' => $this->promo('go/summer')]);
-        $payload = $this->portage()->export($this->blocks($source));
+        $payload = $this->dolly()->export($this->blocks($source));
         $other = Schema::entry($news, $article, ['title' => 'Winter sale']);
         $draft = Schema::draft($other, [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
 
         $root = $result->roots[0];
         $this->assertSame('pasted', $root->status, implode(' ', $root->errors));
@@ -249,10 +249,10 @@ class RetourTest extends Unit
         ]]);
         $this->assertSame([['/go/summer', $source->id]], $this->redirects());
         $groupEntry = $source->getFieldValue('groups')->status(null)->one();
-        $payload = $this->portage()->export($this->blocks($groupEntry));
+        $payload = $this->dolly()->export($this->blocks($groupEntry));
         $draft = Schema::draft($groupEntry, [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: Schema::blockTarget($draft, 'blocks'));
 
         $root = $result->roots[0];
         $this->assertSame('pasted', $root->status, implode(' ', $root->errors));
@@ -268,17 +268,17 @@ class RetourTest extends Unit
         $second = Schema::entry($news, $article, ['title' => 'Summer offers', 'shortLink' => 'go/offers']);
         // Applying a draft skips Retour's validation, so the second entry takes the first one's short link over.
         Schema::applyDraft((int)Schema::draft($second, ['shortLink' => 'go/summer'])->draftId);
-        $payload = $this->portage()->export([$first, $this->entry($second->id)]);
+        $payload = $this->dolly()->export([$first, $this->entry($second->id)]);
         Schema::deleteElement($first);
         Schema::deleteElement($second);
         $this->assertSame([], $this->redirects());
 
         $warning = 'The short link "go/summer" in the field "Short Link" is also the short link of the Root element "Summer sale" in this Payload, which is imported first. That value will be skipped.';
-        $preview = $this->portage()->preview($payload);
+        $preview = $this->dolly()->preview($payload);
         $this->assertSame([], $preview->roots[0]->warnings);
         $this->assertSame([$warning], $preview->roots[1]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(['created', 'created'], array_map(fn($root) => $root->status, $result->roots));
         $this->assertSame('go/summer', $this->entry($result->roots[0]->elementId)->getFieldValue('shortLink'));
@@ -381,8 +381,8 @@ class RetourTest extends Unit
         return $entry;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

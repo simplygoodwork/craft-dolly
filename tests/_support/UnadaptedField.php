@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use craft\base\Field;
 
 /**
- * A field type Portage has no adapter for, standing in for a third-party plugin's.
+ * A field type Dolly has no adapter for, standing in for a third-party plugin's.
  */
 final class UnadaptedField extends Field
 {

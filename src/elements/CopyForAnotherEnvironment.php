@@ -1,20 +1,20 @@
 <?php
 
-namespace simplygoodwork\craftportage\elements;
+namespace simplygoodwork\craftdolly\elements;
 
 use Craft;
 use craft\base\ElementAction;
-use simplygoodwork\craftportage\web\assets\export\ExportAsset;
+use simplygoodwork\craftdolly\web\assets\export\ExportAsset;
 
 /**
  * The entry index's bulk "Copy for another environment" action. It only appears for a user who can Export content, and
- * does nothing on the server: the browser asks the Portage export controller for the Payload of the selected entries.
+ * does nothing on the server: the browser asks the Dolly export controller for the Payload of the selected entries.
  */
 class CopyForAnotherEnvironment extends ElementAction
 {
     public function getTriggerLabel(): string
     {
-        return Craft::t('portage', 'Copy for another environment');
+        return Craft::t('dolly', 'Copy for another environment');
     }
 
     public function getTriggerHtml(): ?string
@@ -37,7 +37,7 @@ class CopyForAnotherEnvironment extends ElementAction
     },
     activate: (selectedItems, elementIndex) => {
       const ids = selectedItems.toArray().map((item) => $(item).find('.element:first').data('id'));
-      Portage.exportEntries(ids, elementIndex.siteId);
+      Dolly.exportEntries(ids, elementIndex.siteId);
     },
   });
 })();

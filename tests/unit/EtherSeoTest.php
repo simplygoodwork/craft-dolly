@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
@@ -10,10 +10,10 @@ use craft\models\Section;
 use ether\seo\fields\SeoField;
 use ether\seo\models\data\SeoData;
 use ether\seo\models\data\SocialData;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Ether's SEO field: its values round-trip as the element stores them, and its social images are Embedded references.
@@ -28,7 +28,7 @@ class EtherSeoTest extends Unit
             'seo' => [
                 'titleRaw' => ['1' => 'Custom title'],
                 'descriptionRaw' => 'Custom description',
-                'keywords' => [['keyword' => 'portage', 'rating' => 'good']],
+                'keywords' => [['keyword' => 'dolly', 'rating' => 'good']],
                 'score' => 'good',
                 'social' => [
                     'twitter' => ['title' => 'Tweet title', 'description' => 'Tweet description'],
@@ -38,17 +38,17 @@ class EtherSeoTest extends Unit
             ],
         ]));
 
-        $payload = Schema::withEtherSeoSettings(['twitterHandle' => 'source-handle'], fn() => $this->portage()->export([$source]));
+        $payload = Schema::withEtherSeoSettings(['twitterHandle' => 'source-handle'], fn() => $this->dolly()->export([$source]));
         // The handles are the Source environment's settings, not the element's.
-        $this->assertStringNotContainsString('source-handle', json_encode($this->portage()->preview($payload)->envelope));
+        $this->assertStringNotContainsString('source-handle', json_encode($this->dolly()->preview($payload)->envelope));
         Schema::deleteElement($source);
 
-        $result = Schema::withEtherSeoSettings(['twitterHandle' => 'target-handle', 'robots' => ['noindex']], fn() => $this->portage()->import($payload));
+        $result = Schema::withEtherSeoSettings(['twitterHandle' => 'target-handle', 'robots' => ['noindex']], fn() => $this->dolly()->import($payload));
 
         $seo = $this->importedSeo($result->roots[0]->elementId);
         $this->assertSame(['1' => 'Custom title'], $seo->titleRaw);
         $this->assertSame('Custom description', $seo->descriptionRaw);
-        $this->assertSame([['keyword' => 'portage', 'rating' => 'good']], $seo->keywords);
+        $this->assertSame([['keyword' => 'dolly', 'rating' => 'good']], $seo->keywords);
         $this->assertSame('good', $seo->score);
         $this->assertSame('Tweet title', $this->social($seo, 'twitter')->title);
         $this->assertSame('Tweet description', $this->social($seo, 'twitter')->description);
@@ -68,11 +68,11 @@ class EtherSeoTest extends Unit
         $source = Entry::find()->id($source->id)->status(null)->one();
         $this->assertNotNull($source);
 
-        $payload = Schema::withEtherSeoSettings(['robots' => ['noindex', 'nofollow']], fn() => $this->portage()->export([$source]));
-        $this->assertStringNotContainsString('nofollow', json_encode($this->portage()->preview($payload)->envelope['roots'][0]['fields']));
+        $payload = Schema::withEtherSeoSettings(['robots' => ['noindex', 'nofollow']], fn() => $this->dolly()->export([$source]));
+        $this->assertStringNotContainsString('nofollow', json_encode($this->dolly()->preview($payload)->envelope['roots'][0]['fields']));
         Schema::deleteElement($source);
 
-        $result = Schema::withEtherSeoSettings(['robots' => ['noarchive']], fn() => $this->portage()->import($payload));
+        $result = Schema::withEtherSeoSettings(['robots' => ['noarchive']], fn() => $this->dolly()->import($payload));
 
         $this->assertSame(['noarchive'], $this->importedSeo($result->roots[0]->elementId)->advanced['robots']);
         $this->assertSame([], $result->roots[0]->warnings);
@@ -90,8 +90,8 @@ class EtherSeoTest extends Unit
             'facebook' => ['imageId' => [['id' => $diagram->id]]],
         ]]]);
 
-        $payload = $this->portage()->export([$source]);
-        $fields = $this->portage()->preview($payload)->envelope['roots'][0]['fields'];
+        $payload = $this->dolly()->export([$source]);
+        $fields = $this->dolly()->preview($payload)->envelope['roots'][0]['fields'];
         $exported = json_encode($fields);
         $this->assertStringContainsString('"image":"' . $photo->uid . '"', $exported);
         $this->assertStringContainsString('"image":"' . $diagram->uid . '"', $exported);
@@ -99,7 +99,7 @@ class EtherSeoTest extends Unit
         Schema::deleteElement($photo);
         $newPhoto = Schema::asset($photos, 'photo.png', 'blog');
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $seo = $this->importedSeo($result->roots[0]->elementId);
         $this->assertSame($newPhoto->id, $this->social($seo, 'twitter')->imageId);
@@ -115,11 +115,11 @@ class EtherSeoTest extends Unit
         [$news, $article] = $this->newsWithSeo();
         $source = Schema::entry($news, $article, ['title' => 'Post', 'seo' => ['social' => ['twitter' => ['imageId' => $photo->id]]]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -137,11 +137,11 @@ class EtherSeoTest extends Unit
             'social' => ['facebook' => ['title' => 'Kept title', 'imageId' => $photo->id]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $seo = $this->importedSeo($result->roots[0]->elementId);
         $this->assertSame('Kept', $seo->descriptionRaw);
@@ -161,11 +161,11 @@ class EtherSeoTest extends Unit
         [$news, $article] = $this->newsWithSeo();
         $source = Schema::entry($news, $article, ['title' => 'Post', 'seo' => ['social' => ['twitter' => ['title' => 'Kept title', 'imageId' => $gone->id]]]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $seo = $this->importedSeo($result->roots[0]->elementId);
         $this->assertSame('Kept title', $this->social($seo, 'twitter')->title);
@@ -183,10 +183,10 @@ class EtherSeoTest extends Unit
         [$news, $article] = $this->newsWithSeo();
         $source = Schema::entry($news, $article, ['title' => 'Post', 'seo' => ['social' => ['twitter' => ['imageId' => $notes->id]]]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertNull($this->social($this->importedSeo($result->roots[0]->elementId), 'twitter')->imageId);
         $this->assertSame(
@@ -224,8 +224,8 @@ class EtherSeoTest extends Unit
         return $social;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

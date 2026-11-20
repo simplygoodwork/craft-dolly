@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\FieldInterface;
@@ -8,9 +8,9 @@ use craft\ckeditor\Field;
 use craft\elements\Entry;
 use craft\helpers\ArrayHelper;
 use craft\htmlfield\HtmlFieldData;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\import\PendingNestedEntry;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\import\PendingNestedEntry;
 
 /**
  * CKEditor: its HTML goes through the ref-tag translator, and the nested entries embedded in it are Owned content that

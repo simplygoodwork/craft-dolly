@@ -1,13 +1,13 @@
 <?php
 
-namespace simplygoodwork\craftportage\models;
+namespace simplygoodwork\craftdolly\models;
 
 use craft\base\Model;
 use craft\helpers\App;
 use yii\base\InvalidConfigException;
 
 /**
- * Portage's plugin settings.
+ * Dolly's plugin settings.
  */
 class Settings extends Model
 {
@@ -25,12 +25,12 @@ class Settings extends Model
 
     /**
      * @var int the largest Payload, in bytes, that "Copy for another environment" puts on the clipboard. A larger one is
-     * offered as a `.portage` file download instead, so nobody pastes megabytes of text into chat.
+     * offered as a `.dolly` file download instead, so nobody pastes megabytes of text into chat.
      */
     public int $clipboardLimit = 100 * 1000;
 
     /**
-     * @var string|null the Shared key, as an env var reference such as `$PORTAGE_SHARED_KEY`, so the secret itself is
+     * @var string|null the Shared key, as an env var reference such as `$DOLLY_SHARED_KEY`, so the secret itself is
      * never written to project config. When set, every Export is encrypted and every Import refuses unencrypted
      * Payloads.
      */
@@ -40,7 +40,7 @@ class Settings extends Model
      * @var array<string, mixed> what the values of Dynamic fields (LJ Dynamic Fields) are the IDs of, by the field's
      * handle: `['sectionIDs' => 'section']`. A kind is a Schema reference kind (`section`, `entryType`,
      * `categoryGroup`, `volume`, `site`) or a registered element type's short name (`entry`, `category`, `tag`, `user`,
-     * `asset`…). Set it in `config/portage.php`, the same in every environment. An undeclared Dynamic field's values
+     * `asset`…). Set it in `config/dolly.php`, the same in every environment. An undeclared Dynamic field's values
      * are imported as they are, with a warning.
      */
     public array $dynamicFields = [];
@@ -82,7 +82,7 @@ class Settings extends Model
                 ['sharedKey'],
                 'match',
                 'pattern' => '/^\$(\w+|\{\w+\})$/',
-                'message' => 'Set the Shared key to an env var, such as $PORTAGE_SHARED_KEY, so the key itself is never saved to project config.',
+                'message' => 'Set the Shared key to an env var, such as $DOLLY_SHARED_KEY, so the key itself is never saved to project config.',
             ],
         ];
     }

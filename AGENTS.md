@@ -1,10 +1,10 @@
-# Portage
+# Dolly
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues are Solo todos and specs are Solo scratchpads, both in the Solo project `craft-portage` (id 55), accessed through the Solo MCP tools. See `docs/agents/issue-tracker.md`.
+Issues are Solo todos and specs are Solo scratchpads, both in the Solo project `craft-dolly` (id 55), accessed through the Solo MCP tools. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -16,11 +16,11 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the plugin root. See `docs/agen
 
 ## Tests
 
-Codeception with Craft's test module, run through DDEV against a separate `portage_test` database:
+Codeception with Craft's test module, run through DDEV against a separate `dolly_test` database:
 
 ```bash
-ddev exec --dir /var/www/html/plugins/portage composer check
-ddev exec --dir /var/www/html/plugins/portage vendor/bin/codecept run unit <TestClass>
+ddev exec --dir /var/www/html/plugins/dolly composer check
+ddev exec --dir /var/www/html/plugins/dolly vendor/bin/codecept run unit <TestClass>
 ```
 
 Run `composer check` (phpstan, coding standards, whole suite) before committing. Build and change schema in tests with `tests/_support/Schema.php`. See "Running tests" and "Building schema in tests" in `README.md` for the gotchas.

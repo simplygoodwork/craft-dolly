@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use benf\neo\models\BlockType;
 use Craft;
@@ -15,12 +15,12 @@ use craft\models\EntryType;
 use craft\models\FieldLayout;
 use craft\models\Site;
 use craft\models\Volume;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\fields\RequiresOwner;
-use simplygoodwork\craftportage\fields\SkippedValue;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\schema\Drift;
-use simplygoodwork\craftportage\schema\DriftReport;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\fields\RequiresOwner;
+use simplygoodwork\craftdolly\fields\SkippedValue;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\schema\Drift;
+use simplygoodwork\craftdolly\schema\DriftReport;
 use verbb\hyper\base\Link as HyperLink;
 
 /**

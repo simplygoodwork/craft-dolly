@@ -1,17 +1,17 @@
 <?php
 
-namespace simplygoodwork\craftportage\references;
+namespace simplygoodwork\craftdolly\references;
 
 use Craft;
 use craft\base\ElementInterface;
-use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
-use simplygoodwork\craftportage\references\definitions\AssetDefinition;
-use simplygoodwork\craftportage\references\definitions\CalendarEventDefinition;
-use simplygoodwork\craftportage\references\definitions\CategoryDefinition;
-use simplygoodwork\craftportage\references\definitions\EntryDefinition;
-use simplygoodwork\craftportage\references\definitions\FormieFormDefinition;
-use simplygoodwork\craftportage\references\definitions\TagDefinition;
-use simplygoodwork\craftportage\references\definitions\UserDefinition;
+use simplygoodwork\craftdolly\events\RegisterElementTypesEvent;
+use simplygoodwork\craftdolly\references\definitions\AssetDefinition;
+use simplygoodwork\craftdolly\references\definitions\CalendarEventDefinition;
+use simplygoodwork\craftdolly\references\definitions\CategoryDefinition;
+use simplygoodwork\craftdolly\references\definitions\EntryDefinition;
+use simplygoodwork\craftdolly\references\definitions\FormieFormDefinition;
+use simplygoodwork\craftdolly\references\definitions\TagDefinition;
+use simplygoodwork\craftdolly\references\definitions\UserDefinition;
 use Solspace\Calendar\Elements\Event as CalendarEvent;
 use verbb\formie\elements\Form;
 use yii\base\Component;
@@ -58,7 +58,7 @@ final class ElementTypeRegistry extends Component
             'user' => new UserDefinition(),
             'asset' => new AssetDefinition(),
         ];
-        // Plugins Portage supports: registered only when the plugin is installed and enabled.
+        // Plugins Dolly supports: registered only when the plugin is installed and enabled.
         if (class_exists(Form::class) && Craft::$app->getPlugins()->isPluginEnabled('formie')) {
             $types['formieForm'] = new FormieFormDefinition();
         }

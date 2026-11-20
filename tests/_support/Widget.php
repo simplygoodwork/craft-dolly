@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use craft\base\Element;
 
@@ -21,7 +21,7 @@ final class Widget extends Element
     }
 
     /**
-     * Not the short name it's registered with Portage under (`widget`), as Formie's forms are `form` in reference tags
+     * Not the short name it's registered with Dolly under (`widget`), as Formie's forms are `form` in reference tags
      * and `formieForm` in the Payload.
      */
     public static function refHandle(): ?string

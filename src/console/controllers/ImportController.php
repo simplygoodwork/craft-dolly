@@ -1,18 +1,18 @@
 <?php
 
-namespace simplygoodwork\craftportage\console\controllers;
+namespace simplygoodwork\craftdolly\console\controllers;
 
 use Craft;
 use craft\console\Controller;
 use craft\elements\User;
 use craft\helpers\Console;
 use craft\helpers\Db;
-use simplygoodwork\craftportage\import\ImportResult;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\import\RootPlan;
-use simplygoodwork\craftportage\import\RootResult;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\Resolution;
+use simplygoodwork\craftdolly\import\ImportResult;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\import\RootPlan;
+use simplygoodwork\craftdolly\import\RootResult;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\Resolution;
 use yii\console\ExitCode;
 
 /**
@@ -130,7 +130,7 @@ class ImportController extends Controller
             return $this->preview($payload, $choices, $rootChoices);
         }
 
-        $result = Plugin::getInstance()->getPortage()->import($payload, $choices, $rootChoices);
+        $result = Plugin::getInstance()->getDolly()->import($payload, $choices, $rootChoices);
 
         if ($result->isRefused()) {
             $this->stderr("Payload refused: $result->refusal" . PHP_EOL, Console::FG_RED);
@@ -148,7 +148,7 @@ class ImportController extends Controller
      */
     private function preview(string $payload, array $choices, array $rootChoices): int
     {
-        $plan = Plugin::getInstance()->getPortage()->preview($payload, $choices, $rootChoices);
+        $plan = Plugin::getInstance()->getDolly()->preview($payload, $choices, $rootChoices);
 
         if ($plan->isRefused()) {
             $this->stderr("Payload refused: $plan->refusal" . PHP_EOL, Console::FG_RED);

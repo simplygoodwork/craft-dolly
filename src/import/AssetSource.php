@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 /**
  * Where the file of an unresolved asset comes from: the source URL its Reference carries (a Fetch), or a file the user

@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\FieldInterface;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 
 /**
  * SimpleMap (Maps) fields: the location (latitude, longitude, zoom, address, its parts and what3words) travels as it is.

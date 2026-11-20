@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Entry;
 use craft\models\Section;
-use simplygoodwork\craftportage\import\RootResult;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\import\RootResult;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Structure placement: imported entries go under their parent, through the core service.
@@ -22,11 +22,11 @@ class StructureTest extends Unit
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         Schema::entry($pages, $page, ['title' => 'History', 'slug' => 'history', 'parentId' => $about->id]);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$team]);
+        $payload = $this->dolly()->export([$team]);
         Schema::deleteElement($team);
         Schema::entry($pages, $page, ['title' => 'Careers', 'slug' => 'careers', 'parentId' => $about->id]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -43,13 +43,13 @@ class StructureTest extends Unit
         $home = Schema::entry($pages, $page, ['title' => 'Home', 'slug' => 'home']);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$home, $team]);
+        $payload = $this->dolly()->export([$home, $team]);
         Schema::deleteElement($home);
         Schema::deleteElement($team);
         Schema::entry($pages, $page, ['title' => 'History', 'slug' => 'history', 'parentId' => $about->id]);
         Schema::entry($pages, $page, ['title' => 'Contact', 'slug' => 'contact']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(['created', 'created'], array_map(fn(RootResult $root) => $root->status, $result->roots));
         $this->assertSame(['Contact', 'About', 'Home'], $this->topLevelTitles($pages));
@@ -63,11 +63,11 @@ class StructureTest extends Unit
         $company = Schema::entry($pages, $page, ['title' => 'Company', 'slug' => 'company']);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about', 'parentId' => $company->id]);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$team]);
+        $payload = $this->dolly()->export([$team]);
         Schema::deleteElement($team);
         Schema::changeUid($about);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -80,16 +80,16 @@ class StructureTest extends Unit
         $pages = Schema::section('pages', [$page], ['type' => Section::TYPE_STRUCTURE]);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$team]);
+        $payload = $this->dolly()->export([$team]);
         Schema::deleteElement($team);
         Schema::deleteElement($about);
         Schema::entry($pages, $page, ['title' => 'Contact', 'slug' => 'contact']);
         $warning = 'The parent entry "About" doesn\'t exist in this environment. The entry will be placed at the top level of the "Pages" section.';
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame([$warning], $plan->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([$warning], $result->roots[0]->warnings);
@@ -102,15 +102,15 @@ class StructureTest extends Unit
         $pages = Schema::section('pages', [$page], ['type' => Section::TYPE_STRUCTURE]);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$team]);
+        $payload = $this->dolly()->export([$team]);
         $aboutUid = $about->uid;
         Schema::deleteElement($team);
         Schema::deleteElement($about);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame(['skip', 'stub', 'replace'], $plan->references[$aboutUid]->availableChoices);
 
-        $result = $this->portage()->import($payload, [$aboutUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$aboutUid => 'stub']);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -127,9 +127,9 @@ class StructureTest extends Unit
         $docs = Schema::section('docs', [$page], ['type' => Section::TYPE_STRUCTURE]);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$team]);
+        $payload = $this->dolly()->export([$team]);
 
-        $result = $this->portage()->import($payload, [], [$team->uid => ['section' => 'docs']]);
+        $result = $this->dolly()->import($payload, [], [$team->uid => ['section' => 'docs']]);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(
@@ -145,11 +145,11 @@ class StructureTest extends Unit
         $page = Schema::entryType('page');
         $pages = Schema::section('pages', [$page], ['type' => Section::TYPE_STRUCTURE]);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
-        $payload = $this->portage()->export([$about]);
+        $payload = $this->dolly()->export([$about]);
         Schema::deleteElement($about);
         Schema::entry($pages, $page, ['title' => 'Contact', 'slug' => 'contact']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -163,9 +163,9 @@ class StructureTest extends Unit
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
         // The child comes first, so the parent has to be imported before it.
-        $payload = $this->portage()->export([$team, $about]);
+        $payload = $this->dolly()->export([$team, $about]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         [$importedTeam, $importedAbout] = $result->roots;
         $this->assertSame('created', $importedTeam->status, implode(' ', $importedTeam->errors));
@@ -182,14 +182,14 @@ class StructureTest extends Unit
         $pages = Schema::section('pages', [$page], ['type' => Section::TYPE_STRUCTURE]);
         $about = Schema::entry($pages, $page, ['title' => 'About', 'slug' => 'about']);
         $team = Schema::entry($pages, $page, ['title' => 'Team', 'slug' => 'team', 'parentId' => $about->id]);
-        $payload = $this->portage()->export([$about, $team]);
+        $payload = $this->dolly()->export([$about, $team]);
         Schema::deleteElement($team);
         Schema::deleteElement($about);
 
         // The parent is imported, so the Preview has no Unresolved reference to it to make a choice about.
-        $this->assertSame([], $this->portage()->preview($payload)->references);
+        $this->assertSame([], $this->dolly()->preview($payload)->references);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         [$importedAbout, $importedTeam] = $result->roots;
         $this->assertSame('created', $importedTeam->status, implode(' ', $importedTeam->errors));
@@ -229,8 +229,8 @@ class StructureTest extends Unit
         );
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

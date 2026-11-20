@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 /**
  * Marks a Field adapter whose field holds Owned content (Matrix, Neo, CKEditor nested entries), which needs an owner

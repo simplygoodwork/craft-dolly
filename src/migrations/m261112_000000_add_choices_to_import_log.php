@@ -1,9 +1,9 @@
 <?php
 
-namespace simplygoodwork\craftportage\migrations;
+namespace simplygoodwork\craftdolly\migrations;
 
 use craft\db\Migration;
-use simplygoodwork\craftportage\records\ImportLogRecord;
+use simplygoodwork\craftdolly\records\ImportLogRecord;
 
 /**
  * Records the choice made for each Unresolved reference in the Import log.

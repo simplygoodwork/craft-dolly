@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\export;
+namespace simplygoodwork\craftdolly\export;
 
 use benf\neo\elements\Block;
 use Craft;
@@ -11,10 +11,10 @@ use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\Section;
 use InvalidArgumentException;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\fields\RequiresOwner;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\references\NaturalKey;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\fields\RequiresOwner;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\references\NaturalKey;
 
 /**
  * State for one Export: turns elements into portable data and collects the Schema references and References they touch.

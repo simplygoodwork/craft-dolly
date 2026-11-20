@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\fields\Entries;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * The Payload text format and envelope, and refusal of Payloads that can't be decoded.
@@ -28,9 +28,9 @@ class PayloadTest extends Unit
             'relatedTopics' => [$craft->id],
         ]);
 
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
 
-        $this->assertStringStartsWith('portage:v1:', $payload);
+        $this->assertStringStartsWith('dolly:v1:', $payload);
         $envelope = $this->decode($payload);
 
         $this->assertSame(1, $envelope['formatVersion']);
@@ -60,7 +60,7 @@ class PayloadTest extends Unit
      */
     public function testRefusesAMalformedPayloadWithAClearMessage(string $payload, string $message): void
     {
-        $result = Plugin::getInstance()->getPortage()->import($payload);
+        $result = Plugin::getInstance()->getDolly()->import($payload);
 
         $this->assertTrue($result->isRefused());
         $this->assertStringContainsString($message, (string)$result->refusal);
@@ -73,13 +73,13 @@ class PayloadTest extends Unit
     public static function malformedPayloads(): array
     {
         return [
-            'bad prefix' => ['portage:v9:' . base64_encode(gzencode('{"roots":[]}')), 'should start with "portage:v1:"'],
-            'not a Payload at all' => ['hello', 'should start with "portage:v1:"'],
-            'bad base64' => ['portage:v1:not*base64!', 'not valid base64'],
-            'bad gzip' => ['portage:v1:' . base64_encode('plain bytes'), 'could not be decompressed'],
-            'data after the gzip stream' => ['portage:v1:' . base64_encode(gzencode('{"roots": []}') . 'smuggled'), 'could not be decompressed'],
-            'bad JSON' => ['portage:v1:' . base64_encode(gzencode('{"roots": [')), 'not valid JSON'],
-            'JSON without roots' => ['portage:v1:' . base64_encode(gzencode('{"formatVersion": 1}')), 'no Root elements'],
+            'bad prefix' => ['dolly:v9:' . base64_encode(gzencode('{"roots":[]}')), 'should start with "dolly:v1:"'],
+            'not a Payload at all' => ['hello', 'should start with "dolly:v1:"'],
+            'bad base64' => ['dolly:v1:not*base64!', 'not valid base64'],
+            'bad gzip' => ['dolly:v1:' . base64_encode('plain bytes'), 'could not be decompressed'],
+            'data after the gzip stream' => ['dolly:v1:' . base64_encode(gzencode('{"roots": []}') . 'smuggled'), 'could not be decompressed'],
+            'bad JSON' => ['dolly:v1:' . base64_encode(gzencode('{"roots": [')), 'not valid JSON'],
+            'JSON without roots' => ['dolly:v1:' . base64_encode(gzencode('{"formatVersion": 1}')), 'no Root elements'],
         ];
     }
 
@@ -95,11 +95,11 @@ class PayloadTest extends Unit
         $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'relatedTopics' => [$craft->id]]);
-        $envelope = $tamper($this->decode(Plugin::getInstance()->getPortage()->export([$source])));
+        $envelope = $tamper($this->decode(Plugin::getInstance()->getDolly()->export([$source])));
 
-        $result = Plugin::getInstance()->getPortage()->import($this->encode($envelope));
+        $result = Plugin::getInstance()->getDolly()->import($this->encode($envelope));
 
-        $this->assertSame('The Payload names an element type Portage doesn\'t support: "craft\\elements\\GlobalSet". It can\'t be imported.', $result->refusal);
+        $this->assertSame('The Payload names an element type Dolly doesn\'t support: "craft\\elements\\GlobalSet". It can\'t be imported.', $result->refusal);
         $this->assertSame([], $result->roots);
     }
 
@@ -130,9 +130,9 @@ class PayloadTest extends Unit
         $article = Schema::entryType('article');
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello']);
-        $envelope = $tamper($this->decode(Plugin::getInstance()->getPortage()->export([$source])));
+        $envelope = $tamper($this->decode(Plugin::getInstance()->getDolly()->export([$source])));
 
-        $result = Plugin::getInstance()->getPortage()->import($this->encode($envelope));
+        $result = Plugin::getInstance()->getDolly()->import($this->encode($envelope));
 
         $this->assertSame($refusal, $result->refusal);
         $this->assertSame([], $result->roots);
@@ -153,7 +153,7 @@ class PayloadTest extends Unit
         };
 
         return [
-            'a newer format version' => [$set('formatVersion', 2), "This Payload uses format version 2, which this version of Portage can't read. Update Portage in this environment to import it."],
+            'a newer format version' => [$set('formatVersion', 2), "This Payload uses format version 2, which this version of Dolly can't read. Update Dolly in this environment to import it."],
             'no format version' => [$unset('formatVersion'), "The Payload is damaged: it doesn't say which format version it uses."],
             'a string format version' => [$set('formatVersion', '1'), "The Payload is damaged: it doesn't say which format version it uses."],
             'Root elements keyed by name' => [fn(array $envelope) => [...$envelope, 'roots' => ['first' => $envelope['roots'][0]]], 'The Payload is damaged: its Root elements are malformed.'],
@@ -167,11 +167,11 @@ class PayloadTest extends Unit
 
     public function testRefusesAPayloadLargerThanTheLimit(): void
     {
-        $payload = 'portage:v1:' . str_repeat('A', 2000);
+        $payload = 'dolly:v1:' . str_repeat('A', 2000);
 
-        $result = Schema::withPortageSettings(['maxPayloadSize' => 1000], fn() => Plugin::getInstance()->getPortage()->import($payload));
+        $result = Schema::withDollySettings(['maxPayloadSize' => 1000], fn() => Plugin::getInstance()->getDolly()->import($payload));
 
-        $this->assertSame('This Payload is too large: this environment accepts Payloads of up to 1000 bytes. Raise the "maxPayloadSize" setting in config/portage.php to import it.', $result->refusal);
+        $this->assertSame('This Payload is too large: this environment accepts Payloads of up to 1000 bytes. Raise the "maxPayloadSize" setting in config/dolly.php to import it.', $result->refusal);
         $this->assertSame([], $result->roots);
     }
 
@@ -185,14 +185,14 @@ class PayloadTest extends Unit
             $gzipped .= deflate_add($deflate, $chunk, ZLIB_NO_FLUSH);
         }
         $gzipped .= deflate_add($deflate, '', ZLIB_FINISH);
-        $payload = 'portage:v1:' . base64_encode($gzipped);
+        $payload = 'dolly:v1:' . base64_encode($gzipped);
         unset($chunk, $gzipped);
 
         memory_reset_peak_usage();
         $before = memory_get_usage();
-        $result = Schema::withPortageSettings(['maxPayloadSize' => 1024 * 1024], fn() => Plugin::getInstance()->getPortage()->import($payload));
+        $result = Schema::withDollySettings(['maxPayloadSize' => 1024 * 1024], fn() => Plugin::getInstance()->getDolly()->import($payload));
 
-        $this->assertSame('This Payload is too large: this environment accepts Payloads of up to 1048576 bytes. Raise the "maxPayloadSize" setting in config/portage.php to import it.', $result->refusal);
+        $this->assertSame('This Payload is too large: this environment accepts Payloads of up to 1048576 bytes. Raise the "maxPayloadSize" setting in config/dolly.php to import it.', $result->refusal);
         $this->assertLessThan(16 * 1024 * 1024, memory_get_peak_usage() - $before);
     }
 
@@ -202,8 +202,8 @@ class PayloadTest extends Unit
         $section = Schema::section('news', [$entryType]);
         $source = Schema::entry($section, $entryType, ['title' => 'Pasted']);
 
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
-        $result = Plugin::getInstance()->getPortage()->import("\n  $payload \n");
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
+        $result = Plugin::getInstance()->getDolly()->import("\n  $payload \n");
 
         $this->assertFalse($result->isRefused());
         $this->assertNotNull($result->roots[0]->elementId);
@@ -214,7 +214,7 @@ class PayloadTest extends Unit
      */
     private function encode(array $envelope): string
     {
-        return 'portage:v1:' . base64_encode(gzencode(json_encode($envelope, JSON_THROW_ON_ERROR)));
+        return 'dolly:v1:' . base64_encode(gzencode(json_encode($envelope, JSON_THROW_ON_ERROR)));
     }
 
     /**
@@ -222,6 +222,6 @@ class PayloadTest extends Unit
      */
     private function decode(string $payload): array
     {
-        return json_decode(gzdecode(base64_decode(substr($payload, strlen('portage:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode(gzdecode(base64_decode(substr($payload, strlen('dolly:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
     }
 }

@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
 use craft\helpers\Db;
 use craft\models\Volume;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
-use simplygoodwork\craftportage\references\NaturalKey;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\NaturalKey;
 
 /**
  * Assets. Natural key: volume UID + folder path + filename. Limited to their volume. Never Stubbed: an unresolved

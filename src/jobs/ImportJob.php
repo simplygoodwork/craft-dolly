@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\jobs;
+namespace simplygoodwork\craftdolly\jobs;
 
 use Craft;
 use craft\elements\User;
 use craft\queue\BaseJob;
-use simplygoodwork\craftportage\import\StagedUploads;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\import\StagedUploads;
+use simplygoodwork\craftdolly\Plugin;
 use yii\queue\RetryableJobInterface;
 
 /**
@@ -61,14 +61,14 @@ class ImportJob extends BaseJob implements RetryableJobInterface
             }
 
             $session->setIdentity($user);
-            $this->setProgress($queue, 0, Craft::t('portage', 'Importing'));
-            Plugin::getInstance()->getPortage()->runQueuedImport(
+            $this->setProgress($queue, 0, Craft::t('dolly', 'Importing'));
+            Plugin::getInstance()->getDolly()->runQueuedImport(
                 $this->logId,
                 $this->payload,
                 $this->choices,
                 $this->rootChoices,
                 $this->fingerprint,
-                fn(int $done, int $total) => $this->setProgress($queue, $total ? $done / $total : 1, Craft::t('portage', '{done} of {total} Root elements', ['done' => $done, 'total' => $total])),
+                fn(int $done, int $total) => $this->setProgress($queue, $total ? $done / $total : 1, Craft::t('dolly', '{done} of {total} Root elements', ['done' => $done, 'total' => $total])),
             );
         } finally {
             $session->setIdentity($previous);
@@ -89,7 +89,7 @@ class ImportJob extends BaseJob implements RetryableJobInterface
 
     protected function defaultDescription(): ?string
     {
-        return Craft::t('portage', 'Importing a Payload (Import #{id})', ['id' => $this->logId]);
+        return Craft::t('dolly', 'Importing a Payload (Import #{id})', ['id' => $this->logId]);
     }
 
     /**

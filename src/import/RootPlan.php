@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use craft\elements\Entry;
 use craft\models\Section;
-use simplygoodwork\craftportage\fields\RelatedElements;
-use simplygoodwork\craftportage\references\Resolution;
+use simplygoodwork\craftdolly\fields\RelatedElements;
+use simplygoodwork\craftdolly\references\Resolution;
 
 /**
  * What an Import will do with one Root element: the unsaved entry to create, or why the Root element is blocked,

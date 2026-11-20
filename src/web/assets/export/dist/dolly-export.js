@@ -1,6 +1,6 @@
 /* global Craft, $ */
 (function () {
-  const t = (message, params) => Craft.t('portage', message, params);
+  const t = (message, params) => Craft.t('dolly', message, params);
 
   /**
    * Copies text without the Clipboard API's promise support, for browsers that lack it.
@@ -44,7 +44,7 @@
   }
 
   /**
-   * Offers the Payload as a `.portage` file: a notice with a button, so the download happens in the user's own click.
+   * Offers the Payload as a `.dolly` file: a notice with a button, so the download happens in the user's own click.
    */
   function offerDownload(message, response) {
     const button = $('<button type="button" class="btn small"/>').text(
@@ -105,7 +105,7 @@
       offerDownload(
         response.kind === 'blocks'
           ? t('The Payload is large. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.', {filename: response.filename})
-          : t('The Payload is large. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}),
+          : t('The Payload is large. Download it as {filename}, then upload it in the Dolly utility.', {filename: response.filename}),
         response
       );
       return;
@@ -123,20 +123,20 @@
       offerDownload(
         response.kind === 'blocks'
           ? t('The Payload couldn’t be copied. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.', {filename: response.filename})
-          : t('The Payload couldn’t be copied. Download it as {filename}, then upload it in the Portage utility.', {filename: response.filename}),
+          : t('The Payload couldn’t be copied. Download it as {filename}, then upload it in the Dolly utility.', {filename: response.filename}),
         response
       );
     }
   }
 
-  window.Portage = Object.assign(window.Portage || {}, {
+  window.Dolly = Object.assign(window.Dolly || {}, {
     exportAndDeliver,
 
     /**
      * Exports the entry an element editor is showing, including changes that haven't been saved to its draft yet.
      */
     exportEditedEntry(editor) {
-      return exportAndDeliver('portage/export/entry', async () => {
+      return exportAndDeliver('dolly/export/entry', async () => {
         // Saves unsaved changes to the draft (creating the provisional draft if the entry has none) and waits.
         await editor.checkForm(false, true);
 
@@ -148,7 +148,7 @@
      * Exports the entries selected in an element index, as the canonical entries.
      */
     exportEntries(ids, siteId) {
-      return exportAndDeliver('portage/export/entries', async () => ({ids, siteId}));
+      return exportAndDeliver('dolly/export/entries', async () => ({ids, siteId}));
     },
   });
 })();

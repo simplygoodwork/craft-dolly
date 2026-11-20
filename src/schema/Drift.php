@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\schema;
+namespace simplygoodwork\craftdolly\schema;
 
 /**
  * The Drift of one Schema reference between the Source and Target environments.

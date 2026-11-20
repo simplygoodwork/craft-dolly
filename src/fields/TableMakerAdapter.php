@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\helpers\Json;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 use verbb\tablemaker\models\TableMakerData;
 
 /**

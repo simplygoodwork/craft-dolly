@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage;
+namespace simplygoodwork\craftdolly;
 
 use Craft;
 use craft\base\Element;
@@ -16,21 +16,21 @@ use craft\services\UserPermissions;
 use craft\services\Utilities;
 use craft\web\UrlManager;
 use craft\web\View;
-use simplygoodwork\craftportage\elements\CopyForAnotherEnvironment;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\models\Settings;
-use simplygoodwork\craftportage\services\ImportLog;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\utilities\PortageUtility;
-use simplygoodwork\craftportage\web\assets\export\ExportAsset;
-use simplygoodwork\craftportage\web\assets\paste\PasteAsset;
+use simplygoodwork\craftdolly\elements\CopyForAnotherEnvironment;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\models\Settings;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\services\ImportLog;
+use simplygoodwork\craftdolly\utilities\DollyUtility;
+use simplygoodwork\craftdolly\web\assets\export\ExportAsset;
+use simplygoodwork\craftdolly\web\assets\paste\PasteAsset;
 use yii\base\Event;
 
 /**
- * Portage plugin
+ * Dolly plugin
  *
  * @method static Plugin getInstance()
- * @property-read Portage $portage
+ * @property-read Dolly $dolly
  * @property-read ImportLog $importLog
  * @author Good Work <dev@simplygoodwork.com>
  * @copyright Good Work
@@ -41,12 +41,12 @@ class Plugin extends BasePlugin
     /**
      * Lets a user Export content.
      */
-    public const PERMISSION_EXPORT = 'portage-exportContent';
+    public const PERMISSION_EXPORT = 'dolly-exportContent';
 
     /**
      * Lets a user Import content, on top of Craft's save permissions for everything the Import writes to.
      */
-    public const PERMISSION_IMPORT = 'portage-importContent';
+    public const PERMISSION_IMPORT = 'dolly-importContent';
 
     public string $schemaVersion = '1.0.2';
 
@@ -56,7 +56,7 @@ class Plugin extends BasePlugin
     {
         return [
             'components' => [
-                'portage' => Portage::class,
+                'dolly' => Dolly::class,
                 'importLog' => ImportLog::class,
             ],
         ];
@@ -65,9 +65,9 @@ class Plugin extends BasePlugin
     /**
      * The core service: Export and Import of Payloads.
      */
-    public function getPortage(): Portage
+    public function getDolly(): Dolly
     {
-        return $this->get('portage');
+        return $this->get('dolly');
     }
 
     /**
@@ -93,7 +93,7 @@ class Plugin extends BasePlugin
 
     protected function settingsHtml(): ?string
     {
-        return Craft::$app->getView()->renderTemplate('portage/_settings.twig', [
+        return Craft::$app->getView()->renderTemplate('dolly/_settings.twig', [
             'settings' => $this->getSettings(),
         ]);
     }
@@ -109,16 +109,16 @@ class Plugin extends BasePlugin
     {
         Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function(RegisterUserPermissionsEvent $event) {
             $event->permissions[] = [
-                'heading' => 'Portage',
+                'heading' => 'Dolly',
                 'permissions' => [
-                    self::PERMISSION_EXPORT => ['label' => Craft::t('portage', 'Export content')],
-                    self::PERMISSION_IMPORT => ['label' => Craft::t('portage', 'Import content')],
+                    self::PERMISSION_EXPORT => ['label' => Craft::t('dolly', 'Export content')],
+                    self::PERMISSION_IMPORT => ['label' => Craft::t('dolly', 'Import content')],
                 ],
             ];
         });
 
         Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITIES, function(RegisterComponentTypesEvent $event) {
-            $event->types[] = PortageUtility::class;
+            $event->types[] = DollyUtility::class;
         });
 
         Event::on(Entry::class, Element::EVENT_REGISTER_ACTIONS, function(RegisterElementActionsEvent $event) {
@@ -140,7 +140,7 @@ class Plugin extends BasePlugin
         }
 
         Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $event) {
-            $event->rules['portage/log/<importId:\\d+>'] = 'portage/log/view';
+            $event->rules['dolly/log/<importId:\\d+>'] = 'dolly/log/view';
         });
     }
 
@@ -164,11 +164,11 @@ class Plugin extends BasePlugin
         }
 
         $view = Craft::$app->getView();
-        $id = sprintf('action-portage-export-%s', mt_rand());
+        $id = sprintf('action-dolly-export-%s', mt_rand());
         $item = [
             'id' => $id,
-            'icon' => 'truck',
-            'label' => Craft::t('portage', 'Copy for another environment'),
+            'icon' => 'clone',
+            'label' => Craft::t('dolly', 'Copy for another environment'),
         ];
 
         // Before the destructive items, which Craft groups at the end.
@@ -187,7 +187,7 @@ class Plugin extends BasePlugin
   const btn = $('#' + $id);
   btn.on('activate', () => {
     const editor = btn.closest('.menu').data('disclosureMenu').\$trigger.closest('form').data('elementEditor');
-    Portage.exportEditedEntry(editor);
+    Dolly.exportEditedEntry(editor);
   });
 })();
 JS, [$view->namespaceInputId($id)]);
@@ -210,25 +210,25 @@ JS, [$view->namespaceInputId($id)]);
         $items = [];
 
         foreach ([
-            [self::PERMISSION_EXPORT, 'copy', 'Copy selected for another environment', 'copySelectedBlocks'],
-            [self::PERMISSION_IMPORT, 'paste', 'Paste from another environment', 'pasteBlocks'],
-        ] as [$permission, $kind, $label, $method]) {
+            [self::PERMISSION_EXPORT, 'copy', 'clone', 'Copy selected for another environment', 'copySelectedBlocks'],
+            [self::PERMISSION_IMPORT, 'paste', 'paste', 'Paste from another environment', 'pasteBlocks'],
+        ] as [$permission, $kind, $icon, $label, $method]) {
             if (!$user->checkPermission($permission)) {
                 continue;
             }
 
-            $id = sprintf('action-portage-%s-blocks-%s', $kind, mt_rand());
+            $id = sprintf('action-dolly-%s-blocks-%s', $kind, mt_rand());
             $items[] = [
                 'id' => $id,
-                'icon' => 'truck',
-                'label' => Craft::t('portage', $label),
+                'icon' => $icon,
+                'label' => Craft::t('dolly', $label),
             ];
             $view->registerJsWithVars(fn($id, $method) => <<<JS
 (() => {
   const btn = $('#' + $id);
   btn.on('activate', () => {
     const field = btn.closest('.menu').data('disclosureMenu').\$trigger.closest('.field');
-    Portage[$method](field);
+    Dolly[$method](field);
   });
 })();
 JS, [$view->namespaceInputId($id), $method]);
@@ -241,7 +241,7 @@ JS, [$view->namespaceInputId($id), $method]);
         $view->registerAssetBundle(PasteAsset::class);
         if ($user->checkPermission(self::PERMISSION_EXPORT)) {
             // The block menus are Craft's, so the script adds its item to them when the user may export.
-            $view->registerJs('window.portageCanExport = true;', View::POS_BEGIN);
+            $view->registerJs('window.dollyCanExport = true;', View::POS_BEGIN);
         }
         array_unshift($event->items, ...$items, ...($event->items ? [['type' => 'hr']] : []));
     }

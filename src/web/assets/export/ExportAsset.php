@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\web\assets\export;
+namespace simplygoodwork\craftdolly\web\assets\export;
 
 use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;
@@ -15,7 +15,7 @@ class ExportAsset extends AssetBundle
     {
         $this->sourcePath = __DIR__ . '/dist';
         $this->depends = [CpAsset::class];
-        $this->js = ['portage-export.js'];
+        $this->js = ['dolly-export.js'];
 
         parent::init();
     }
@@ -27,13 +27,13 @@ class ExportAsset extends AssetBundle
     {
         parent::registerAssetFiles($view);
 
-        $view->registerTranslations('portage', [
+        $view->registerTranslations('dolly', [
             'Copied for another environment: 1 entry.',
             'Copied for another environment: {count} entries.',
             'Copied for another environment: 1 block.',
             'Copied for another environment: {count} blocks.',
-            'The Payload is large. Download it as {filename}, then upload it in the Portage utility.',
-            'The Payload couldn’t be copied. Download it as {filename}, then upload it in the Portage utility.',
+            'The Payload is large. Download it as {filename}, then upload it in the Dolly utility.',
+            'The Payload couldn’t be copied. Download it as {filename}, then upload it in the Dolly utility.',
             'The Payload is large. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.',
             'The Payload couldn’t be copied. Download it as {filename}, then upload it with “Paste from another environment” in the field’s menu.',
             'Download {filename}',

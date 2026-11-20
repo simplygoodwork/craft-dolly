@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\FieldInterface;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 
 /**
  * The Field adapter for a field that holds Owned content (a Content Block, Addresses) and has no adapter of its own.
@@ -20,7 +20,7 @@ final class UnsupportedNestedContentAdapter implements RequiresOwner
 
     public function import(FieldInterface $field, mixed $portable, ImportContext $context): mixed
     {
-        $context->plan->warn(sprintf('The field "%s" holds nested content Portage can\'t move yet. Its values will be skipped.', $field->name));
+        $context->plan->warn(sprintf('The field "%s" holds nested content Dolly can\'t move yet. Its values will be skipped.', $field->name));
 
         return null;
     }

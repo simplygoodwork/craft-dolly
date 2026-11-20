@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\base\FieldInterface;
@@ -11,10 +11,10 @@ use craft\models\Section;
 use craft\models\Volume;
 use nystudio107\seomatic\fields\SeoSettings;
 use nystudio107\seomatic\models\MetaBundle;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * The SEOmatic SEO Settings adapter: the overrides stored in the field round-trip verbatim, and the SEO images are
@@ -31,7 +31,7 @@ class SeoSettingsTest extends Unit
                 'seoDescription' => '{{ object.summary|striptags|truncate(160) }}',
                 'ogDescription' => '{title} – {{ siteName }}',
                 'robots' => 'noindex, nofollow',
-                'canonicalUrl' => '{{ object.url }}?ref=portage',
+                'canonicalUrl' => '{{ object.url }}?ref=dolly',
                 'ogTitle' => '{{ object.title|upper }} | {{ seomatic.site.siteName }}',
                 'twitterCard' => 'summary_large_image',
             ],
@@ -39,16 +39,16 @@ class SeoSettingsTest extends Unit
             'metaBundleSettings' => ['seoTitleSource' => 'fromCustom', 'ogTitleSource' => 'fromCustom'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $bundle = $this->importedBundle($result->roots[0]->elementId);
         $this->assertSame('{{ object.title }} | {{ seomatic.site.siteName }}', $bundle->metaGlobalVars->seoTitle);
         $this->assertSame('{{ object.summary|striptags|truncate(160) }}', $bundle->metaGlobalVars->seoDescription);
         $this->assertSame('{title} – {{ siteName }}', $bundle->metaGlobalVars->ogDescription);
         $this->assertSame('noindex, nofollow', $bundle->metaGlobalVars->robots);
-        $this->assertSame('{{ object.url }}?ref=portage', $bundle->metaGlobalVars->canonicalUrl);
+        $this->assertSame('{{ object.url }}?ref=dolly', $bundle->metaGlobalVars->canonicalUrl);
         $this->assertSame('{{ object.title|upper }} | {{ seomatic.site.siteName }}', $bundle->metaGlobalVars->ogTitle);
         $this->assertSame('summary_large_image', $bundle->metaGlobalVars->twitterCard);
         $this->assertSame('Overridden site', $bundle->metaSiteVars->siteName);
@@ -71,17 +71,17 @@ class SeoSettingsTest extends Unit
             ],
         ]]);
         // The payload carries References, never the source IDs.
-        $exported = json_encode($this->portage()->preview($this->portage()->export([$source]))->envelope['roots'][0]['fields']);
+        $exported = json_encode($this->dolly()->preview($this->dolly()->export([$source]))->envelope['roots'][0]['fields']);
         $this->assertStringContainsString('"seoImageIds":["' . $photo->uid . '"]', $exported);
         // Nor the Twig SEOmatic derived from them, which holds source IDs.
         $this->assertStringNotContainsString('socialTransform(' . $photo->id, $exported);
         $this->assertStringNotContainsString('socialTransform(' . $diagram->id, $exported);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         $newPhoto = $this->replaceAsset($photo, $photos, 'photo.png');
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $bundle = $this->importedBundle($result->roots[0]->elementId);
         $this->assertSame([$newPhoto->id], $bundle->metaBundleSettings->seoImageIds);
@@ -100,11 +100,11 @@ class SeoSettingsTest extends Unit
             'metaBundleSettings' => ['seoImageSource' => 'fromAsset', 'seoImageIds' => [$photo->id]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -124,11 +124,11 @@ class SeoSettingsTest extends Unit
             'metaBundleSettings' => ['seoImageSource' => 'fromAsset', 'seoImageIds' => [$photo->id]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $bundle = $this->importedBundle($result->roots[0]->elementId);
         $this->assertSame('Kept', $bundle->metaGlobalVars->seoTitle);
@@ -154,11 +154,11 @@ class SeoSettingsTest extends Unit
             ],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($notes);
 
-        $result = $this->portage()->import($payload, [$notesUid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$notesUid => 'fetch']);
 
         $bundle = $this->importedBundle($result->roots[0]->elementId);
         $this->assertSame([$matched->id], $bundle->metaBundleSettings->seoImageIds);
@@ -184,9 +184,9 @@ class SeoSettingsTest extends Unit
             ],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             ['The SEO setting "seoDescriptionField" in the field "SEO" pulls from the field "body", which this element doesn\'t have in this environment. It will pull nothing.'],
@@ -207,11 +207,11 @@ class SeoSettingsTest extends Unit
             'metaBundleSettings' => ['seoImageSource' => 'fromAsset', 'seoImageIds' => [$gone->id]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $bundle = $this->importedBundle($result->roots[0]->elementId);
         $this->assertSame('Kept', $bundle->metaGlobalVars->seoTitle);
@@ -229,10 +229,10 @@ class SeoSettingsTest extends Unit
         $before = Schema::seomaticSectionBundle($news, ['seoTitle' => 'SECTION-SEO-MARKER']);
         $source = Schema::entry($news, $article, ['title' => 'Post', 'seo' => ['metaGlobalVars' => ['seoTitle' => 'Entry title']]]);
 
-        $payload = $this->portage()->export([$source]);
-        $this->assertStringNotContainsString('SECTION-SEO-MARKER', json_encode($this->portage()->preview($payload)->envelope));
+        $payload = $this->dolly()->export([$source]);
+        $this->assertStringNotContainsString('SECTION-SEO-MARKER', json_encode($this->dolly()->preview($payload)->envelope));
         Schema::deleteElement($source);
-        $this->portage()->import($payload);
+        $this->dolly()->import($payload);
 
         // SEOmatic itself touches the bundle's timestamps and fills in its meta global vars when an entry saves, but
         // nothing else about it changes, and the override it holds is still there.
@@ -281,8 +281,8 @@ class SeoSettingsTest extends Unit
         return $value;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

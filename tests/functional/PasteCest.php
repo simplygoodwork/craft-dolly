@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\functional;
+namespace simplygoodwork\craftdolly\tests\functional;
 
 use Craft;
 use craft\elements\Entry;
@@ -9,10 +9,10 @@ use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use FunctionalTester;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Light coverage of the control panel's copy and paste of blocks in Matrix and Neo fields: what a Payload of blocks
@@ -40,10 +40,10 @@ class PasteCest
 
         $I->assertSame(2, $response['count']);
         $I->assertSame('blocks', $response['kind']);
-        $I->assertSame('blocks.portage', $response['filename']);
+        $I->assertSame('blocks.dolly', $response['filename']);
         $I->assertFalse($response['asFile']);
         // The blocks are exported in the order they have in the field.
-        $plan = Plugin::getInstance()->getPortage()->preview($response['payload'], target: $this->target($this->emptyPage($section), 'blocks'));
+        $plan = Plugin::getInstance()->getDolly()->preview($response['payload'], target: $this->target($this->emptyPage($section), 'blocks'));
         $I->assertSame(['"Text"', '"Text"'], array_map(fn($root) => '"' . $root->title . '"', $plan->roots));
         $bodies = array_map(fn(Entry $block) => $block->getFieldValue('body'), $this->pastedBlocks($I, $response['payload'], $section));
         $I->assertSame(['First', 'Third'], $bodies);
@@ -106,7 +106,7 @@ class PasteCest
 
     public function theFieldMenuOffersCopyWithTheExportPermission(FunctionalTester $I): void
     {
-        $this->openSourceAs($I, ['portage-exportContent']);
+        $this->openSourceAs($I, ['dolly-exportContent']);
 
         $I->see('Copy selected for another environment');
         $I->dontSee('Paste from another environment');
@@ -114,7 +114,7 @@ class PasteCest
 
     public function theFieldMenuOffersPasteWithTheImportPermission(FunctionalTester $I): void
     {
-        $this->openSourceAs($I, ['portage-importContent']);
+        $this->openSourceAs($I, ['dolly-importContent']);
 
         $I->dontSee('Copy selected for another environment');
         $I->see('Paste from another environment');
@@ -150,12 +150,12 @@ class PasteCest
     public function aPayloadThatCantBePastedIsShownAsARefusal(FunctionalTester $I): void
     {
         [$payload, $draft] = $this->payloadAndTargetDraft($I);
-        $entriesPayload = Plugin::getInstance()->getPortage()->export([Entry::find()->id($draft->getCanonicalId())->one()]);
+        $entriesPayload = Plugin::getInstance()->getDolly()->export([Entry::find()->id($draft->getCanonicalId())->one()]);
         $I->amLoggedInAs(User::find()->admin()->one());
 
         $response = $this->post($I, 'paste/preview', $this->pasteParams($draft, $entriesPayload));
 
-        $I->assertStringContainsString('This Payload holds whole entries, not blocks. Import it in the Portage utility.', $response['html']);
+        $I->assertStringContainsString('This Payload holds whole entries, not blocks. Import it in the Dolly utility.', $response['html']);
         $I->assertStringNotContainsString('Paste</button>', $response['html']);
     }
 
@@ -178,7 +178,7 @@ class PasteCest
     {
         [$payload, $draft, $target] = $this->payloadAndTargetDraft($I);
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', 'portage-exportContent', ...$this->entryPermissions($target)]);
+        Schema::grantPermissions($editor, ['accessCp', 'dolly-exportContent', ...$this->entryPermissions($target)]);
         $I->amLoggedInAs($editor);
 
         $this->post($I, 'paste/paste', $this->pasteParams($draft, $payload) + ['previewed' => 'x'], 403);
@@ -244,7 +244,7 @@ class PasteCest
     {
         [$source, $section] = $this->sourceWithBlocks();
         $block = $source->getFieldValue('blocks')->status(null)->all()[0];
-        $payload = Plugin::getInstance()->getPortage()->export([$block]);
+        $payload = Plugin::getInstance()->getDolly()->export([$block]);
         /** @var EntryType $page */
         $page = $section->getEntryTypes()[0];
         $target = Schema::entry($section, $page, ['title' => 'Prod']);
@@ -264,7 +264,7 @@ class PasteCest
 
     private function previewedToken(FunctionalTester $I, Entry $draft, string $payload): string
     {
-        $plan = Plugin::getInstance()->getPortage()->preview($payload, target: $this->target($draft, 'blocks'));
+        $plan = Plugin::getInstance()->getDolly()->preview($payload, target: $this->target($draft, 'blocks'));
 
         return $plan->fingerprint();
     }
@@ -282,7 +282,7 @@ class PasteCest
     private function pastedBlocks(FunctionalTester $I, string $payload, Section $section): array
     {
         $draft = $this->emptyPage($section);
-        $result = Plugin::getInstance()->getPortage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = Plugin::getInstance()->getDolly()->import($payload, target: $this->target($draft, 'blocks'));
         $I->assertFalse($result->isRefused());
 
         return array_values(Entry::find()->id($draft->id)->drafts(null)->provisionalDrafts(null)->status(null)->one()->getFieldValue('blocks')->status(null)->all());
@@ -309,7 +309,7 @@ class PasteCest
         $I->amOnPage('/admin/myaccount');
         $I->haveHttpHeader('X-CSRF-Token', $I->grabAttributeFrom('input[name="CRAFT_CSRF_TOKEN"]', 'value'));
         $I->haveHttpHeader('Accept', 'application/json');
-        $I->sendAjaxPostRequest("/admin/actions/portage/$action", $params);
+        $I->sendAjaxPostRequest("/admin/actions/dolly/$action", $params);
         $I->seeResponseCodeIs($status);
 
         return Json::decode($I->grabPageSource()) ?: [];

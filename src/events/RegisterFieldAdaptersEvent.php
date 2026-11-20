@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\events;
+namespace simplygoodwork\craftdolly\events;
 
 use craft\base\FieldInterface;
 use yii\base\Event;
@@ -12,7 +12,7 @@ final class RegisterFieldAdaptersEvent extends Event
 {
     /**
      * @var array<class-string<FieldInterface>, mixed> the Field adapters (each a `FieldAdapter`, which the registry
-     * checks) by the exact class of the field they handle. An adapter registered for a class replaces Portage's own, and is used instead of the fallback.
+     * checks) by the exact class of the field they handle. An adapter registered for a class replaces Dolly's own, and is used instead of the fallback.
      */
     public array $adapters = [];
 }

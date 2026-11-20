@@ -2,5 +2,5 @@
 
 return [
     'devMode' => true,
-    'securityKey' => 'portage-test-security-key',
+    'securityKey' => 'dolly-test-security-key',
 ];

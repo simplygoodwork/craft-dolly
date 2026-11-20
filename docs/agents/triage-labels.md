@@ -14,4 +14,4 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
 
-In this repo, labels are Solo todo tags (Solo project `craft-portage`, id 55). Apply them with `todo_add_tag` / `todo_remove_tag`. Solo creates a tag the first time it's used, so nothing needs to be set up ahead of time.
+In this repo, labels are Solo todo tags (Solo project `craft-dolly`, id 55). Apply them with `todo_add_tag` / `todo_remove_tag`. Solo creates a tag the first time it's used, so nothing needs to be set up ahead of time.

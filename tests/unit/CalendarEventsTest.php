@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Entry;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use Solspace\Calendar\Elements\Event;
 use Solspace\Calendar\FieldTypes\EventFieldType;
 
@@ -36,11 +36,11 @@ class CalendarEventsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Events', 'events' => [$launch->id, $meetup->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::changeUid($meetup);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertNull($plan->refusal);
         $this->assertSame('calendarEvent', $plan->references[$launch->uid]->elementType);
         $this->assertSame(['calendar' => $conferences->uid, 'slug' => 'meetup'], $plan->references[$meetupSourceUid]->reference['naturalKey']);
@@ -48,7 +48,7 @@ class CalendarEventsTest extends Unit
         $this->assertSame('naturalKey', $plan->references[$meetupSourceUid]->resolution->rule);
         $this->assertSame($meetup->id, $plan->references[$meetupSourceUid]->resolution->elementId);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
@@ -66,11 +66,11 @@ class CalendarEventsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Events', 'events' => [$festival->id]]);
 
-        $payload = $this->portage()->export([$source], [$german->id]);
+        $payload = $this->dolly()->export([$source], [$german->id]);
         Schema::deleteElement($source);
         Schema::changeUid($festival);
 
-        $reference = $this->portage()->preview($payload)->references[$festivalSourceUid];
+        $reference = $this->dolly()->preview($payload)->references[$festivalSourceUid];
         $this->assertSame(['calendar' => $conferences->uid, 'slug' => 'fest'], $reference->reference['naturalKey']);
         $this->assertSame('naturalKey', $reference->resolution->rule);
         $this->assertSame($festival->id, $reference->resolution->elementId);
@@ -88,23 +88,23 @@ class CalendarEventsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Events', 'events' => [$gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertNull($plan->references[$goneUid]->resolution->elementId);
         $this->assertSame(['skip', 'replace'], $plan->references[$goneUid]->availableChoices);
         $this->assertSame(
-            'The Reference "Gone" can\'t be Stubbed: Portage never Stubs events. Skip it or choose a replacement.',
-            $this->portage()->preview($payload, [$goneUid => 'stub'])->refusal,
+            'The Reference "Gone" can\'t be Stubbed: Dolly never Stubs events. Skip it or choose a replacement.',
+            $this->dolly()->preview($payload, [$goneUid => 'stub'])->refusal,
         );
         $this->assertSame(
             "The replacement for the Reference \"Gone\" can't be used: the event with the ID $elsewhere->id isn't in the same calendar as the Reference.",
-            $this->portage()->preview($payload, [$goneUid => $elsewhere->id])->refusal,
+            $this->dolly()->preview($payload, [$goneUid => $elsewhere->id])->refusal,
         );
 
-        $result = $this->portage()->import($payload, [$goneUid => $instead->id]);
+        $result = $this->dolly()->import($payload, [$goneUid => $instead->id]);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame([$instead->id], $this->eventIds($imported));
@@ -119,8 +119,8 @@ class CalendarEventsTest extends Unit
         return array_map(fn(Event $event) => $event->id, $entry->getFieldValue('events')->status(null)->all());
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

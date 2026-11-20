@@ -1,16 +1,16 @@
 <?php
 
-namespace simplygoodwork\craftportage\services;
+namespace simplygoodwork\craftdolly\services;
 
 use Craft;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
 use craft\helpers\Json;
 use DateTime;
-use simplygoodwork\craftportage\import\RootResult;
-use simplygoodwork\craftportage\jobs\ImportJob;
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\records\ImportLogRecord;
+use simplygoodwork\craftdolly\import\RootResult;
+use simplygoodwork\craftdolly\jobs\ImportJob;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\records\ImportLogRecord;
 use yii\base\Component;
 use yii\db\ActiveQuery;
 

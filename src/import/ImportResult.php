@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 /**
  * The outcome of an Import: either a refusal (nothing was imported), a result per Root element, or for an Import that

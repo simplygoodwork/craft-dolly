@@ -1,24 +1,24 @@
 <?php
 
-namespace simplygoodwork\craftportage\payload;
+namespace simplygoodwork\craftdolly\payload;
 
 use Craft;
 use craft\helpers\Json;
 use JsonException;
-use simplygoodwork\craftportage\export\Exporter;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\export\Exporter;
+use simplygoodwork\craftdolly\references\ElementTypes;
 
 /**
- * Converts between Payload text and the envelope array: `portage:v1:<base64(gzip(JSON))>`, or with a Shared key,
- * `portage:v1e:<base64(encryptByKey(gzip(JSON)))>`. Decoding is strict: it refuses Payloads that don't match the
+ * Converts between Payload text and the envelope array: `dolly:v1:<base64(gzip(JSON))>`, or with a Shared key,
+ * `dolly:v1e:<base64(encryptByKey(gzip(JSON)))>`. Decoding is strict: it refuses Payloads that don't match the
  * environment's Shared key, are too large (gzip bombs included), have a malformed envelope, name an element type
  * outside the whitelist, or come from a different Craft major.
  */
 final class PayloadCodec
 {
-    public const PREFIX = 'portage:v1:';
+    public const PREFIX = 'dolly:v1:';
 
-    public const ENCRYPTED_PREFIX = 'portage:v1e:';
+    public const ENCRYPTED_PREFIX = 'dolly:v1e:';
 
     /**
      * @param string $craftVersion the Target environment's Craft version; Payloads from another major are refused (ADR-0001)
@@ -73,7 +73,7 @@ final class PayloadCodec
             }
             $gzipped = $this->body($text, self::PREFIX);
         } else {
-            throw new InvalidPayloadException('This is not a Portage Payload: it should start with "' . self::PREFIX . '".');
+            throw new InvalidPayloadException('This is not a Dolly Payload: it should start with "' . self::PREFIX . '".');
         }
 
         $json = $this->decompress($gzipped);
@@ -105,7 +105,7 @@ final class PayloadCodec
             throw new InvalidPayloadException('The Payload is damaged: it doesn\'t say which format version it uses.');
         }
         if ($formatVersion !== Exporter::FORMAT_VERSION) {
-            throw new InvalidPayloadException("This Payload uses format version $formatVersion, which this version of Portage can't read. Update Portage in this environment to import it.");
+            throw new InvalidPayloadException("This Payload uses format version $formatVersion, which this version of Dolly can't read. Update Dolly in this environment to import it.");
         }
     }
 
@@ -150,7 +150,7 @@ final class PayloadCodec
                 $elementType = $element['elementType'] ?? null;
                 if (ElementTypes::classFor($elementType) === null && !($kind === 'roots' && $elementType === ElementTypes::NEO_BLOCK)) {
                     $name = is_string($elementType) ? mb_strimwidth($elementType, 0, 80, '…') : Json::encode($elementType);
-                    throw new InvalidPayloadException("The Payload names an element type Portage doesn't support: \"$name\". It can't be imported.");
+                    throw new InvalidPayloadException("The Payload names an element type Dolly doesn't support: \"$name\". It can't be imported.");
                 }
             }
         }
@@ -196,7 +196,7 @@ final class PayloadCodec
 
     private function tooLarge(): InvalidPayloadException
     {
-        return new InvalidPayloadException("This Payload is too large: this environment accepts Payloads of up to $this->maxSize bytes. Raise the \"maxPayloadSize\" setting in config/portage.php to import it.");
+        return new InvalidPayloadException("This Payload is too large: this environment accepts Payloads of up to $this->maxSize bytes. Raise the \"maxPayloadSize\" setting in config/dolly.php to import it.");
     }
 
     /**

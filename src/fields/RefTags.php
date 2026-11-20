@@ -1,15 +1,15 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\FieldInterface;
 use craft\helpers\StringHelper;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\import\PendingRefTag;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\import\PendingRefTag;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\references\ElementTypes;
 
 /**
  * The shared translator for Embedded references written as Craft reference tags (`{type:id@site:attr||fallback}`),
@@ -49,7 +49,7 @@ final class RefTags
      * Replaces the element IDs in the text's reference tags with Reference UIDs, recording the References.
      *
      * The tag names the element type by its handle (`{entry:…}`), never a class. Tags that don't name an element by
-     * ID (such as `{entry:news/hello}`), tags whose element doesn't exist and tags for element types Portage doesn't
+     * ID (such as `{entry:news/hello}`), tags whose element doesn't exist and tags for element types Dolly doesn't
      * support are left as they are.
      */
     public function export(string $text, ExportContext $context): string

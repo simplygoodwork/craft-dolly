@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\db\Query;
@@ -9,9 +9,9 @@ use craft\models\EntryType;
 use craft\models\Section;
 use ether\simplemap\fields\MapField;
 use ether\simplemap\models\Map;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * SimpleMap: the location travels without the Source environment's record, owner, site and field IDs, and the Import's
@@ -32,8 +32,8 @@ class SimpleMapTest extends Unit
         [$news, $article, $field] = $this->newsWithMap();
         $source = Schema::entry($news, $article, ['title' => 'Office', 'location' => self::LOCATION]);
 
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
 
         $portable = $preview->envelope['roots'][0]['fields'][$field->uid] ?? null;
         $this->assertIsArray($portable);
@@ -53,10 +53,10 @@ class SimpleMapTest extends Unit
         [$news, $article, $field] = $this->newsWithMap();
         $source = Schema::entry($news, $article, ['title' => 'Office', 'location' => self::LOCATION]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $id = $result->roots[0]->elementId;
@@ -81,10 +81,10 @@ class SimpleMapTest extends Unit
     {
         [$news, $article, $field] = $this->newsWithMap();
         $source = Schema::entry($news, $article, ['title' => 'Office', 'location' => self::LOCATION]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::updateEntry($source, ['location' => ['lat' => 40.0, 'lng' => -83.0, 'zoom' => 10, 'address' => 'Elsewhere']]);
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $draftId = $result->roots[0]->draftId;
@@ -112,8 +112,8 @@ class SimpleMapTest extends Unit
         return [Schema::section('news', [$article]), $article, $field];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

@@ -1,15 +1,15 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\elements\Entry;
 use craft\fields\Number;
 use craft\fields\PlainText;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Schema Drift between Export and Import, simulated by changing the install in between.
@@ -23,7 +23,7 @@ class DriftTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text']);
 
-        $first = $this->envelope($this->portage()->export([$source]));
+        $first = $this->envelope($this->dolly()->export([$source]));
         $site = Craft::$app->getSites()->getPrimarySite();
         foreach ([['sites', $site->uid], ['sections', $news->uid], ['entryTypes', $article->uid], ['fields', $summary->uid]] as [$kind, $uid]) {
             $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $first['schema'][$kind][$uid]['fingerprint'] ?? '', "$kind $uid");
@@ -33,11 +33,11 @@ class DriftTest extends Unit
 
         // Re-saving without changes keeps the config, so the Fingerprint stays the same.
         Schema::updateField($summary->uid);
-        $second = $this->envelope($this->portage()->export([$source]));
+        $second = $this->envelope($this->dolly()->export([$source]));
         $this->assertSame($first['schema'], $second['schema']);
 
         Schema::updateField($summary->uid, ['charLimit' => 42]);
-        $third = $this->envelope($this->portage()->export([$source]));
+        $third = $this->envelope($this->dolly()->export([$source]));
         $this->assertNotSame(
             $first['schema']['fields'][$summary->uid]['fingerprint'],
             $third['schema']['fields'][$summary->uid]['fingerprint'],
@@ -54,11 +54,11 @@ class DriftTest extends Unit
         $article = Schema::entryType('article', [$summary]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         Schema::updateField($summary->uid, ['charLimit' => 42]);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertFalse($plan->isRefused());
         $this->assertSame('drifted', $plan->drift->get('fields', $summary->uid)?->state);
         $this->assertSame('matched', $plan->drift->get('sections', $news->uid)?->state);
@@ -66,7 +66,7 @@ class DriftTest extends Unit
         $warning = 'The field "Summary" has different settings in this environment than where it was exported. Its values will be imported, but check them.';
         $this->assertSame([$warning], $plan->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([$warning], $result->roots[0]->warnings);
         $this->assertSame('Text', $this->importedEntry($result->roots[0]->elementId)->getFieldValue('summary'));
     }
@@ -78,17 +78,17 @@ class DriftTest extends Unit
         $article = Schema::entryType('article', [Schema::required($summary), $subtitle]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text', 'subtitle' => 'Sub']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         Schema::changeFieldType($summary->uid, Number::class);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('type-changed', $plan->drift->get('fields', $summary->uid)?->state);
         $warning = 'The field "Summary" is a Number field in this environment but was a Plain Text field where it was exported. Its values will be skipped.';
         $this->assertSame([$warning], $plan->roots[0]->warnings);
         $this->assertSame(['Summary'], $plan->roots[0]->incompleteFields);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame('created', $result->roots[0]->status);
         $this->assertSame([$warning], $result->roots[0]->warnings);
         $this->assertSame(['Summary'], $result->roots[0]->incompleteFields);
@@ -105,16 +105,16 @@ class DriftTest extends Unit
         $article = Schema::entryType('article', [$summary, $subtitle]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'summary' => 'Text', 'subtitle' => 'Sub']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         Schema::deleteField($subtitle);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('missing', $plan->drift->get('fields', $subtitle->uid)?->state);
         $warning = 'The field "Subtitle" doesn\'t exist in this environment. Its values will be skipped.';
         $this->assertSame([$warning], $plan->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([$warning], $result->roots[0]->warnings);
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertSame('Hello', $imported->title);
@@ -136,14 +136,14 @@ class DriftTest extends Unit
                 'new3' => ['type' => 'text', 'fields' => ['body' => 'Last']],
             ],
         ]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         Schema::updateField($contentBlocks->uid, ['entryTypes' => [$text]]);
 
         $warning = 'Blocks of type "Quote" in "Content Blocks" will be skipped: their entry type isn\'t allowed in that field in this environment.';
-        $this->assertContains($warning, $this->portage()->preview($payload)->roots[0]->warnings);
+        $this->assertContains($warning, $this->dolly()->preview($payload)->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertContains($warning, $result->roots[0]->warnings);
         $blocks = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('contentBlocks')->status(null)->all();
         $this->assertSame(['First', 'Last'], array_map(fn(Entry $block) => $block->getFieldValue('body'), $blocks));
@@ -159,13 +159,13 @@ class DriftTest extends Unit
             'title' => 'With blocks',
             'contentBlocks' => ['new1' => ['type' => 'text', 'fields' => ['body' => 'First']]],
         ]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         Schema::changeFieldType($body->uid, Number::class);
 
-        $this->assertSame(['Content Blocks › Body'], $this->portage()->preview($payload)->roots[0]->incompleteFields);
+        $this->assertSame(['Content Blocks › Body'], $this->dolly()->preview($payload)->roots[0]->incompleteFields);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(['Content Blocks › Body'], $result->roots[0]->incompleteFields);
         $blocks = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('contentBlocks')->status(null)->all();
@@ -181,17 +181,17 @@ class DriftTest extends Unit
         $events = Schema::section('events', [$event]);
         $story = Schema::entry($news, $article, ['title' => 'Story']);
         $party = Schema::entry($events, $event, ['title' => 'Party']);
-        $payload = $this->portage()->export([$party, $story]);
+        $payload = $this->dolly()->export([$party, $story]);
 
         Schema::deleteSection($events);
 
         $blocked = 'The section "Events" doesn\'t exist in this environment. Root elements in it can\'t be imported.';
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('missing', $plan->drift->get('sections', $events->uid)?->state);
         $this->assertSame([$blocked, null], [$plan->roots[0]->blockedBy, $plan->roots[1]->blockedBy]);
         $this->assertSame(['Party', 'Story'], [$plan->roots[0]->title, $plan->roots[1]->title]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame(['failed', 'created'], [$result->roots[0]->status, $result->roots[1]->status]);
         $this->assertSame([$blocked], $result->roots[0]->errors);
         $this->assertSame('Story', $this->importedEntry($result->roots[1]->elementId)->title);
@@ -202,14 +202,14 @@ class DriftTest extends Unit
     {
         $article = Schema::entryType('article');
         $news = Schema::section('news', [$article]);
-        $envelope = $this->envelope($this->portage()->export([Schema::entry($news, $article, ['title' => 'Old'])]));
+        $envelope = $this->envelope($this->dolly()->export([Schema::entry($news, $article, ['title' => 'Old'])]));
         $envelope['craftVersion'] = '4.12.3';
-        $payload = 'portage:v1:' . base64_encode(gzencode(json_encode($envelope)));
+        $payload = 'dolly:v1:' . base64_encode(gzencode(json_encode($envelope)));
 
         $major = explode('.', Craft::$app->getVersion())[0];
         $refusal = "This Payload was exported from Craft 4, but this environment runs Craft $major. Payloads can't move between Craft major versions.";
-        $this->assertSame($refusal, $this->portage()->preview($payload)->refusal);
-        $result = $this->portage()->import($payload);
+        $this->assertSame($refusal, $this->dolly()->preview($payload)->refusal);
+        $result = $this->dolly()->import($payload);
         $this->assertSame($refusal, $result->refusal);
         $this->assertSame([], $result->roots);
         $this->assertSame([], Plugin::getInstance()->getImportLog()->getEntries());
@@ -220,10 +220,10 @@ class DriftTest extends Unit
         $article = Schema::entryType('article', [Schema::plainText('summary')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Not yet', 'summary' => 'Text']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
 
         $this->assertFalse($plan->roots[0]->isBlocked());
         $this->assertNull(Entry::find()->uid($source->uid)->status(null)->trashed(null)->one());
@@ -240,9 +240,9 @@ class DriftTest extends Unit
         return $entry;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     /**
@@ -250,6 +250,6 @@ class DriftTest extends Unit
      */
     private function envelope(string $payload): array
     {
-        return json_decode(gzdecode(base64_decode(substr($payload, strlen('portage:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode(gzdecode(base64_decode(substr($payload, strlen('dolly:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
     }
 }

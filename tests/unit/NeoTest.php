@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use benf\neo\elements\Block;
 use Codeception\Test\Unit;
@@ -10,9 +10,9 @@ use craft\elements\Entry;
 use craft\enums\PropagationMethod;
 use craft\fields\Entries;
 use craft\models\Site;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * The Neo adapter: blocks are Owned content, re-created in the same hierarchy.
@@ -54,10 +54,10 @@ class NeoTest extends Unit
         $sourceBlocks = $this->blocks($source, 'contentBlocks');
         $this->assertCount(6, $sourceBlocks);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertSame([], $result->roots[0]->warnings);
@@ -109,14 +109,14 @@ class NeoTest extends Unit
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Child of sibling']],
             ],
         ]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteNeoBlockType($content, 'quote');
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('missing', $plan->drift->get('neoBlockTypes', $quote->uid)?->state);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertContains(
@@ -141,14 +141,14 @@ class NeoTest extends Unit
             'title' => 'Drift',
             'contentBlocks' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Kept']]],
         ]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateNeoBlockType($content, 'paragraph', ['description' => 'Changed in the Target environment']);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('drifted', $plan->drift->get('neoBlockTypes', $paragraph->uid)?->state);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertSame(
@@ -171,10 +171,10 @@ class NeoTest extends Unit
             'contentBlocks' => [['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Same']]],
         ]);
         $sourceUid = $this->blocks($source, 'contentBlocks')[0]->uid;
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
         // The source entry still exists, so the Import creates a new entry whose block can't keep the UID.
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $blocks = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks');
@@ -211,9 +211,9 @@ class NeoTest extends Unit
             'sortOrder' => array_map(fn(Block $block) => $block->id, $germanBlocks),
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $id = $result->roots[0]->elementId;
@@ -243,9 +243,9 @@ class NeoTest extends Unit
             ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Nur auf Deutsch']],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $id = $result->roots[0]->elementId;
@@ -268,7 +268,7 @@ class NeoTest extends Unit
                 ['type' => 'paragraph', 'level' => 2, 'fields' => ['copy' => 'Second']],
             ],
         ]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $blockIds = array_map(fn(Block $block) => $block->id, $this->blocks($source, 'contentBlocks'));
         Schema::updateEntry($source, ['contentBlocks' => [
             'blocks' => [
@@ -281,7 +281,7 @@ class NeoTest extends Unit
         $canonical = Entry::find()->id($source->id)->status(null)->one();
         $this->assertSame([['First', 1], ['Second', 2], ['Prod only', 1]], $this->copyAndLevel($this->blocks($canonical, 'contentBlocks')));
 
-        $result = $this->portage()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$source->uid => ['mode' => 'overwrite']]);
 
         $this->assertSame('overwritten', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $draft = Entry::find()->draftId($result->roots[0]->draftId)->status(null)->one();
@@ -315,9 +315,9 @@ class NeoTest extends Unit
         return array_values($entry->getFieldValue($handle)->status(null)->all());
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function importedEntry(?int $id): Entry

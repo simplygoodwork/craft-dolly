@@ -1,13 +1,13 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Entry;
 use craft\models\Section;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Exporting what the entry editor is showing: a draft's content, carried as the entry it's a draft of.
@@ -20,10 +20,10 @@ class ExportDraftsTest extends Unit
         $news = Schema::section('news', [$article]);
         $entry = Schema::entry($news, $article, ['title' => 'Live title', 'summary' => 'Live summary']);
         $draft = Schema::draft($entry, ['title' => 'Draft title', 'summary' => 'Draft summary']);
-        $payload = $this->portage()->export([$draft]);
+        $payload = $this->dolly()->export([$draft]);
 
         // The Payload is imported where the entry was changed since, and where it's matched by UID.
-        $result = $this->portage()->import($payload, [], [$entry->uid => ['mode' => 'overwrite']]);
+        $result = $this->dolly()->import($payload, [], [$entry->uid => ['mode' => 'overwrite']]);
 
         $root = $result->roots[0];
         $this->assertSame('overwritten', $root->status, implode(' ', $root->errors));
@@ -40,10 +40,10 @@ class ExportDraftsTest extends Unit
         $news = Schema::section('news', [$article]);
         $entry = Schema::entry($news, $article, ['title' => 'Live title', 'summary' => 'Live summary']);
         $draft = Schema::draft($entry, ['summary' => 'Typed but not applied'], provisional: true);
-        $payload = $this->portage()->export([$draft]);
+        $payload = $this->dolly()->export([$draft]);
 
         Schema::deleteElement($entry);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertSame('created', $root->status, implode(' ', $root->errors));
@@ -59,11 +59,11 @@ class ExportDraftsTest extends Unit
         $news = Schema::section('news', [$article]);
         $first = Schema::entry($news, $article, ['title' => 'First']);
         $second = Schema::entry($news, $article, ['title' => 'Second']);
-        $payload = $this->portage()->export([$first, $second]);
+        $payload = $this->dolly()->export([$first, $second]);
         Schema::deleteElement($first);
         Schema::deleteElement($second);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertCount(2, $result->roots);
         $this->assertSame(['created', 'created'], array_map(fn($root) => $root->status, $result->roots));
@@ -77,10 +77,10 @@ class ExportDraftsTest extends Unit
         $parent = Schema::entry($pages, $article, ['title' => 'Parent', 'slug' => 'parent']);
         $child = Schema::entry($pages, $article, ['title' => 'Child', 'slug' => 'child', 'parentId' => $parent->id]);
         $draft = Schema::draft($child, ['title' => 'Child draft']);
-        $payload = $this->portage()->export([$draft]);
+        $payload = $this->dolly()->export([$draft]);
         Schema::deleteElement($child);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $created = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
@@ -88,8 +88,8 @@ class ExportDraftsTest extends Unit
         $this->assertSame($parent->id, $created->getParent()?->id);
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

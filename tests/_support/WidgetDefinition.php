@@ -1,13 +1,13 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use craft\base\ElementInterface;
 use craft\helpers\Db;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
 
 /**
- * How a third-party plugin registers widgets with Portage: Natural key the slug, not limited to an element source, and
+ * How a third-party plugin registers widgets with Dolly: Natural key the slug, not limited to an element source, and
  * never Stubbed.
  */
 final class WidgetDefinition extends ElementTypeDefinition

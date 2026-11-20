@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -8,9 +8,9 @@ use craft\base\FieldInterface;
 use presseddigital\linkit\base\ElementLink;
 use presseddigital\linkit\base\Link;
 use presseddigital\linkit\fields\LinkitField;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\references\ElementTypes;
 
 /**
  * Pressed Digital's Linkit field: one link, of one of the link types enabled on the field.
@@ -19,13 +19,13 @@ use simplygoodwork\craftportage\references\ElementTypes;
  * is matched to the link types the Target field enables. URL, email, phone and social links travel as they are, along
  * with the link's custom text and target. A link to an element (an Embedded reference, stored as the element's ID)
  * holds the element as a Reference and resolves with the usual rules, Stub and replacement choices. A link to a type of
- * element Portage doesn't support (a Commerce product) is cleared with a warning.
+ * element Dolly doesn't support (a Commerce product) is cleared with a warning.
  */
 final class LinkitAdapter implements CompletesTokens
 {
     /**
      * @return array{type: string, value?: string, customText?: string|null, target?: bool|null, unsupported?: true}|null
-     * the link, or null for no link or a link to an element that no longer exists. A link to a type of element Portage
+     * the link, or null for no link or a link to an element that no longer exists. A link to a type of element Dolly
      * doesn't support is exported without its element, as unsupported, since its ID means nothing in another
      * environment.
      */
@@ -80,7 +80,7 @@ final class LinkitAdapter implements CompletesTokens
         $isElementLink = is_subclass_of($class, ElementLink::class);
         $elementClass = $isElementLink ? $class::elementType() : null;
         if ($isElementLink && ($elementClass === null || !ElementTypes::supports($elementClass) || !empty($portable['unsupported']))) {
-            $context->plan->warn(sprintf('The field "%s" links to a %s, which Portage can\'t move between environments. The link will be cleared.', $field->name, $handle));
+            $context->plan->warn(sprintf('The field "%s" links to a %s, which Dolly can\'t move between environments. The link will be cleared.', $field->name, $handle));
             return null;
         }
         if (!is_string($portable['value'] ?? null) || $portable['value'] === '') {

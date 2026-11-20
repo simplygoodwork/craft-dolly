@@ -1,6 +1,6 @@
-# Portage
+# Dolly
 
-Portage moves content between Craft environments that share project config but have no connection to each other. Content leaves one environment as a self-contained Payload and enters another through an Import.
+Dolly moves content between Craft environments that share project config but have no connection to each other. Content leaves one environment as a self-contained Payload and enters another through an Import.
 
 ## Language
 
@@ -24,7 +24,7 @@ _Exception_: "Paste" for the entry-editor action "Paste from another environment
 **Preview**:
 The report shown before an Import commits, listing every Resolution, Drift and skipped value, and the user's choices for Unresolved References.
 _Avoid_: Dry run, diff
-_Exception_: the CLI flag `portage/import --dry-run` (and the option property `$dryRun` behind it), following command-line convention. Everything else, including its output and docs, says Preview.
+_Exception_: the CLI flag `dolly/import --dry-run` (and the option property `$dryRun` behind it), following command-line convention. Everything else, including its output and docs, says Preview.
 
 **Import mode**:
 What an Import does with a Root element that matches an existing entry in the Target environment: *create new* (the default) or *overwrite*, which applies the Payload to a draft of the matched entry and never touches the live one.

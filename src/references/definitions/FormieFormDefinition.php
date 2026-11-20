@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
 use craft\helpers\Db;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
 use verbb\formie\elements\db\FormQuery;
 use verbb\formie\elements\Form;
 

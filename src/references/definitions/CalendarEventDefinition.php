@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use craft\base\ElementInterface;
 use craft\helpers\Db;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
 use Solspace\Calendar\Calendar;
 use Solspace\Calendar\Elements\Db\EventQuery;
 use Solspace\Calendar\Elements\Event;

@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\FieldInterface;
@@ -8,8 +8,8 @@ use craft\helpers\Json;
 use percipiolondon\colourswatches\fields\ColourSwatches;
 use percipiolondon\colourswatches\models\ColourSwatches as Swatch;
 use percipiolondon\colourswatches\models\Settings;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 
 /**
  * Colour Swatches: the selected swatch travels as its label and colour.

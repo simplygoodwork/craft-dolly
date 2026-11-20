@@ -16,6 +16,6 @@ Judgement calls for review. phpstan and ECS (`composer check`) cover everything 
 
 ## Tests
 
-- **Test through the seam.** Tests call the core service's `export` / `preview` / `import` (`Plugin::getInstance()->getPortage()`) and assert on the Target environment, the returned ImportPlan / ImportResult, and the Import log. They never call PayloadCodec, SchemaManifest, ReferenceResolver, ImportPlanner, Importer or Field adapters directly. Console controllers get light coverage only.
+- **Test through the seam.** Tests call the core service's `export` / `preview` / `import` (`Plugin::getInstance()->getDolly()`) and assert on the Target environment, the returned ImportPlan / ImportResult, and the Import log. They never call PayloadCodec, SchemaManifest, ReferenceResolver, ImportPlanner, Importer or Field adapters directly. Console controllers get light coverage only.
 - **Simulate the Target environment on one install.** Change the install between Export and Import through `tests/_support/Schema.php`, adding a `Schema` method for any new kind of change rather than calling Craft's services inline.
 - **Expected values are literals.** Assert against known strings, values and messages written out in the test, never against values recomputed the way the code computes them.

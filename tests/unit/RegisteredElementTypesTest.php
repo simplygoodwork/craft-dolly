@@ -1,21 +1,21 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
-use simplygoodwork\craftportage\tests\support\Widget;
-use simplygoodwork\craftportage\tests\support\WidgetDefinition;
-use simplygoodwork\craftportage\tests\support\WidgetsField;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
+use simplygoodwork\craftdolly\tests\support\Widget;
+use simplygoodwork\craftdolly\tests\support\WidgetDefinition;
+use simplygoodwork\craftdolly\tests\support\WidgetsField;
 use yii\base\InvalidConfigException;
 
 /**
- * Element types a plugin registers with Portage: a Payload carries their elements as References by the registered
+ * Element types a plugin registers with Dolly: a Payload carries their elements as References by the registered
  * short name, and a relation field to them needs no adapter of its own.
  */
 class RegisteredElementTypesTest extends Unit
@@ -30,18 +30,18 @@ class RegisteredElementTypesTest extends Unit
             $news = Schema::section('news', [$article]);
             $source = Schema::entry($news, $article, ['title' => 'Widgets', 'widgets' => [$alpha->id, $beta->id]]);
 
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
             Schema::changeUid($beta);
 
-            $plan = $this->portage()->preview($payload);
+            $plan = $this->dolly()->preview($payload);
             $this->assertSame('widget', $plan->references[$alpha->uid]->elementType);
             $this->assertSame(['slug' => 'beta'], $plan->references[$betaSourceUid]->reference['naturalKey']);
             $this->assertSame('uid', $plan->references[$alpha->uid]->resolution->rule);
             $this->assertSame('naturalKey', $plan->references[$betaSourceUid]->resolution->rule);
             $this->assertSame($beta->id, $plan->references[$betaSourceUid]->resolution->elementId);
 
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $this->assertSame([], $result->roots[0]->warnings);
             $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
@@ -59,17 +59,17 @@ class RegisteredElementTypesTest extends Unit
             $news = Schema::section('news', [$article]);
             $source = Schema::entry($news, $article, ['title' => 'Widgets', 'widgets' => [$gone->id]]);
 
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
             Schema::deleteElement($gone);
 
-            $this->assertSame(['skip', 'replace'], $this->portage()->preview($payload)->references[$goneUid]->availableChoices);
+            $this->assertSame(['skip', 'replace'], $this->dolly()->preview($payload)->references[$goneUid]->availableChoices);
             $this->assertSame(
-                'The Reference "Gone" can\'t be Stubbed: Portage never Stubs widgets. Skip it or choose a replacement.',
-                $this->portage()->preview($payload, [$goneUid => 'stub'])->refusal,
+                'The Reference "Gone" can\'t be Stubbed: Dolly never Stubs widgets. Skip it or choose a replacement.',
+                $this->dolly()->preview($payload, [$goneUid => 'stub'])->refusal,
             );
 
-            $result = $this->portage()->import($payload, [$goneUid => $instead->id]);
+            $result = $this->dolly()->import($payload, [$goneUid => $instead->id]);
 
             $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
             $this->assertSame([$instead->id], $imported->getFieldValue('widgets')->status(null)->ids());
@@ -90,17 +90,17 @@ class RegisteredElementTypesTest extends Unit
             ]);
             $alphaUid = $alpha->uid;
 
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
             Schema::deleteElement($alpha);
             $newAlpha = Schema::widget('Alpha', 'alpha');
 
-            $plan = $this->portage()->preview($payload);
+            $plan = $this->dolly()->preview($payload);
             $this->assertSame('widget', $plan->references[$alphaUid]->elementType);
             $this->assertSame('naturalKey', $plan->references[$alphaUid]->resolution->rule);
             $this->assertSame($newAlpha->id, $plan->references[$alphaUid]->resolution->elementId);
 
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $this->assertSame([], $result->roots[0]->warnings);
             $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
@@ -119,12 +119,12 @@ class RegisteredElementTypesTest extends Unit
             $news = Schema::section('news', [$article]);
             $source = Schema::entry($news, $article, ['title' => 'Widgets', 'widgets' => [$widget->id]]);
 
-            return $this->portage()->export([$source]);
+            return $this->dolly()->export([$source]);
         });
 
         $this->assertSame(
-            'The Payload names an element type Portage doesn\'t support: "widget". It can\'t be imported.',
-            $this->portage()->preview($payload)->refusal,
+            'The Payload names an element type Dolly doesn\'t support: "widget". It can\'t be imported.',
+            $this->dolly()->preview($payload)->refusal,
         );
     }
 
@@ -136,7 +136,7 @@ class RegisteredElementTypesTest extends Unit
         $this->expectException(InvalidConfigException::class);
         $this->expectExceptionMessage($message);
 
-        Schema::withElementType($name, $definition, fn() => $this->portage()->getElementTypes());
+        Schema::withElementType($name, $definition, fn() => $this->dolly()->getElementTypes());
     }
 
     /**
@@ -145,7 +145,7 @@ class RegisteredElementTypesTest extends Unit
     public static function invalidRegistrations(): array
     {
         return [
-            'not a definition' => ['gadget', new \stdClass(), 'The element type registered as "gadget" must extend simplygoodwork\craftportage\references\ElementTypeDefinition.'],
+            'not a definition' => ['gadget', new \stdClass(), 'The element type registered as "gadget" must extend simplygoodwork\craftdolly\references\ElementTypeDefinition.'],
             'a name a reference tag can\'t carry' => ['wid-get', new WidgetDefinition(), 'The element type name "wid-get" isn\'t valid: use letters and digits, starting with a letter.'],
             'the Neo block name' => ['neoBlock', new WidgetDefinition(), 'The element type name "neoBlock" is reserved for Neo blocks.'],
             'a class already registered' => ['page', new class() extends ElementTypeDefinition {
@@ -167,8 +167,8 @@ class RegisteredElementTypesTest extends Unit
         ];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

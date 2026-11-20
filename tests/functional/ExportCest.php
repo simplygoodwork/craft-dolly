@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\functional;
+namespace simplygoodwork\craftdolly\tests\functional;
 
 use Craft;
 use craft\elements\Entry;
@@ -9,8 +9,8 @@ use craft\helpers\Json;
 use craft\helpers\StringHelper;
 use craft\models\Site;
 use FunctionalTester;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Light coverage of the control panel's "Copy for another environment" actions: what a Payload contains is covered
@@ -29,7 +29,7 @@ class ExportCest
 
         $I->assertFalse($response['asFile']);
         $I->assertSame(1, $response['count']);
-        $I->assertSame('hello.portage', $response['filename']);
+        $I->assertSame('hello.dolly', $response['filename']);
         $imported = $this->importedTitles($I, $response['payload']);
         $I->assertSame(['Draft title'], $imported);
     }
@@ -45,7 +45,7 @@ class ExportCest
         $response = $this->post($I, 'entries', ['ids' => [$second->id, $first->id], 'siteId' => $first->siteId]);
 
         $I->assertSame(2, $response['count']);
-        $I->assertSame('entries.portage', $response['filename']);
+        $I->assertSame('entries.dolly', $response['filename']);
         $I->assertSame(['Second', 'First'], $this->importedTitles($I, $response['payload']));
     }
 
@@ -57,7 +57,7 @@ class ExportCest
         $response = $this->post($I, 'entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
 
         $I->assertTrue($response['asFile']);
-        $I->assertStringStartsWith('portage:v1:', $response['payload']);
+        $I->assertStringStartsWith('dolly:v1:', $response['payload']);
         $this->importedTitles($I, $response['payload']);
     }
 
@@ -68,11 +68,11 @@ class ExportCest
         $response = $this->post($I, 'entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
         $I->assertTrue($response['asFile']);
 
-        $file = 'download-' . uniqid() . '.portage';
+        $file = 'download-' . uniqid() . '.dolly';
         file_put_contents(codecept_data_dir($file), $response['payload'] . PHP_EOL);
         try {
             \yii\web\UploadedFile::reset();
-            $I->amOnPage('/admin/utilities/portage');
+            $I->amOnPage('/admin/utilities/dolly');
             $I->attachFile('input[name="payloadFile"]', $file);
             $I->submitForm('form', []);
         } finally {
@@ -94,7 +94,7 @@ class ExportCest
         $I->amOnPage("/admin/entries/news/$entry->id");
         $I->seeResponseCodeIs(200);
         $I->dontSee(self::LABEL);
-        $I->assertNotContains(\simplygoodwork\craftportage\elements\CopyForAnotherEnvironment::class, Entry::actions('*'));
+        $I->assertNotContains(\simplygoodwork\craftdolly\elements\CopyForAnotherEnvironment::class, Entry::actions('*'));
 
         $this->postForbidden($I, $entry, $I->grabAttributeFrom('input[name="CRAFT_CSRF_TOKEN"]', 'value'));
     }
@@ -103,21 +103,21 @@ class ExportCest
     {
         [$entry] = $this->entryWithADraft();
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', ...$this->entryPermissions($entry), 'portage-exportContent']);
+        Schema::grantPermissions($editor, ['accessCp', ...$this->entryPermissions($entry), 'dolly-exportContent']);
         $I->amLoggedInAs($editor);
 
         $I->amOnPage("/admin/entries/news/$entry->id");
 
         $I->seeResponseCodeIs(200);
         $I->see(self::LABEL);
-        $I->assertContains(\simplygoodwork\craftportage\elements\CopyForAnotherEnvironment::class, Entry::actions('*'));
+        $I->assertContains(\simplygoodwork\craftdolly\elements\CopyForAnotherEnvironment::class, Entry::actions('*'));
     }
 
     public function aUserWhoCannotSeeAnEntryCannotExportIt(FunctionalTester $I): void
     {
         [$entry] = $this->entryWithADraft();
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', 'portage-exportContent']);
+        Schema::grantPermissions($editor, ['accessCp', 'dolly-exportContent']);
         $I->amLoggedInAs($editor);
 
         $this->postForbidden($I, $entry);
@@ -155,12 +155,12 @@ class ExportCest
         Schema::translate($entry, $german, ['title' => 'Hallo']);
         $primary = Craft::$app->getSites()->getPrimarySite();
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', 'portage-exportContent', "editSite:$primary->uid", ...$this->entryPermissions($entry)]);
+        Schema::grantPermissions($editor, ['accessCp', 'dolly-exportContent', "editSite:$primary->uid", ...$this->entryPermissions($entry)]);
         $I->amLoggedInAs($editor);
 
         $editorsPayload = $this->post($I, 'entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId])['payload'];
         $I->amLoggedInAs(User::find()->admin()->one());
-        $adminsPayload = Plugin::getInstance()->getPortage()->export([$entry]);
+        $adminsPayload = Plugin::getInstance()->getDolly()->export([$entry]);
 
         // The new entry is propagated to the German site either way: its title there is the Payload's, or a copy of the English one.
         $I->assertSame('Hello', $this->germanTitleAfterImporting($editorsPayload, $entry, $german), 'The Payload has a site the user can\'t edit');
@@ -175,14 +175,14 @@ class ExportCest
         $draft = Schema::draft($entry, ['title' => 'Their unsaved changes'], provisional: true);
         $uid = $news->uid;
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', 'portage-exportContent', ...$this->entryPermissions($entry), "viewPeerEntryDrafts:$uid", "savePeerEntryDrafts:$uid"]);
+        Schema::grantPermissions($editor, ['accessCp', 'dolly-exportContent', ...$this->entryPermissions($entry), "viewPeerEntryDrafts:$uid", "savePeerEntryDrafts:$uid"]);
         $I->amLoggedInAs($editor);
         $I->amOnPage("/admin/entries/news/$entry->id");
         $token = $I->grabAttributeFrom('input[name="CRAFT_CSRF_TOKEN"]', 'value');
 
         $I->haveHttpHeader('X-CSRF-Token', $token);
         $I->haveHttpHeader('Accept', 'application/json');
-        $I->sendAjaxPostRequest('/admin/actions/portage/export/entry', ['elementId' => $draft->id, 'siteId' => $entry->siteId]);
+        $I->sendAjaxPostRequest('/admin/actions/dolly/export/entry', ['elementId' => $draft->id, 'siteId' => $entry->siteId]);
 
         $I->seeResponseCodeIs(403);
     }
@@ -193,7 +193,7 @@ class ExportCest
         $I->amLoggedInAs(User::find()->admin()->one());
 
         $I->haveHttpHeader('Accept', 'application/json');
-        $I->sendAjaxPostRequest('/admin/actions/portage/export/entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
+        $I->sendAjaxPostRequest('/admin/actions/dolly/export/entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
 
         $I->seeResponseCodeIs(400);
     }
@@ -207,7 +207,7 @@ class ExportCest
         if ($existing) {
             Schema::deleteElement($existing);
         }
-        $result = Plugin::getInstance()->getPortage()->import($payload);
+        $result = Plugin::getInstance()->getDolly()->import($payload);
 
         return (string)Entry::find()->id($result->roots[0]->elementId)->siteId($site->id)->status(null)->one()?->title;
     }
@@ -226,7 +226,7 @@ class ExportCest
     {
         $I->haveHttpHeader('X-CSRF-Token', $csrfToken ?? $this->csrfToken($I));
         $I->haveHttpHeader('Accept', 'application/json');
-        $I->sendAjaxPostRequest('/admin/actions/portage/export/entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
+        $I->sendAjaxPostRequest('/admin/actions/dolly/export/entries', ['ids' => [$entry->id], 'siteId' => $entry->siteId]);
         $I->seeResponseCodeIs(403);
     }
 
@@ -248,7 +248,7 @@ class ExportCest
     {
         $I->haveHttpHeader('X-CSRF-Token', $this->csrfToken($I));
         $I->haveHttpHeader('Accept', 'application/json');
-        $I->sendAjaxPostRequest("/admin/actions/portage/export/$action", $params);
+        $I->sendAjaxPostRequest("/admin/actions/dolly/export/$action", $params);
         $I->seeResponseCodeIs(200);
 
         return Json::decode($I->grabPageSource());
@@ -261,7 +261,7 @@ class ExportCest
      */
     private function importedTitles(FunctionalTester $I, string $payload): array
     {
-        $result = Plugin::getInstance()->getPortage()->import($payload);
+        $result = Plugin::getInstance()->getDolly()->import($payload);
         $I->assertFalse($result->isRefused());
 
         return array_map(fn($root) => (string)$root->title, $result->roots);

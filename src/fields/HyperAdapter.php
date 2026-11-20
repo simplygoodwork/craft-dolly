@@ -1,16 +1,16 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\helpers\ArrayHelper;
 use craft\helpers\StringHelper;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\schema\SchemaManifest;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\schema\SchemaManifest;
 use verbb\hyper\base\ElementLink;
 use verbb\hyper\base\Link;
 use verbb\hyper\fields\HyperField;
@@ -73,7 +73,7 @@ final class HyperAdapter implements CompletesTokens
 
     /**
      * @return list<array<string, mixed>> the links, in order. A link to an element that no longer exists is left out. A
-     * link to a type of element Portage doesn't support is exported without its element, as unsupported, since its ID
+     * link to a type of element Dolly doesn't support is exported without its element, as unsupported, since its ID
      * means nothing in another environment.
      */
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
@@ -118,7 +118,7 @@ final class HyperAdapter implements CompletesTokens
                 continue;
             }
             if (!empty($link['unsupported'])) {
-                $context->plan->warn(sprintf('A %s link in the field "%s" points at a kind of element Portage can\'t move between environments. The link will be skipped.', $linkType->label ?? $linkType->handle, $field->name));
+                $context->plan->warn(sprintf('A %s link in the field "%s" points at a kind of element Dolly can\'t move between environments. The link will be skipped.', $linkType->label ?? $linkType->handle, $field->name));
                 continue;
             }
 

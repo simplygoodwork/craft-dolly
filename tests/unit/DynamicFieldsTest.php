@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\base\FieldInterface;
@@ -12,10 +12,10 @@ use lewisjenkins\craftdynamicfields\fields\Checkboxes;
 use lewisjenkins\craftdynamicfields\fields\Dropdown;
 use lewisjenkins\craftdynamicfields\fields\Multiselect;
 use lewisjenkins\craftdynamicfields\fields\Radiobuttons;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use yii\base\InvalidConfigException;
 
 /**
@@ -32,8 +32,8 @@ class DynamicFieldsTest extends Unit
         [$field, $news, $events] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id, (string)$events->id]]);
 
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
-        $preview = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->preview($payload));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
+        $preview = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->preview($payload));
         $this->assertSame(
             ['kind' => 'section', 'values' => [$news->uid, $events->uid]],
             $preview->envelope['roots'][0]['fields'][$field->uid] ?? null,
@@ -43,7 +43,7 @@ class DynamicFieldsTest extends Unit
 
         $recreated = Schema::recreateSection($news);
         $this->assertNotSame($news->id, $recreated->id);
-        $result = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->import($payload));
 
         $this->assertSame('created', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -57,10 +57,10 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news, $events] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id, (string)$events->id]]);
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
         Schema::deleteSection($events);
 
-        $result = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->import($payload));
 
         $this->assertSame(
             ['The section "Events Blog" selected in the field "Blog Channels" doesn\'t exist in this environment. It will be dropped from the field.'],
@@ -73,9 +73,9 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id, '999999', 'news']]);
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
 
-        $result = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->import($payload));
 
         $this->assertSame([
             'The value "999999" in the field "Blog Channels" wasn\'t the ID of a section where it was exported. It will be dropped from the field.',
@@ -90,12 +90,12 @@ class DynamicFieldsTest extends Unit
         $launch = Schema::entry($news, $post, ['title' => 'Launch', 'slug' => 'launch']);
         $source = $this->page($field, ['featuredEntry' => (string)$launch->id]);
         $settings = ['dynamicFields' => ['featuredEntry' => 'entry']];
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
         // The same entry in another environment: another ID and UID, the same section and slug.
         Schema::deleteElement($launch);
         $target = Schema::entry($news, $post, ['title' => 'Launch', 'slug' => 'launch']);
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload));
 
         $this->assertSame([], $result->roots[0]->warnings);
         $this->assertSame((string)$target->id, $this->entry($result->roots[0]->elementId)->getFieldValue('featuredEntry'));
@@ -108,10 +108,10 @@ class DynamicFieldsTest extends Unit
         $uid = $launch->uid;
         $source = $this->page($field, ['featuredEntry' => (string)$launch->id]);
         $settings = ['dynamicFields' => ['featuredEntry' => 'entry']];
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
         Schema::deleteElement($launch);
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload, [$uid => 'stub']));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload, [$uid => 'stub']));
 
         $stub = Entry::find()->uid($uid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -125,10 +125,10 @@ class DynamicFieldsTest extends Unit
         $launch = Schema::entry($news, $post, ['title' => 'Launch', 'slug' => 'launch']);
         $source = $this->page($field, ['featuredEntry' => (string)$launch->id]);
         $settings = ['dynamicFields' => ['featuredEntry' => 'entry']];
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
         Schema::deleteElement($launch);
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload));
 
         $this->assertSame(
             ['The entry "Launch" selected in the field "Featured Entry" doesn\'t exist in this environment. It will be dropped from the field.'],
@@ -143,10 +143,10 @@ class DynamicFieldsTest extends Unit
         $contact = Schema::form('Contact', 'contact');
         $source = $this->page($field, ['featuredForm' => (string)$contact->id]);
         $settings = ['dynamicFields' => ['featuredForm' => 'formieForm']];
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
         Schema::deleteElement($contact);
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload));
 
         $this->assertSame(
             ['The form "Contact" selected in the field "Featured Form" doesn\'t exist in this environment. It will be dropped from the field.'],
@@ -164,11 +164,11 @@ class DynamicFieldsTest extends Unit
         $field = Schema::field(Multiselect::class, 'gallery', ['name' => 'Gallery', 'multiselectOptions' => '']);
         $source = $this->page($field, ['gallery' => [(string)$gone->id, (string)$photo->id]]);
         $settings = ['dynamicFields' => ['gallery' => 'asset']];
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
         Schema::deleteElement($photo);
         Schema::deleteElement($gone);
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch']));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch']));
 
         $fetched = Asset::find()->uid($photoUid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -192,15 +192,15 @@ class DynamicFieldsTest extends Unit
         ]);
         $settings = ['dynamicFields' => ['groups' => 'categoryGroup', 'topic' => 'category']];
 
-        $payload = Schema::withPortageSettings($settings, fn() => $this->portage()->export([$source]));
-        $preview = Schema::withPortageSettings($settings, fn() => $this->portage()->preview($payload));
+        $payload = Schema::withDollySettings($settings, fn() => $this->dolly()->export([$source]));
+        $preview = Schema::withDollySettings($settings, fn() => $this->dolly()->preview($payload));
         $this->assertSame([$topics->uid, $regions->uid], array_keys($preview->envelope['schema']['categoryGroups']));
         $this->assertSame(
             ['kind' => 'category', 'values' => [$travel->uid]],
             $preview->envelope['roots'][0]['fields'][$topic->uid] ?? null,
         );
 
-        $result = Schema::withPortageSettings($settings, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings($settings, fn() => $this->dolly()->import($payload));
 
         $imported = $this->entry($result->roots[0]->elementId);
         $this->assertSame([], $result->roots[0]->warnings);
@@ -212,12 +212,12 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
-            ['The field "Blog Channels" is a Multi-select (dynamic) field, which Portage has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.'],
+            ['The field "Blog Channels" is a Multi-select (dynamic) field, which Dolly has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.'],
             $result->roots[0]->warnings,
         );
         $this->assertSame(sprintf('["%d"]', $news->id), $this->entry($result->roots[0]->elementId)->getFieldValue('sectionIDs'));
@@ -227,9 +227,9 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id]]);
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             ['The field "Blog Channels" held section IDs where it was exported, but it isn\'t declared in the dynamicFields setting in this environment. Its values will be skipped.'],
@@ -242,9 +242,9 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
-        $result = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->import($payload));
+        $result = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->import($payload));
 
         $this->assertSame(
             ['The field "Blog Channels" holds section IDs in this environment, but it wasn\'t declared in the dynamicFields setting where it was exported, so its values are IDs from that environment. Its values will be skipped.'],
@@ -257,11 +257,11 @@ class DynamicFieldsTest extends Unit
     {
         [$field, $news] = $this->blogChannels();
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id]]);
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
 
-        $result = Schema::withPortageSettings(
+        $result = Schema::withDollySettings(
             ['dynamicFields' => ['sectionIDs' => 'entry']],
-            fn() => $this->portage()->import($payload),
+            fn() => $this->dolly()->import($payload),
         );
 
         $this->assertSame(
@@ -275,9 +275,9 @@ class DynamicFieldsTest extends Unit
     {
         [$field] = $this->blogChannels();
         $source = $this->page($field, []);
-        $payload = Schema::withPortageSettings(self::SECTIONS, fn() => $this->portage()->export([$source]));
+        $payload = Schema::withDollySettings(self::SECTIONS, fn() => $this->dolly()->export([$source]));
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $this->assertSame('', $this->entry($result->roots[0]->elementId)->getFieldValue('sectionIDs'));
@@ -289,11 +289,11 @@ class DynamicFieldsTest extends Unit
         $source = $this->page($field, ['sectionIDs' => [(string)$news->id]]);
 
         $this->expectException(InvalidConfigException::class);
-        $this->expectExceptionMessage('The dynamicFields setting declares the field "sectionIDs" as "sections", which isn\'t a kind Portage knows. Use one of section, entryType, categoryGroup, volume, site, or the short name of a registered element type, such as entry, category, tag, user or asset.');
+        $this->expectExceptionMessage('The dynamicFields setting declares the field "sectionIDs" as "sections", which isn\'t a kind Dolly knows. Use one of section, entryType, categoryGroup, volume, site, or the short name of a registered element type, such as entry, category, tag, user or asset.');
 
-        Schema::withPortageSettings(
+        Schema::withDollySettings(
             ['dynamicFields' => ['sectionIDs' => 'sections']],
-            fn() => $this->portage()->export([$source]),
+            fn() => $this->dolly()->export([$source]),
         );
     }
 
@@ -349,8 +349,8 @@ class DynamicFieldsTest extends Unit
         return $entry;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

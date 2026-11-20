@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\FieldInterface;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 use Throwable;
 
 /**
@@ -32,7 +32,7 @@ final class FallbackAdapter implements FieldAdapter
         // A field with no value has nothing to warn about.
         if ($portable !== null && $portable !== '' && $portable !== []) {
             $context->plan->warn(sprintf(
-                'The field "%s" is a %s field, which Portage has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.',
+                'The field "%s" is a %s field, which Dolly has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.',
                 $field->name,
                 $field::displayName(),
             ));

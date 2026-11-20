@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Craft;
 use craft\elements\Asset;
@@ -10,13 +10,13 @@ use craft\fields\Assets;
 use craft\fields\Entries;
 use craft\fields\Users;
 use craft\test\console\ConsoleTest;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use yii\console\ExitCode;
 
 /**
- * Light coverage of `portage/export` and `portage/import`: the behaviour itself is covered through the core service.
+ * Light coverage of `dolly/export` and `dolly/import`: the behaviour itself is covered through the core service.
  */
 class ConsoleCommandsTest extends ConsoleTest
 {
@@ -25,7 +25,7 @@ class ConsoleCommandsTest extends ConsoleTest
     protected function _before(): void
     {
         parent::_before();
-        $this->file = sys_get_temp_dir() . '/portage-test-' . uniqid() . '.portage';
+        $this->file = sys_get_temp_dir() . '/dolly-test-' . uniqid() . '.dolly';
     }
 
     protected function _after(): void
@@ -40,13 +40,13 @@ class ConsoleCommandsTest extends ConsoleTest
     {
         $source = $this->sourceEntry('From a file');
 
-        $this->consoleCommand('portage/export', [(string)$source->id, 'output' => $this->file], true)
+        $this->consoleCommand('dolly/export', [(string)$source->id, 'output' => $this->file], true)
             ->exitCode(ExitCode::OK)
             ->run();
-        $this->assertStringStartsWith('portage:v1:', (string)file_get_contents($this->file));
+        $this->assertStringStartsWith('dolly:v1:', (string)file_get_contents($this->file));
 
         Craft::$app->getElements()->deleteElement($source, true);
-        $this->consoleCommand('portage/import', ['file' => $this->file, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', ['file' => $this->file, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -61,12 +61,12 @@ class ConsoleCommandsTest extends ConsoleTest
         $type = Schema::entryType('article');
         $section = Schema::section('news', [$type]);
         $entries = array_map(fn(int $i) => Schema::entry($section, $type, ['title' => "Entry $i"]), range(1, 11));
-        $payload = Plugin::getInstance()->getPortage()->export($entries);
+        $payload = Plugin::getInstance()->getDolly()->export($entries);
         foreach ($entries as $entry) {
             Schema::deleteElement($entry);
         }
 
-        $this->consoleCommand('portage/import', [$payload, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -79,10 +79,10 @@ class ConsoleCommandsTest extends ConsoleTest
     public function testImportsAPayloadPassedAsAnArgument(): void
     {
         $source = $this->sourceEntry('From an argument');
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $this->consoleCommand('portage/import', [$payload, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -92,10 +92,10 @@ class ConsoleCommandsTest extends ConsoleTest
     public function testPreviewFlagPrintsThePreviewAndWritesNothing(): void
     {
         $source = $this->sourceEntry('Preview only');
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => $this->importerEmail()], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Would create a disabled entry \"Preview only\" from $source->uid." . PHP_EOL)
             ->stdout('  No existing entry matches. Modes: create. Chosen: create.' . PHP_EOL)
@@ -109,8 +109,8 @@ class ConsoleCommandsTest extends ConsoleTest
 
     public function testRefusesAMalformedPayload(): void
     {
-        $this->consoleCommand('portage/import', ['not a payload', 'user' => $this->importerEmail()], true)
-            ->stderr('Payload refused: This is not a Portage Payload: it should start with "portage:v1:".' . PHP_EOL)
+        $this->consoleCommand('dolly/import', ['not a payload', 'user' => $this->importerEmail()], true)
+            ->stderr('Payload refused: This is not a Dolly Payload: it should start with "dolly:v1:".' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
     }
@@ -119,15 +119,15 @@ class ConsoleCommandsTest extends ConsoleTest
     {
         $source = $this->sourceEntry('Secret');
 
-        Schema::withSharedKeyEnvVarUnset(fn() => $this->consoleCommand('portage/export', [(string)$source->id], true)
-            ->stderr('The Shared key setting refers to the env var "PORTAGE_MISSING_KEY", which isn\'t set in this environment. Set it to the same Shared key as every other environment.' . PHP_EOL)
+        Schema::withSharedKeyEnvVarUnset(fn() => $this->consoleCommand('dolly/export', [(string)$source->id], true)
+            ->stderr('The Shared key setting refers to the env var "DOLLY_MISSING_KEY", which isn\'t set in this environment. Set it to the same Shared key as every other environment.' . PHP_EOL)
             ->exitCode(ExitCode::CONFIG)
             ->run());
     }
 
     public function testExportFailsForAnUnknownEntryId(): void
     {
-        $this->consoleCommand('portage/export', ['999999'], true)
+        $this->consoleCommand('dolly/export', ['999999'], true)
             ->stderr('No entry found with ID 999999.' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
@@ -137,7 +137,7 @@ class ConsoleCommandsTest extends ConsoleTest
     {
         [$payload, $kept, $gone] = $this->payloadRelatingTo('Kept', 'Gone');
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'stub' => $gone, 'user' => $this->importerEmail()], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'stub' => $gone, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Reference \"Kept\" (entry, $kept) matched by UID." . PHP_EOL)
             ->stdout("Unresolved reference \"Gone\" (entry, $gone): will be Stubbed. Choices: skip, stub, replace." . PHP_EOL)
@@ -156,13 +156,13 @@ class ConsoleCommandsTest extends ConsoleTest
         $instead = Schema::entry($topics, $topics->getEntryTypes()[0], ['title' => 'Instead']);
         file_put_contents($this->file, json_encode([$gone => $instead->id]));
 
-        $this->consoleCommand('portage/import', [$payload, 'choices' => $this->file, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'choices' => $this->file, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $this->assertSame([$keptId, $instead->id], $this->relatedIds());
 
         Craft::$app->getElements()->deleteElement(Entry::find()->uid($this->sourceUid)->status(null)->one(), true);
-        $this->consoleCommand('portage/import', [$payload, 'stub' => $gone, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'stub' => $gone, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $stub = Entry::find()->uid($gone)->status(null)->one();
@@ -176,12 +176,12 @@ class ConsoleCommandsTest extends ConsoleTest
         $entryType = Schema::entryType('article', [Schema::field(Users::class, 'contacts')]);
         $section = Schema::section('news', [$entryType]);
         $source = Schema::entry($section, $entryType, ['title' => 'Contacts', 'contacts' => [$user->id]]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
         Craft::$app->getElements()->deleteElement($user, true);
 
-        $this->consoleCommand('portage/import', [$payload, 'stub' => $user->uid, 'user' => $this->importerEmail()], true)
-            ->stderr('Payload refused: The user "gone" can\'t be Stubbed: Portage never creates users. Skip it or choose a replacement user.' . PHP_EOL)
+        $this->consoleCommand('dolly/import', [$payload, 'stub' => $user->uid, 'user' => $this->importerEmail()], true)
+            ->stderr('Payload refused: The user "gone" can\'t be Stubbed: Dolly never creates users. Skip it or choose a replacement user.' . PHP_EOL)
             ->exitCode(ExitCode::DATAERR)
             ->run();
     }
@@ -189,14 +189,14 @@ class ConsoleCommandsTest extends ConsoleTest
     public function testImportRequiresTheActiveUserItRunsAs(): void
     {
         $source = $this->sourceEntry('Needs a user');
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
 
-        $this->consoleCommand('portage/import', [$payload], true)
+        $this->consoleCommand('dolly/import', [$payload], true)
             ->stderr('Pass --user with the email of the user to run the Import as. Unresolved authors are credited to them.' . PHP_EOL)
             ->exitCode(ExitCode::USAGE)
             ->run();
-        $this->consoleCommand('portage/import', [$payload, 'user' => 'nobody@example.com'], true)
+        $this->consoleCommand('dolly/import', [$payload, 'user' => 'nobody@example.com'], true)
             ->stderr('No active user has the email nobody@example.com.' . PHP_EOL)
             ->exitCode(ExitCode::USAGE)
             ->run();
@@ -210,12 +210,12 @@ class ConsoleCommandsTest extends ConsoleTest
         $entryType = Schema::entryType('article');
         $section = Schema::section('news', [$entryType]);
         $source = Schema::entry($section, $entryType, ['title' => 'Authored', 'authorIds' => [$gone->id]]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
         Craft::$app->getElements()->deleteElement($gone, true);
         $importer = Schema::user('importer', ['admin' => true]);
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'user' => 'importer@example.com'], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'user' => 'importer@example.com'], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Unresolved reference \"gone\" (user, $gone->uid): will be skipped in user fields; as an author, \"importer\" is credited instead. Choices: skip, replace." . PHP_EOL)
             ->stdout("Would create a disabled entry \"Authored\" from $source->uid." . PHP_EOL)
@@ -225,7 +225,7 @@ class ConsoleCommandsTest extends ConsoleTest
             ->exitCode(ExitCode::OK)
             ->run();
 
-        $this->consoleCommand('portage/import', [$payload, 'user' => 'importer@example.com'], true)
+        $this->consoleCommand('dolly/import', [$payload, 'user' => 'importer@example.com'], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -237,10 +237,10 @@ class ConsoleCommandsTest extends ConsoleTest
     public function testOverwriteCreatesADraftOnTheMatchedEntryAndThePreviewShowsTheMatch(): void
     {
         $source = $this->sourceEntry('Staging title');
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Schema::updateEntry($source, ['title' => 'Prod title']);
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'overwrite' => '*', 'user' => $this->importerEmail()], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'overwrite' => '*', 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Would create a draft on entry #$source->id from $source->uid." . PHP_EOL)
             ->stdout("  Matches entry #$source->id by UID. Modes: create, overwrite. Chosen: overwrite." . PHP_EOL)
@@ -248,7 +248,7 @@ class ConsoleCommandsTest extends ConsoleTest
             ->exitCode(ExitCode::OK)
             ->run();
 
-        $this->consoleCommand('portage/import', [$payload, 'overwrite' => $source->uid, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'overwrite' => $source->uid, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
 
@@ -265,16 +265,16 @@ class ConsoleCommandsTest extends ConsoleTest
         $source = $this->sourceEntry('Moved');
         $article = Craft::$app->getEntries()->getEntryTypeByHandle('article');
         Schema::section('blog', [$article]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
 
-        $this->consoleCommand('portage/import', [$payload, 'section' => 'blog', 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'section' => 'blog', 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $this->assertSame(1, (int)Entry::find()->section('blog')->status(null)->count());
         Schema::setImportDate(Plugin::getInstance()->getImportLog()->getEntries()[0]->id, '2026-11-05 09:30:00');
         $blogEntryId = (int)Entry::find()->section('blog')->status(null)->one()->id;
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'section' => "$source->uid=blog", 'user' => $this->importerEmail()], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'section' => "$source->uid=blog", 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout('Warning: This Payload was already imported here on 5 Nov 2026 at 09:30 by "importer".' . PHP_EOL)
             ->stdout("Would create a disabled entry \"Moved\" from $source->uid." . PHP_EOL)
@@ -293,16 +293,16 @@ class ConsoleCommandsTest extends ConsoleTest
         $uid = $photo->uid;
         $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
         $source = Schema::entry(Schema::section('news', [$article]), $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
-        $file = sys_get_temp_dir() . '/portage-console-' . uniqid() . '.png';
+        $file = sys_get_temp_dir() . '/dolly-console-' . uniqid() . '.png';
         copy(codecept_data_dir('files/photo.png'), $file);
-        $choices = sys_get_temp_dir() . '/portage-console-' . uniqid() . '.json';
+        $choices = sys_get_temp_dir() . '/dolly-console-' . uniqid() . '.json';
         file_put_contents($choices, json_encode([$uid => ['choice' => 'upload', 'path' => $file]]));
 
         try {
-            $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'choices' => $choices, 'user' => $this->importerEmail()], false)
+            $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'choices' => $choices, 'user' => $this->importerEmail()], false)
                 ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
                 ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be created from the uploaded file into the \"Photos\" volume. Choices: skip, upload, replace." . PHP_EOL)
                 ->stdout('Would create a disabled entry "Pictured" from ' . $source->uid . '.' . PHP_EOL)
@@ -324,11 +324,11 @@ class ConsoleCommandsTest extends ConsoleTest
         $uid = $photo->uid;
         $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
         $source = Schema::entry(Schema::section('news', [$article]), $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $this->consoleCommand('portage/import', [$payload, 'dryRun' => true, 'fetch' => $uid, 'user' => $this->importerEmail()], false)
+        $this->consoleCommand('dolly/import', [$payload, 'dryRun' => true, 'fetch' => $uid, 'user' => $this->importerEmail()], false)
             ->stdout('Preview only: nothing has been imported.' . PHP_EOL)
             ->stdout("Unresolved reference \"Photo\" (asset, $uid): will be fetched from $server/files/photo.png into the \"Photos\" volume. Choices: skip, fetch, upload, replace." . PHP_EOL)
             ->stdout('Would create a disabled entry "Pictured" from ' . $source->uid . '.' . PHP_EOL)
@@ -338,7 +338,7 @@ class ConsoleCommandsTest extends ConsoleTest
             ->run();
         $this->assertNull(Asset::find()->uid($uid)->one());
 
-        $this->consoleCommand('portage/import', [$payload, 'fetch' => $uid, 'user' => $this->importerEmail()], true)
+        $this->consoleCommand('dolly/import', [$payload, 'fetch' => $uid, 'user' => $this->importerEmail()], true)
             ->exitCode(ExitCode::OK)
             ->run();
         $this->assertNotNull(Asset::find()->uid($uid)->one());
@@ -360,7 +360,7 @@ class ConsoleCommandsTest extends ConsoleTest
         $source = Schema::entry($section, $entryType, ['title' => 'Related', 'relatedTopics' => [$keptTopic->id, $goneTopic->id]]);
         $this->sourceUid = $source->uid;
 
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         Craft::$app->getElements()->deleteElement($source, true);
         Craft::$app->getElements()->deleteElement($goneTopic, true);
 

@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\functional;
+namespace simplygoodwork\craftdolly\tests\functional;
 
 use craft\elements\User;
 use FunctionalTester;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Craft before 5.7 has no field action menus, so Matrix and Neo blocks can't be copied or pasted there, while whole

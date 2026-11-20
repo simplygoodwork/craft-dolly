@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\references;
+namespace simplygoodwork\craftdolly\references;
 
 use Craft;
 use craft\base\ElementInterface;

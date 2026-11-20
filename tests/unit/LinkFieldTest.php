@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -8,12 +8,12 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\fields\data\LinkData;
 use craft\fields\Link;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\GlobalSetLinkType;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\GlobalSetLinkType;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * The Craft Link field: links that don't point at an element round-trip as they are, and a link to an element is an
@@ -43,10 +43,10 @@ class LinkFieldTest extends Unit
         ];
         foreach ($expected as $type => $value) {
             $source = Schema::entry($news, $article, ['title' => "Link $type", 'cta' => ['type' => $type, 'value' => $value]]);
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
 
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $imported = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta');
             $this->assertInstanceOf(LinkData::class, $imported);
@@ -75,10 +75,10 @@ class LinkFieldTest extends Unit
             'filename' => 'brochure.pdf',
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta');
         $this->assertSame([
@@ -120,9 +120,9 @@ class LinkFieldTest extends Unit
             'categoryLink' => ['type' => 'category', 'value' => "{category:$red->id@1:url}"],
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $siteUid = Craft::$app->getSites()->getPrimarySite()->uid;
-        $fields = $this->portage()->preview($payload)->envelope['roots'][0]['fields'];
+        $fields = $this->dolly()->preview($payload)->envelope['roots'][0]['fields'];
         $this->assertContains(['value' => "{entry:$craft->uid@$siteUid:url}", 'type' => 'entry'], $fields);
         Schema::deleteElement($source);
         Schema::deleteElement($craft);
@@ -132,7 +132,7 @@ class LinkFieldTest extends Unit
         $newPhoto = Schema::asset($photos, 'photo.png', 'blog');
         $newRed = Schema::category($colours, ['title' => 'Red', 'slug' => 'red']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertSame("{entry:$newCraft->id@1:url}", $imported->getFieldValue('entryLink')->serialize()['value']);
@@ -156,11 +156,11 @@ class LinkFieldTest extends Unit
             'label' => 'Read more',
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         $this->assertContains(
@@ -174,7 +174,7 @@ class LinkFieldTest extends Unit
     {
         [$payload, $goneUid] = $this->exportLinkToAGoneTopic();
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -189,14 +189,14 @@ class LinkFieldTest extends Unit
         [$payload, $goneUid] = $this->exportLinkToAGoneTopic();
         $other = Entry::find()->slug('other')->one();
 
-        $result = $this->portage()->import($payload, [$goneUid => $other->id]);
+        $result = $this->dolly()->import($payload, [$goneUid => $other->id]);
 
         $link = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta');
         $this->assertSame("{entry:$other->id@1:url}", $link->serialize()['value']);
         $this->assertSame('Read more', $link->getLabel());
     }
 
-    public function testALinkToATypeOfElementPortageDoesNotSupportIsLeftOutInsteadOfCarryingASourceId(): void
+    public function testALinkToATypeOfElementDollyDoesNotSupportIsLeftOutInsteadOfCarryingASourceId(): void
     {
         Schema::withLinkType(GlobalSetLinkType::class, function(): void {
             $settings = Schema::globalSet('footer');
@@ -208,11 +208,11 @@ class LinkFieldTest extends Unit
                 'value' => "{globalset:$settings->id@1:url}",
             ]]);
 
-            $payload = $this->portage()->export([$source]);
-            $this->assertStringNotContainsString('globalset', json_encode($this->portage()->preview($payload)->envelope['roots'][0]['fields']));
+            $payload = $this->dolly()->export([$source]);
+            $this->assertStringNotContainsString('globalset', json_encode($this->dolly()->preview($payload)->envelope['roots'][0]['fields']));
             Schema::deleteElement($source);
 
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         });
@@ -229,13 +229,13 @@ class LinkFieldTest extends Unit
         $emailLink = Schema::entry($news, $article, ['title' => 'Email', 'cta' => ['type' => 'email', 'value' => 'hello@example.com']]);
         $entryLink = Schema::entry($news, $article, ['title' => 'Entry', 'cta' => ['type' => 'entry', 'value' => "{entry:$gone->id@1:url}"]]);
 
-        $payload = $this->portage()->export([$emailLink, $entryLink]);
+        $payload = $this->dolly()->export([$emailLink, $entryLink]);
         Schema::deleteElement($emailLink);
         Schema::deleteElement($entryLink);
         Schema::deleteElement($gone);
         Schema::updateField($cta->uid, ['types' => ['url']]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         foreach ($result->roots as $root) {
             $this->assertNull($this->importedEntry($root->elementId)->getFieldValue('cta'));
@@ -261,11 +261,11 @@ class LinkFieldTest extends Unit
             'filename' => 'brochure.pdf',
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($cta->uid, ['showLabelField' => false, 'advancedFields' => ['title']]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             ['value' => 'https://example.com', 'type' => 'url', 'title' => 'Our site'],
@@ -288,11 +288,11 @@ class LinkFieldTest extends Unit
         [$news, $article] = $this->newsWithAssetLink();
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => 'asset', 'value' => "{asset:$photo->id@1:url}"]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -308,11 +308,11 @@ class LinkFieldTest extends Unit
         [$news, $article] = $this->newsWithAssetLink();
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => 'asset', 'value' => "{asset:$gone->id@1:url}"]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         $this->assertSame(
@@ -352,16 +352,16 @@ class LinkFieldTest extends Unit
             'label' => 'Read more',
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
         return [$payload, $goneUid];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function importedEntry(?int $id): Entry

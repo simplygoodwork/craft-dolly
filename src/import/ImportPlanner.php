@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use benf\neo\Field as NeoField;
 use Craft;
@@ -19,15 +19,15 @@ use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Site;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\payload\DecodedPayload;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\references\NaturalKey;
-use simplygoodwork\craftportage\references\ReferenceResolver;
-use simplygoodwork\craftportage\schema\DriftReport;
-use simplygoodwork\craftportage\schema\SchemaManifest;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\payload\DecodedPayload;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\references\NaturalKey;
+use simplygoodwork\craftdolly\references\ReferenceResolver;
+use simplygoodwork\craftdolly\schema\DriftReport;
+use simplygoodwork\craftdolly\schema\SchemaManifest;
 
 /**
  * Decides what an Import will do with a decoded Payload, without writing anything.
@@ -139,7 +139,7 @@ final class ImportPlanner
             return $blocks ? 'This Payload holds blocks copied from a Matrix or Neo field. Paste it with "Paste from another environment" in the menu of a Matrix or Neo field in an entry editor.' : null;
         }
         if (count($blocks) !== count($roots)) {
-            return 'This Payload holds whole entries, not blocks. Import it in the Portage utility.';
+            return 'This Payload holds whole entries, not blocks. Import it in the Dolly utility.';
         }
         if (!$target->owner->getIsDraft()) {
             return "Blocks can only be pasted into a draft, so they can't be added to {$target->label()} of the live entry \"{$target->owner->title}\". Open the entry in the editor and paste there.";
@@ -198,7 +198,7 @@ final class ImportPlanner
 
         $adapter = $this->adapters->adapterFor($target->field);
         if ($adapter === null) {
-            $plan->block("Portage can't paste blocks into {$target->label()}.");
+            $plan->block("Dolly can't paste blocks into {$target->label()}.");
             return;
         }
 
@@ -558,7 +558,7 @@ final class ImportPlanner
     {
         if ($reference->elementType === 'asset') {
             return sprintf(
-                'The asset %s can\'t be Stubbed: Portage never Stubs assets. %s',
+                'The asset %s can\'t be Stubbed: Dolly never Stubs assets. %s',
                 $reference->name(),
                 $reference->fetchUnavailable === null ? 'Skip it, fetch it or choose a replacement.' : 'Skip it or choose a replacement.',
             );
@@ -569,12 +569,12 @@ final class ImportPlanner
         }
 
         if ($reference->elementType === 'user') {
-            return "The user {$reference->name()} can't be Stubbed: Portage never creates users. Skip it or choose a replacement user.";
+            return "The user {$reference->name()} can't be Stubbed: Dolly never creates users. Skip it or choose a replacement user.";
         }
 
         $class = ElementTypes::classFor($reference->elementType);
         if ($class && !ElementTypes::definition($reference->elementType)?->canBeStubbed()) {
-            return sprintf('The Reference %s can\'t be Stubbed: Portage never Stubs %s. Skip it or choose a replacement.', $reference->name(), $class::pluralLowerDisplayName());
+            return sprintf('The Reference %s can\'t be Stubbed: Dolly never Stubs %s. Skip it or choose a replacement.', $reference->name(), $class::pluralLowerDisplayName());
         }
 
         $whyForbidden = $stubs->whyForbidden($reference);

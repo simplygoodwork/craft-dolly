@@ -1,6 +1,6 @@
 # Issue tracker: Solo
 
-Issues for this repo live as **Solo todos**, and specs/long-form docs live as **Solo scratchpads**, in the Solo project `craft-portage` (project_id `55`). Use the Solo MCP tools (`mcp__solo__*`). Pass `project_id: 55` on each call unless `whoami` shows the session is already scoped to it.
+Issues for this repo live as **Solo todos**, and specs/long-form docs live as **Solo scratchpads**, in the Solo project `craft-dolly` (project_id `55`). Use the Solo MCP tools (`mcp__solo__*`). Pass `project_id: 55` on each call unless `whoami` shows the session is already scoped to it.
 
 ## Conventions
 

@@ -1,24 +1,24 @@
 <?php
 
-namespace simplygoodwork\craftportage\services;
+namespace simplygoodwork\craftdolly\services;
 
 use benf\neo\elements\Block;
 use Craft;
 use craft\elements\Entry;
-use simplygoodwork\craftportage\export\Exporter;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\import\Importer;
-use simplygoodwork\craftportage\import\ImportPlan;
-use simplygoodwork\craftportage\import\ImportPlanner;
-use simplygoodwork\craftportage\import\ImportResult;
-use simplygoodwork\craftportage\import\RootPlan;
-use simplygoodwork\craftportage\import\RootResult;
-use simplygoodwork\craftportage\jobs\ImportJob;
-use simplygoodwork\craftportage\payload\InvalidPayloadException;
-use simplygoodwork\craftportage\payload\PayloadCodec;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypeRegistry;
+use simplygoodwork\craftdolly\export\Exporter;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\import\Importer;
+use simplygoodwork\craftdolly\import\ImportPlan;
+use simplygoodwork\craftdolly\import\ImportPlanner;
+use simplygoodwork\craftdolly\import\ImportResult;
+use simplygoodwork\craftdolly\import\RootPlan;
+use simplygoodwork\craftdolly\import\RootResult;
+use simplygoodwork\craftdolly\jobs\ImportJob;
+use simplygoodwork\craftdolly\payload\InvalidPayloadException;
+use simplygoodwork\craftdolly\payload\PayloadCodec;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypeRegistry;
 use Throwable;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -26,7 +26,7 @@ use yii\base\InvalidConfigException;
 /**
  * The core service: Export, Preview and Import of Payload text. The CLI, the control panel and the tests all go through here.
  */
-class Portage extends Component
+class Dolly extends Component
 {
     private ?FieldAdapterRegistry $adapters = null;
 

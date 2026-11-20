@@ -1,13 +1,13 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\elements\Entry;
 use craft\fields\Entries;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Export → Payload → Import round trips through the core service, the same layer the CLI calls.
@@ -19,18 +19,18 @@ class RoundTripTest extends Unit
         $article = Schema::entryType('article', [Schema::plainText('summary')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, [
-            'title' => 'Hello Portage',
-            'slug' => 'hello-portage',
+            'title' => 'Hello Dolly',
+            'slug' => 'hello-dolly',
             'summary' => 'A short summary',
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
-        $this->assertSame('Hello Portage', $imported->title);
-        $this->assertSame('hello-portage', $imported->slug);
+        $this->assertSame('Hello Dolly', $imported->title);
+        $this->assertSame('hello-dolly', $imported->slug);
         $this->assertSame('news', $imported->getSection()->handle);
         $this->assertSame('article', $imported->getType()->handle);
         $this->assertSame('A short summary', $imported->getFieldValue('summary'));
@@ -43,9 +43,9 @@ class RoundTripTest extends Unit
         $this->assertTrue($source->enabled);
         $sourceUid = $source->uid;
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertFalse($imported->enabled);
@@ -57,7 +57,7 @@ class RoundTripTest extends Unit
         [$news, $article] = $this->newsSection();
         $source = Schema::entry($news, $article, ['title' => 'Still here']);
 
-        $result = $this->portage()->import($this->portage()->export([$source]));
+        $result = $this->dolly()->import($this->dolly()->export([$source]));
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertNotSame($source->id, $imported->id);
@@ -99,9 +99,9 @@ class RoundTripTest extends Unit
         $sourceBlocks = $this->blocks($source, 'contentBlocks');
         $sourceCells = $this->blocks($sourceBlocks[1], 'cells');
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertSame('A page', $imported->getFieldValue('summary'));
@@ -138,10 +138,10 @@ class RoundTripTest extends Unit
             'relatedTopics' => [$craft->id, $gone->id, $php->id],
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Craft::$app->getElements()->deleteElement($gone);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertSame([$craft->id, $php->id], $imported->getFieldValue('relatedTopics')->ids());
@@ -173,9 +173,9 @@ class RoundTripTest extends Unit
         return [Schema::section('news', [$article]), $article];
     }
 
-    private function portage(): \simplygoodwork\craftportage\services\Portage
+    private function dolly(): \simplygoodwork\craftdolly\services\Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function hardDelete(Entry $entry): void

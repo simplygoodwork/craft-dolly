@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\migrations;
+namespace simplygoodwork\craftdolly\migrations;
 
 use craft\db\Migration;
 use craft\db\Table;
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\records\ImportLogRecord;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\records\ImportLogRecord;
 
 /**
  * Creates the Import log table.

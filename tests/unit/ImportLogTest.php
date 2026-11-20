@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\elements\User;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Every Import is recorded in the Import log.
@@ -23,9 +23,9 @@ class ImportLogTest extends Unit
         $section = Schema::section('news', [$entryType]);
         $first = Schema::entry($section, $entryType, ['title' => 'First']);
         $second = Schema::entry($section, $entryType, ['title' => 'Second']);
-        $payload = Plugin::getInstance()->getPortage()->export([$first, $second]);
+        $payload = Plugin::getInstance()->getDolly()->export([$first, $second]);
 
-        $result = Plugin::getInstance()->getPortage()->import($payload);
+        $result = Plugin::getInstance()->getDolly()->import($payload);
 
         $entries = Plugin::getInstance()->getImportLog()->getEntries();
         $this->assertCount(1, $entries);
@@ -50,12 +50,12 @@ class ImportLogTest extends Unit
     {
         $entryType = Schema::entryType('article');
         $section = Schema::section('news', [$entryType]);
-        $payload = Plugin::getInstance()->getPortage()->export([Schema::entry($section, $entryType, ['title' => 'Again'])]);
-        $other = Plugin::getInstance()->getPortage()->export([Schema::entry($section, $entryType, ['title' => 'Other'])]);
+        $payload = Plugin::getInstance()->getDolly()->export([Schema::entry($section, $entryType, ['title' => 'Again'])]);
+        $other = Plugin::getInstance()->getDolly()->export([Schema::entry($section, $entryType, ['title' => 'Other'])]);
 
-        $first = Plugin::getInstance()->getPortage()->import($payload);
-        $second = Plugin::getInstance()->getPortage()->import($payload);
-        $third = Plugin::getInstance()->getPortage()->import($other);
+        $first = Plugin::getInstance()->getDolly()->import($payload);
+        $second = Plugin::getInstance()->getDolly()->import($payload);
+        $third = Plugin::getInstance()->getDolly()->import($other);
 
         $this->assertCount(3, Plugin::getInstance()->getImportLog()->getEntries());
         $this->assertSame($first->payloadIdentity, $second->payloadIdentity);
@@ -77,13 +77,13 @@ class ImportLogTest extends Unit
             'title' => 'Related',
             'relatedTopics' => [$kept->id, $stubbed->id, $skipped->id, $replaced->id],
         ]);
-        $payload = Plugin::getInstance()->getPortage()->export([$source]);
+        $payload = Plugin::getInstance()->getDolly()->export([$source]);
         $uids = [$stubbed->uid, $skipped->uid, $replaced->uid];
         Schema::deleteElement($stubbed);
         Schema::deleteElement($skipped);
         Schema::deleteElement($replaced);
 
-        Plugin::getInstance()->getPortage()->import($payload, [$uids[0] => 'stub', $uids[2] => $replacement->id]);
+        Plugin::getInstance()->getDolly()->import($payload, [$uids[0] => 'stub', $uids[2] => $replacement->id]);
 
         $this->assertSame(
             [
@@ -97,7 +97,7 @@ class ImportLogTest extends Unit
 
     public function testARefusedPayloadIsNotLogged(): void
     {
-        $result = Plugin::getInstance()->getPortage()->import('not a payload');
+        $result = Plugin::getInstance()->getDolly()->import('not a payload');
 
         $this->assertTrue($result->isRefused());
         $this->assertNull($result->logId);

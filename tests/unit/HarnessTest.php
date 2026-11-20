@@ -1,18 +1,18 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\elements\Entry;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 class HarnessTest extends Unit
 {
-    public function testPortageIsInstalled(): void
+    public function testDollyIsInstalled(): void
     {
-        $this->assertTrue(Craft::$app->getPlugins()->isPluginInstalled('portage'));
+        $this->assertTrue(Craft::$app->getPlugins()->isPluginInstalled('dolly'));
         $this->assertInstanceOf(Plugin::class, Plugin::getInstance());
     }
 
@@ -24,16 +24,16 @@ class HarnessTest extends Unit
         $section = Schema::section('news', [$entryType]);
 
         $entry = Schema::entry($section, $entryType, [
-            'title' => 'Hello Portage',
-            'slug' => 'hello-portage',
+            'title' => 'Hello Dolly',
+            'slug' => 'hello-dolly',
             'summary' => 'A short summary',
         ]);
 
-        $found = Entry::find()->section('news')->slug('hello-portage')->one();
+        $found = Entry::find()->section('news')->slug('hello-dolly')->one();
 
         $this->assertNotNull($found);
         $this->assertSame($entry->id, $found->id);
-        $this->assertSame('Hello Portage', $found->title);
+        $this->assertSame('Hello Dolly', $found->title);
         $this->assertSame('article', $found->getType()->handle);
         $this->assertSame('A short summary', $found->getFieldValue('summary'));
     }

@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -8,10 +8,10 @@ use craft\elements\Entry;
 use craft\helpers\Json;
 use craft\models\EntryType;
 use craft\models\Section;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use verbb\tablemaker\fields\TableMakerField;
 use verbb\tablemaker\models\TableMakerData;
 
@@ -45,12 +45,12 @@ class TableMakerTest extends Unit
         // TableMaker's storage format differs between its versions, so the value is compared as the field stores it.
         $stored = $this->storedValueOf($source);
 
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
         $this->assertSame($stored, $preview->envelope['roots'][0]['fields'][$this->field->uid] ?? null);
         $this->assertSame([], $preview->roots[0]->warnings);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $imported = $this->importedEntry($result->roots[0]->elementId);
@@ -67,9 +67,9 @@ class TableMakerTest extends Unit
             'rows' => ['row1' => ['col1' => 'See {entry:12:url}']],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $this->assertSame([['See {entry:12:url}']], $this->cellsOf($result->roots[0]->elementId));
@@ -95,8 +95,8 @@ class TableMakerTest extends Unit
             ]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
-        $portable = $this->portage()->preview($payload)->envelope['roots'][0]['fields'][$this->field->uid];
+        $payload = $this->dolly()->export([$source]);
+        $portable = $this->dolly()->preview($payload)->envelope['roots'][0]['fields'][$this->field->uid];
         $this->assertSame(
             "<p><a href=\"https://example.com/topics/craft?ref=table#entry:$craft->uid@$siteUid:url\">Craft</a> in <a href=\"https://example.com/colours/red#category:$red->uid:url\">red</a>, {entry:$craft->uid:title}</p>",
             Json::decode($portable['rows']['row1']['col1']),
@@ -108,7 +108,7 @@ class TableMakerTest extends Unit
         $newRed = Schema::category($colours, ['title' => 'Red', 'slug' => 'red']);
         $this->assertNotSame($craft->id, $newCraft->id);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $this->assertSame(['row1' => [
@@ -131,13 +131,13 @@ class TableMakerTest extends Unit
             'rows' => ['row1' => ['col1' => "<p>See <a href=\"https://example.com/topics/gone-topic#entry:$gone->id:url\">the <em>gone</em> topic</a> and <a href=\"https://example.com/about\">us</a>. {entry:$gone->id:title||Untitled}</p>"]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $this->assertSame('Unresolved: will be skipped', $this->portage()->preview($payload)->references[$goneUid]->outcome());
+        $this->assertSame('Unresolved: will be skipped', $this->dolly()->preview($payload)->references[$goneUid]->outcome());
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([
             'The entry "Gone topic" linked in the field "Table Data" doesn\'t exist in this environment. The link will be removed and its text kept.',
@@ -164,11 +164,11 @@ class TableMakerTest extends Unit
             'rows' => ['row1' => ['col1' => "<p><a href=\"https://example.com/topics/gone-topic#entry:$gone->id@$siteId:url\">Gone</a> {entry:$gone->id:title}</p>"]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -193,11 +193,11 @@ class TableMakerTest extends Unit
             'rows' => ['row1' => ['col1' => "<p><a href=\"https://example.com/fr/craft#entry:$craft->id@$french->id:url\">Craft</a></p>"]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteSite($french);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertContains(
             'The site "French" in a link to the entry "Craft" in the field "Table Data" doesn\'t exist in this environment. The link will be removed and its text kept.',
@@ -267,8 +267,8 @@ class TableMakerTest extends Unit
         return $entry;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

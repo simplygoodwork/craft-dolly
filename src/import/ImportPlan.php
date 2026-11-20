@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\schema\Drift;
-use simplygoodwork\craftportage\schema\DriftReport;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\schema\Drift;
+use simplygoodwork\craftdolly\schema\DriftReport;
 
 /**
  * The Preview of an Import: either a refusal, or the Drift of every Schema reference and a plan for every Root element.

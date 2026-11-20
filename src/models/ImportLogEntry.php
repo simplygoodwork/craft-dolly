@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\models;
+namespace simplygoodwork\craftdolly\models;
 
 use DateTime;
 

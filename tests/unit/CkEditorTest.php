@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -9,9 +9,9 @@ use craft\elements\Entry;
 use craft\fields\Entries;
 use craft\htmlfield\HtmlFieldData;
 use craft\models\Site;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * The CKEditor adapter: HTML with ref tags and nested entries, which are Owned content.
@@ -21,7 +21,7 @@ class CkEditorTest extends Unit
     protected function _before(): void
     {
         // CKEditor before 4.1 renders nested entries into the HTML whenever it normalizes a value in a site request.
-        // Portage reads and sets values in the control panel, the console and the queue, never a site request, and
+        // Dolly reads and sets values in the control panel, the console and the queue, never a site request, and
         // these tests run as one, so they run as the control panel there.
         if (!class_exists(\craft\ckeditor\data\FieldData::class)) {
             Craft::$app->getRequest()->setIsCpRequest(true);
@@ -56,10 +56,10 @@ class CkEditorTest extends Unit
         $sourceNested = $this->nestedEntries($source, 'richBody');
         $this->assertCount(1, $sourceNested);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors ?? [], 'errors');
         $this->assertSame([], $result->roots[0]->warnings);
@@ -94,11 +94,11 @@ class CkEditorTest extends Unit
         $quoteMarker = Schema::nestedCkeditorEntry($source, $body, $quote, ['quoteText' => 'A quote']);
         $source = Schema::updateEntry($source, ['richBody' => "<p>One</p>$noteMarker<p>Two</p>$quoteMarker<p>Three</p>"]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::updateField($body->uid, ['entryTypes' => [$note]]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertContains(
             'A nested entry of type "Quote" in "Rich Body" will be skipped: its entry type isn\'t allowed in that field in this environment.',
@@ -125,7 +125,7 @@ class CkEditorTest extends Unit
         $source = Schema::updateEntry($source, ['richBody' => "<p>One</p>$marker"]);
         $sourceNested = $this->nestedEntries($source, 'richBody');
 
-        $result = $this->portage()->import($this->portage()->export([$source]));
+        $result = $this->dolly()->import($this->dolly()->export([$source]));
 
         $nested = $this->nestedEntries($this->importedEntry($result->roots[0]->elementId), 'richBody');
         $this->assertCount(1, $nested);
@@ -152,12 +152,12 @@ class CkEditorTest extends Unit
         ]);
         $source = Schema::updateEntry($source, ['richBody' => "<p><a href=\"{entry:$gone->id:url}\">Outer</a></p>$marker"]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::deleteElement($gone);
         $goneUid = $gone->uid;
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -184,9 +184,9 @@ class CkEditorTest extends Unit
         $source = Schema::updateEntry($source, ['richBody' => "<p>One</p>$marker"]);
         Schema::translate($this->nestedEntries($source, 'richBody')[0], $german, ['noteText' => 'Eine Notiz']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $id = $result->roots[0]->elementId;
@@ -216,9 +216,9 @@ class CkEditorTest extends Unit
         Schema::updateEntry($block, ['blockBody' => "<p>Before</p>$marker<p>After</p>"]);
         $source = $this->importedEntry($source->id);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $importedBlock = $this->blocks($this->importedEntry($result->roots[0]->elementId), 'contentBlocks')[0];
@@ -249,9 +249,9 @@ class CkEditorTest extends Unit
         Schema::updateEntry($boxEntry, ['innerBody' => "<p>Inner</p>$noteMarker"]);
         $source = $this->importedEntry($source->id);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $imported = $this->importedEntry($result->roots[0]->elementId);
@@ -273,11 +273,11 @@ class CkEditorTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Rich']);
         $marker = Schema::nestedCkeditorEntry($source, $body, $note, ['noteText' => 'Filled in']);
         $source = Schema::updateEntry($source, ['richBody' => "<p>One</p>$marker"]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::addFieldToEntryType($note, Schema::required(Schema::plainText('other')));
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
 
         $this->assertSame(['Rich Body › Other'], $plan->roots[0]->incompleteFields);
     }
@@ -308,9 +308,9 @@ class CkEditorTest extends Unit
         Schema::deleteElement($entry);
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function importedEntry(?int $id, ?Site $site = null): Entry

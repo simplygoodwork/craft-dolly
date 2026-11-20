@@ -5,36 +5,36 @@
  #}
 
 {% set driftStates = {
-    'matched': 'Matched'|t('portage'),
-    'drifted': 'Drifted'|t('portage'),
-    'type-changed': 'Type changed'|t('portage'),
-    'missing': 'Missing'|t('portage'),
+    'matched': 'Matched'|t('dolly'),
+    'drifted': 'Drifted'|t('dolly'),
+    'type-changed': 'Type changed'|t('dolly'),
+    'missing': 'Missing'|t('dolly'),
 } %}
 
-<div id="portage-paste-preview">
+<div id="dolly-paste-preview">
     {{ hiddenInput('payload', payload) }}
     {{ hiddenInput('previewed', previewed) }}
 
     {% if plan.isRefused() %}
-        <p class="error" id="portage-refusal">{{ plan.refusal }}</p>
+        <p class="error" id="dolly-refusal">{{ plan.refusal }}</p>
         <div class="buttons">
-            <button type="button" class="btn" data-portage-back>{{ 'Back'|t('portage') }}</button>
-            <button type="button" class="btn" data-portage-cancel>{{ 'Cancel'|t('portage') }}</button>
+            <button type="button" class="btn" data-dolly-back>{{ 'Back'|t('dolly') }}</button>
+            <button type="button" class="btn" data-dolly-cancel>{{ 'Cancel'|t('dolly') }}</button>
         </div>
     {% else %}
-        <p>{{ 'Nothing has been pasted yet. The blocks will be added to the end of the field {field} in your draft of this entry. Check what will happen, change what you like, then paste.'|t('portage', { field: '“' ~ target.field.name ~ '”' }) }}</p>
+        <p>{{ 'Nothing has been pasted yet. The blocks will be added to the end of the field {field} in your draft of this entry. Check what will happen, change what you like, then paste.'|t('dolly', { field: '“' ~ target.field.name ~ '”' }) }}</p>
 
         {% if choiceError %}
-            <p class="error" id="portage-choice-error">{{ choiceError }}</p>
+            <p class="error" id="dolly-choice-error">{{ choiceError }}</p>
         {% endif %}
 
         {% if plan.source %}
             <p class="light">
-                {{ 'Copied from {siteUrl} ({environment}) by {user} on {date}.'|t('portage', {
-                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('portage'),
-                    environment: plan.source.environment ?? 'unknown environment'|t('portage'),
-                    user: plan.source.exportedBy ?? 'an unknown user'|t('portage'),
-                    date: plan.source.exportedAt ?? 'an unknown date'|t('portage'),
+                {{ 'Copied from {siteUrl} ({environment}) by {user} on {date}.'|t('dolly', {
+                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('dolly'),
+                    environment: plan.source.environment ?? 'unknown environment'|t('dolly'),
+                    user: plan.source.exportedBy ?? 'an unknown user'|t('dolly'),
+                    date: plan.source.exportedAt ?? 'an unknown date'|t('dolly'),
                 }) }}
             </p>
         {% endif %}
@@ -43,17 +43,17 @@
             <p class="warning">{{ warning }}</p>
         {% endfor %}
 
-        <h2>{{ 'Blocks'|t('portage') }}</h2>
+        <h2>{{ 'Blocks'|t('dolly') }}</h2>
         {% for root in plan.roots %}
             <div class="pane">
                 {% set name = root.title is not null ? '"' ~ root.title ~ '"' : root.sourceUid %}
                 {% if root.isBlocked() %}
-                    <p class="error">{{ '{name} can’t be pasted: {reason}'|t('portage', { name: name, reason: root.blockedBy }) }}</p>
+                    <p class="error">{{ '{name} can’t be pasted: {reason}'|t('dolly', { name: name, reason: root.blockedBy }) }}</p>
                 {% else %}
-                    <p>{{ '{name} will be added to the field {field}.'|t('portage', { name: name, field: '"' ~ target.field.name ~ '"' }) }}</p>
+                    <p>{{ '{name} will be added to the field {field}.'|t('dolly', { name: name, field: '"' ~ target.field.name ~ '"' }) }}</p>
                 {% endif %}
 
-                {% include 'portage/_root-details' with {
+                {% include 'dolly/_root-details' with {
                     warnings: root.warnings,
                     unresolvedReferences: root.unresolvedReferences,
                     incompleteFields: root.incompleteFields,
@@ -61,7 +61,7 @@
             </div>
         {% endfor %}
 
-        {% include 'portage/_references' with {
+        {% include 'dolly/_references' with {
             plan: plan,
             requested: requested,
             choiceLabels: choiceLabels,
@@ -69,21 +69,21 @@
             volumes: volumes,
         } only %}
 
-        {% include 'portage/_drift' with {
+        {% include 'dolly/_drift' with {
             plan: plan,
             driftKinds: driftKinds,
             driftStates: driftStates,
         } only %}
 
         <div class="buttons">
-            <button type="button" id="portage-update" class="btn" data-portage-update>{{ 'Update Preview'|t('portage') }}</button>
+            <button type="button" id="dolly-update" class="btn" data-dolly-update>{{ 'Update Preview'|t('dolly') }}</button>
             {% if plan.hasImportableRoots() %}
-                <button type="submit" class="btn submit">{{ 'Paste'|t('portage') }}</button>
+                <button type="submit" class="btn submit">{{ 'Paste'|t('dolly') }}</button>
             {% endif %}
-            <button type="button" class="btn" data-portage-cancel>{{ 'Cancel'|t('portage') }}</button>
+            <button type="button" class="btn" data-dolly-cancel>{{ 'Cancel'|t('dolly') }}</button>
         </div>
         {% if not plan.hasImportableRoots() %}
-            <p class="error">{{ 'None of the blocks can be pasted.'|t('portage') }}</p>
+            <p class="error">{{ 'None of the blocks can be pasted.'|t('dolly') }}</p>
         {% endif %}
     {% endif %}
 </div>

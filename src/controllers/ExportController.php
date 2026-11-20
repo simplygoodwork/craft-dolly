@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\controllers;
+namespace simplygoodwork\craftdolly\controllers;
 
 use benf\neo\elements\Block;
 use Craft;
@@ -9,9 +9,9 @@ use craft\elements\Entry;
 use craft\helpers\StringHelper;
 use craft\models\Site;
 use craft\web\Controller;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\Plugin;
 use yii\base\InvalidConfigException;
 use yii\web\ForbiddenHttpException;
 use yii\web\Response;
@@ -121,7 +121,7 @@ class ExportController extends Controller
 
         $field = $owner->getFieldLayout()?->getFieldByHandle($handle);
         if (!BlockTarget::supports($field)) {
-            return $this->asFailure(Craft::t('portage', 'Only blocks in a Matrix or Neo field can be copied.'));
+            return $this->asFailure(Craft::t('dolly', 'Only blocks in a Matrix or Neo field can be copied.'));
         }
 
         $value = $owner->getFieldValue($handle);
@@ -133,7 +133,7 @@ class ExportController extends Controller
         foreach ($selected as $block) {
             $id = $pairs[array_search($block, $all, true)];
             if ($id !== 0 && $id !== (int)$block->id && $id !== (int)$block->getCanonicalId()) {
-                return $this->asFailure(Craft::t('portage', 'The blocks changed since the page loaded. Reload the page and try again.'));
+                return $this->asFailure(Craft::t('dolly', 'The blocks changed since the page loaded. Reload the page and try again.'));
             }
         }
 
@@ -142,7 +142,7 @@ class ExportController extends Controller
 
     private function notFound(): Response
     {
-        return $this->asFailure(Craft::t('portage', 'Some of the entries couldn’t be found. Reload the page and try again.'));
+        return $this->asFailure(Craft::t('dolly', 'Some of the entries couldn’t be found. Reload the page and try again.'));
     }
 
     /**
@@ -162,7 +162,7 @@ class ExportController extends Controller
         }
 
         try {
-            $payload = Plugin::getInstance()->getPortage()->export($roots, $this->editableSiteIds());
+            $payload = Plugin::getInstance()->getDolly()->export($roots, $this->editableSiteIds());
         } catch (InvalidConfigException $e) {
             return $this->asFailure($e->getMessage());
         }
@@ -221,10 +221,10 @@ class ExportController extends Controller
     private function filename(array $roots): string
     {
         if (ExportContext::isBlock($roots[0])) {
-            return 'blocks.portage';
+            return 'blocks.dolly';
         }
         $name = count($roots) === 1 ? StringHelper::slugify((string)($roots[0]->slug ?: $roots[0]->title)) : '';
 
-        return ($name !== '' ? $name : 'entries') . '.portage';
+        return ($name !== '' ? $name : 'entries') . '.dolly';
     }
 }

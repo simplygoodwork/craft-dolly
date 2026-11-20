@@ -1,6 +1,6 @@
 /* global Craft, $ */
 (function () {
-  window.Portage = window.Portage || {};
+  window.Dolly = window.Dolly || {};
 
   /**
    * Keeps a Preview's choices in step with the Preview: a change to a choice asks for the Preview to be rebuilt, and the
@@ -10,7 +10,7 @@
    * @param {HTMLElement} root the Preview: the element the choices are in, which the caller replaces with the rebuilt Preview
    * @param {function(): void} replan rebuilds the Preview from the choices in the form
    */
-  Portage.bindPreview = function (root, replan) {
+  Dolly.bindPreview = function (root, replan) {
     const importButton = root.querySelector('button.submit');
     let replanning = false;
     let timer = null;
@@ -31,7 +31,7 @@
     }
 
     root.addEventListener('input', function (event) {
-      if (event.target.matches('input[type="text"][data-portage-replan]')) {
+      if (event.target.matches('input[type="text"][data-dolly-replan]')) {
         pending();
         clearTimeout(timer);
         timer = setTimeout(replanOnce, 600);
@@ -40,19 +40,19 @@
 
     root.addEventListener('change', function (event) {
       const target = event.target;
-      if (!target.matches('[data-portage-replan]')) {
+      if (!target.matches('[data-dolly-replan]')) {
         return;
       }
       pending();
-      if (target.matches('[data-portage-choice]')) {
-        const row = target.closest('[data-portage-reference]');
+      if (target.matches('[data-dolly-choice]')) {
+        const row = target.closest('[data-dolly-reference]');
         row.querySelectorAll('[data-panel]').forEach(function (panel) {
           panel.classList.toggle('hidden', panel.getAttribute('data-panel').split(' ').indexOf(target.value) === -1);
         });
       }
-      if (target.matches('[data-portage-section]')) {
+      if (target.matches('[data-dolly-section]')) {
         // The matching entry depends on the section, so go back to creating a new entry.
-        const mode = target.closest('.pane').querySelector('[data-portage-mode]');
+        const mode = target.closest('.pane').querySelector('[data-dolly-mode]');
         if (mode) {
           mode.value = 'create';
         }
@@ -61,7 +61,7 @@
     });
 
     // Craft's element selector adds and removes hidden inputs rather than firing a change event.
-    root.querySelectorAll('[data-portage-reference] .elementselect').forEach(function (picker) {
+    root.querySelectorAll('[data-dolly-reference] .elementselect').forEach(function (picker) {
       const count = function () {
         return picker.querySelectorAll('input[type="hidden"][name$="[replacement][]"]').length;
       };

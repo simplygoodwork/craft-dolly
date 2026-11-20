@@ -1,8 +1,8 @@
 {% import '_includes/forms.twig' as forms %}
 
 {{ forms.autosuggestField({
-    label: 'Shared key'|t('portage'),
-    instructions: 'An env var holding a secret configured identically in every environment, such as `$PORTAGE_SHARED_KEY`. When it’s set, every Export is encrypted and authenticated, and Imports only accept Payloads encrypted with the same key. Leave it empty to exchange unencrypted Payloads.'|t('portage'),
+    label: 'Shared key'|t('dolly'),
+    instructions: 'An env var holding a secret configured identically in every environment, such as `$DOLLY_SHARED_KEY`. When it’s set, every Export is encrypted and authenticated, and Imports only accept Payloads encrypted with the same key. Leave it empty to exchange unencrypted Payloads.'|t('dolly'),
     id: 'sharedKey',
     name: 'sharedKey',
     value: settings.sharedKey,

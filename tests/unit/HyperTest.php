@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
@@ -8,12 +8,12 @@ use craft\elements\Entry;
 use craft\fields\Entries;
 use craft\models\EntryType;
 use craft\models\Section;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\GlobalSetHyperLinkType;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\GlobalSetHyperLinkType;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use verbb\hyper\base\Link;
 use verbb\hyper\fields\HyperField;
 use verbb\hyper\links as linkTypes;
@@ -43,14 +43,14 @@ class HyperTest extends Unit
         ]]);
         $this->assertCount(5, $source->getFieldValue('links')->getLinks());
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         // The links name their link types by UID, never by class.
-        $exported = json_encode($this->portage()->preview($payload)->envelope['roots'][0]['fields']);
+        $exported = json_encode($this->dolly()->preview($payload)->envelope['roots'][0]['fields']);
         $this->assertStringNotContainsString('verbb', $exported);
         $this->assertStringContainsString('"linkType":"url"', $exported);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame(['url', 'entry', 'asset', 'email', 'embed'], array_map(fn($link) => $link->handle, $links));
@@ -80,12 +80,12 @@ class HyperTest extends Unit
             ['handle' => 'entry', 'linkValue' => [$craft->id], 'linkSiteId' => 1],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($craft);
         $newCraft = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([$newCraft->id], $this->linkedIds($this->importedLinks($result->roots[0]->elementId)[0]));
         $this->assertSame([], $result->roots[0]->warnings);
@@ -95,7 +95,7 @@ class HyperTest extends Unit
     {
         [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame(['url', 'email'], array_map(fn($link) => $link->handle, $links));
@@ -111,7 +111,7 @@ class HyperTest extends Unit
     {
         [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -125,14 +125,14 @@ class HyperTest extends Unit
     public function testASecondImportOfTheSamePayloadPointsItsLinkAtItsOwnStub(): void
     {
         [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();
-        $first = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $first = $this->dolly()->import($payload, [$goneUid => 'stub']);
         $firstStub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($firstStub, 'No Stub from the first Import');
         $firstStubId = $firstStub->id;
         Schema::deleteElement(Entry::find()->id($first->roots[0]->elementId)->status(null)->one());
         Schema::deleteElement($firstStub);
 
-        $second = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $second = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub from the second Import');
@@ -148,7 +148,7 @@ class HyperTest extends Unit
         [$payload, $goneUid] = $this->exportLinksWithAGoneTopic();
         $other = Entry::find()->slug('other')->one();
 
-        $result = $this->portage()->import($payload, [$goneUid => $other->id]);
+        $result = $this->dolly()->import($payload, [$goneUid => $other->id]);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame([$other->id], $this->linkedIds($links[1]));
@@ -164,11 +164,11 @@ class HyperTest extends Unit
             ['handle' => 'asset', 'linkValue' => [$photo->id], 'linkSiteId' => 1],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -194,14 +194,14 @@ class HyperTest extends Unit
         ]]);
         $this->assertSame('New', $source->getFieldValue('links')->getLinks()[0]->getFieldValue('badge'));
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($craft);
         Schema::deleteElement($cms);
         $newCms = Schema::entry($topics, $topic, ['title' => 'CMS', 'slug' => 'cms']);
         $newCraft = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertCount(2, $links);
@@ -227,11 +227,11 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com', 'fields' => ['relatedTopics' => [$gone->id]]],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -253,13 +253,13 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $emailKey = $this->linkTypeKey($field, 'email');
         Schema::deleteElement($source);
         Schema::removeHyperLinkType($field, 'email');
 
-        $plan = $this->portage()->preview($payload);
-        $result = $this->portage()->import($payload);
+        $plan = $this->dolly()->preview($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('missing', $plan->drift->get('hyperLinkTypes', $emailKey)?->state);
         $links = $this->importedLinks($result->roots[0]->elementId);
@@ -283,13 +283,13 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $key = $this->linkTypeKey($field, 'url');
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, fn(array $linkTypes) => array_map(fn(array $config) => ['label' => 'Website'] + $config, $linkTypes));
 
-        $plan = $this->portage()->preview($payload);
-        $result = $this->portage()->import($payload);
+        $plan = $this->dolly()->preview($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('drifted', $plan->drift->get('hyperLinkTypes', $key)?->state);
         $this->assertSame('https://example.com', $this->importedLinks($result->roots[0]->elementId)[0]->linkValue);
@@ -313,11 +313,11 @@ class HyperTest extends Unit
             ['handle' => 'asset', 'linkValue' => [$gone->id], 'linkSiteId' => 1],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
         $this->assertSame(
@@ -340,9 +340,9 @@ class HyperTest extends Unit
             ['handle' => 'site', 'linkValue' => $french->uid],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $imported = $this->portage()->import($payload)->roots[0]->elementId;
+        $imported = $this->dolly()->import($payload)->roots[0]->elementId;
         $links = $this->importedLinks($imported);
         $this->assertSame(['phone', 'site'], array_map(fn($link) => $link->handle, $links));
         $this->assertSame('+15551234567', $links[0]->linkValue);
@@ -350,7 +350,7 @@ class HyperTest extends Unit
 
         Schema::deleteElement(Entry::find()->id($imported)->status(null)->one());
         Schema::deleteSite($french);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(['phone'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
         $this->assertContains('The site "French" of a link in the field "Links" doesn\'t exist in this environment. The link will be removed.', $result->roots[0]->warnings);
@@ -367,10 +367,10 @@ class HyperTest extends Unit
             ['handle' => 'entry', 'linkValue' => [$craft->id], 'linkSiteId' => $french->id],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteSite($french);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame([$craft->id], $this->linkedIds($links[0]));
@@ -378,7 +378,7 @@ class HyperTest extends Unit
         $this->assertContains('The site "French" of a link in the field "Links" doesn\'t exist in this environment. The link will use the site it is saved in.', $result->roots[0]->warnings);
     }
 
-    public function testALinkToAnElementTypePortageDoesNotSupportIsSkippedWithAWarning(): void
+    public function testALinkToAnElementTypeDollyDoesNotSupportIsSkippedWithAWarning(): void
     {
         Schema::withHyperLinkType(GlobalSetHyperLinkType::class, function(): void {
             $settings = Schema::globalSet('footer');
@@ -393,13 +393,13 @@ class HyperTest extends Unit
                 ['handle' => 'url', 'linkValue' => 'https://example.com'],
             ]]);
 
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
             $this->assertContains(
-                'A Global Set link in the field "Links" points at a kind of element Portage can\'t move between environments. The link will be skipped.',
+                'A Global Set link in the field "Links" points at a kind of element Dolly can\'t move between environments. The link will be skipped.',
                 $result->roots[0]->warnings,
             );
         });
@@ -414,10 +414,10 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, fn(array $linkTypes) => array_map(fn(array $config) => $config['handle'] === 'email' ? ['enabled' => false] + $config : $config, $linkTypes));
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
         $this->assertContains('The link type "Email" is disabled in the field "Links" in this environment. Its links will be skipped.', $result->roots[0]->warnings);
@@ -432,12 +432,12 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $key = $this->linkTypeKey($field, 'email');
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, fn(array $linkTypes) => array_map(fn(array $config) => $config['handle'] === 'email' ? ['type' => linkTypes\Phone::class] + $config : $config, $linkTypes));
-        $plan = $this->portage()->preview($payload);
-        $result = $this->portage()->import($payload);
+        $plan = $this->dolly()->preview($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('type-changed', $plan->drift->get('hyperLinkTypes', $key)?->state);
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId)));
@@ -458,7 +458,7 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com', 'fields' => ['badge' => 'New']],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypes($field, function(array $linkTypes): array {
             foreach ($linkTypes as &$config) {
@@ -469,7 +469,7 @@ class HyperTest extends Unit
 
             return $linkTypes;
         });
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame('https://example.com', $links[0]->linkValue);
@@ -488,9 +488,9 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com', 'fields' => ['badge' => 'New']],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $links = $this->importedLinks($result->roots[0]->elementId);
         $this->assertSame('https://example.com', $links[0]->linkValue);
@@ -515,10 +515,10 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.org'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $plan = $this->portage()->preview($payload);
-        $result = $this->portage()->import($payload);
+        $plan = $this->dolly()->preview($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('matched', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'url'))?->state);
         $this->assertSame('matched', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'entry'))?->state);
@@ -551,10 +551,10 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -573,11 +573,11 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypeConfig('navigation', fn(array $linkTypes) => array_filter($linkTypes, fn(array $config) => $config['handle'] !== 'email'));
-        $plan = $this->portage()->preview($payload);
-        $result = $this->portage()->import($payload);
+        $plan = $this->dolly()->preview($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('missing', $plan->drift->get('hyperLinkTypes', $this->linkTypeKey($primary, 'email'))?->state);
         $this->assertSame(['url'], array_map(fn($link) => $link->handle, $this->importedLinks($result->roots[0]->elementId, 'primaryLinks')));
@@ -600,10 +600,10 @@ class HyperTest extends Unit
             ['handle' => 'url', 'linkValue' => 'https://example.org'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::changeHyperLinkTypeConfig('navigation', fn(array $linkTypes) => array_map(fn(array $config) => $config['handle'] === 'url' ? ['label' => 'Website'] + $config : $config, $linkTypes));
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('https://example.com', $this->importedLinks($result->roots[0]->elementId, 'primaryLinks')[0]->linkValue);
         $this->assertSame('https://example.org', $this->importedLinks($result->roots[0]->elementId, 'secondaryLinks')[0]->linkValue);
@@ -673,7 +673,7 @@ class HyperTest extends Unit
             ['handle' => 'email', 'linkValue' => 'hello@example.com'],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
@@ -712,8 +712,8 @@ class HyperTest extends Unit
         return array_values($value->getLinks());
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

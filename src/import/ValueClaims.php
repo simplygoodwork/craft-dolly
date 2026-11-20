@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 /**
  * Values that only one element may take in the Target environment, such as a Retour short link, claimed across all the

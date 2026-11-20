@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\helpers\FileHelper;
@@ -10,7 +10,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use Psr\Http\Message\ResponseInterface;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\Plugin;
 
 /**
  * Downloads an unresolved asset's file from its source URL into a temp file, for the Importer to save as an asset.
@@ -33,7 +33,7 @@ final class AssetFetcher
 
         $timeout = Plugin::getInstance()->getSettings()->fetchTimeout;
         $maxBytes = (int)Craft::$app->getConfig()->getGeneral()->maxUploadFileSize;
-        $path = Craft::$app->getPath()->getTempPath() . '/portage-' . StringHelper::randomString(12) . '-' . $filename;
+        $path = Craft::$app->getPath()->getTempPath() . '/dolly-' . StringHelper::randomString(12) . '-' . $filename;
         $tooLarge = fn() => new AssetFetchFailedException(sprintf('the file is larger than the %s limit', $this->size($maxBytes)));
 
         try {
@@ -65,7 +65,7 @@ final class AssetFetcher
     }
 
     /**
-     * Returns whether an asset's source URL is one Portage will fetch: an absolute http or https URL.
+     * Returns whether an asset's source URL is one Dolly will fetch: an absolute http or https URL.
      */
     public static function isFetchableUrl(mixed $url): bool
     {

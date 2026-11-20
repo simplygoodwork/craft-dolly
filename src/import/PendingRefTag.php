@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use craft\base\ElementInterface;
 use craft\helpers\StringHelper;
@@ -13,10 +13,10 @@ use craft\helpers\StringHelper;
  */
 final class PendingRefTag
 {
-    private const TOKEN_PREFIX = '{portage-pending:';
+    private const TOKEN_PREFIX = '{dolly-pending:';
 
     /** A token in a URL, where braces would be percent-encoded (as HTML Purifier does). */
-    private const URL_TOKEN_PREFIX = 'portage-pending-';
+    private const URL_TOKEN_PREFIX = 'dolly-pending-';
 
     public readonly string $token;
 

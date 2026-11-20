@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\base\FieldInterface;
@@ -29,17 +29,17 @@ use craft\fields\Time;
 use craft\fields\Url;
 use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
-use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\fields\FieldAdapter;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
-use simplygoodwork\craftportage\tests\support\UnadaptedField;
-use simplygoodwork\craftportage\tests\support\UnserializableField;
+use simplygoodwork\craftdolly\events\RegisterFieldAdaptersEvent;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\fields\FieldAdapter;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
+use simplygoodwork\craftdolly\tests\support\UnadaptedField;
+use simplygoodwork\craftdolly\tests\support\UnserializableField;
 use yii\base\Event;
 use yii\base\InvalidConfigException;
 
@@ -184,12 +184,12 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Options', 'size' => 'l', 'boxes' => ['s', 'm', 'l']]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($size->uid, ['options' => array_slice(self::OPTIONS, 0, 2)]);
         Schema::updateField($boxes->uid, ['options' => array_slice(self::OPTIONS, 0, 2)]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertNull($imported->getFieldValue('size')->value);
@@ -205,14 +205,14 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Fallback', 'notes' => 'Some notes']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $expected = 'The field "' . $notes->name . '" is a Unadapted field, which Portage has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.';
-        $preview = $this->portage()->preview($payload);
+        $expected = 'The field "' . $notes->name . '" is a Unadapted field, which Dolly has no adapter for. Its value will be imported as it is, and any IDs in it may point at different elements in this environment.';
+        $preview = $this->dolly()->preview($payload);
         $this->assertContains($expected, $preview->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame('Some notes', $imported->getFieldValue('notes'));
         $this->assertContains($expected, $result->roots[0]->warnings);
@@ -242,9 +242,9 @@ class CoreFieldsTest extends Unit
             $news = Schema::section('news', [$article]);
             $source = Schema::entry($news, $article, ['title' => 'Registered', 'notes' => 'Some Notes']);
 
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             Schema::deleteElement($source);
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
         } finally {
             Event::off(FieldAdapterRegistry::class, FieldAdapterRegistry::EVENT_REGISTER_ADAPTERS, $register);
         }
@@ -272,11 +272,11 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Price', 'price' => '1999']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($price->uid, ['currency' => 'JPY']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame('1999', $imported->getFieldValue('price')->getAmount());
@@ -298,13 +298,13 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Block', 'block' => ['fields' => ['related' => [$craft->id]]]]);
 
-        $payload = $this->portage()->export([$source]);
-        $this->assertNull($this->portage()->preview($payload)->envelope['roots'][0]['fields'][$block->uid]);
+        $payload = $this->dolly()->export([$source]);
+        $this->assertNull($this->dolly()->preview($payload)->envelope['roots'][0]['fields'][$block->uid]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
-        $this->assertContains('The field "' . $block->name . '" holds nested content Portage can\'t move yet. Its values will be skipped.', $result->roots[0]->warnings);
+        $this->assertContains('The field "' . $block->name . '" holds nested content Dolly can\'t move yet. Its values will be skipped.', $result->roots[0]->warnings);
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame(0, $imported->getFieldValue('block')->getFieldValue('related')->count());
     }
@@ -316,9 +316,9 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Broken', 'summary' => 'Still here']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertSame('Still here', $imported->getFieldValue('summary'));
@@ -352,17 +352,17 @@ class CoreFieldsTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Core fields', ...$values]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
 
         return Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

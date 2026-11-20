@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
 use craft\elements\Entry;
 use craft\fields\Entries;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Replacements and other choices are checked on the server, not just limited in the control panel's element selector.
@@ -24,7 +24,7 @@ class ReplacementChoicesTest extends Unit
     {
         [$payload, $goneUid, $other] = $this->payloadWithAGoneTopic();
 
-        $refused = $this->portage()->preview($payload, [$goneUid => $other->id]);
+        $refused = $this->dolly()->preview($payload, [$goneUid => $other->id]);
 
         $this->assertSame(
             "The replacement for the Reference \"Gone\" can't be used: the entry with the ID $other->id isn't in the same section as the Reference.",
@@ -40,7 +40,7 @@ class ReplacementChoicesTest extends Unit
         Schema::grantPermissions($editor, ['accessCp']);
         Craft::$app->getUser()->setIdentity($editor);
 
-        $refused = $this->portage()->preview($payload, [$goneUid => $kept->id]);
+        $refused = $this->dolly()->preview($payload, [$goneUid => $kept->id]);
 
         $this->assertSame(
             "The replacement for the Reference \"Gone\" can't be used: you don't have permission to view the entry with the ID $kept->id.",
@@ -61,28 +61,28 @@ class ReplacementChoicesTest extends Unit
         $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $goneUid = $gone->uid;
         Schema::deleteElement($gone);
 
-        $refused = $this->portage()->preview($payload, [$goneUid => $nested->id]);
+        $refused = $this->dolly()->preview($payload, [$goneUid => $nested->id]);
 
         $this->assertSame(
             "The replacement for the Reference \"Gone\" can't be used: the entry with the ID $nested->id is nested in another element.",
             $refused->refusal,
         );
-        $this->assertSame($goneUid, $this->portage()->preview($payload, [$goneUid => $holder->id])->references[$goneUid]->uid);
+        $this->assertSame($goneUid, $this->dolly()->preview($payload, [$goneUid => $holder->id])->references[$goneUid]->uid);
     }
 
     public function testAnIncompleteReplaceOrUploadIsPlannedAsSkipAndRemembered(): void
     {
         [$payload, $goneUid] = $this->payloadWithAGoneTopic();
 
-        $plan = $this->portage()->preview($payload, [$goneUid => ['choice' => 'replace', 'element' => null]]);
+        $plan = $this->dolly()->preview($payload, [$goneUid => ['choice' => 'replace', 'element' => null]]);
 
         $this->assertFalse($plan->isRefused());
         $this->assertSame(['skip', 'replace'], [$plan->references[$goneUid]->choice, $plan->references[$goneUid]->pending]);
-        $this->assertSame($this->portage()->preview($payload)->fingerprint(), $plan->fingerprint());
+        $this->assertSame($this->dolly()->preview($payload)->fingerprint(), $plan->fingerprint());
     }
 
     public function testTheSectionsOfferedAreOnlyThoseTheUserCanSaveEntriesIn(): void
@@ -91,12 +91,12 @@ class ReplacementChoicesTest extends Unit
         $news = Schema::section('news', [$article]);
         $blog = Schema::section('blog', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Hello']);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $editor = Schema::user('editor');
         Schema::grantPermissions($editor, ['accessCp', "viewEntries:$news->uid", "saveEntries:$news->uid", "createEntries:$news->uid"]);
         Craft::$app->getUser()->setIdentity($editor);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
 
         $this->assertSame(['News'], array_map(fn($section) => $section->name, $plan->roots[0]->availableSections));
         $this->assertNotContains($blog->name, array_map(fn($section) => $section->name, $plan->roots[0]->availableSections));
@@ -116,15 +116,15 @@ class ReplacementChoicesTest extends Unit
         $article = Schema::entryType('article', [Schema::field(Entries::class, 'relatedTopics')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $goneUid = $gone->uid;
         Schema::deleteElement($gone);
 
         return [$payload, $goneUid, $other, $kept];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

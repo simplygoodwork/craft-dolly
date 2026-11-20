@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
@@ -14,10 +14,10 @@ use presseddigital\linkit\models\Product;
 use presseddigital\linkit\models\Twitter;
 use presseddigital\linkit\models\Url;
 use presseddigital\linkit\models\User as UserLink;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Pressed Digital's Linkit field: links that don't point at an element round-trip as they are, and a link to an element
@@ -44,15 +44,15 @@ class LinkitTest extends Unit
                 'customText' => 'Get in touch',
                 'target' => true,
             ]]);
-            $payload = $this->portage()->export([$source]);
+            $payload = $this->dolly()->export([$source]);
             $this->assertContains(
                 ['type' => $handle, 'value' => $value, 'customText' => 'Get in touch', 'target' => true],
-                $this->portage()->preview($payload)->envelope['roots'][0]['fields'],
+                $this->dolly()->preview($payload)->envelope['roots'][0]['fields'],
                 $handle,
             );
             Schema::deleteElement($source);
 
-            $result = $this->portage()->import($payload);
+            $result = $this->dolly()->import($payload);
 
             $link = $this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta');
             $this->assertInstanceOf($class, $link, $handle);
@@ -70,9 +70,9 @@ class LinkitTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => Url::class, 'value' => 'https://example.com']]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
 
-        $this->assertStringNotContainsString('linkit', json_encode($this->portage()->preview($payload)->envelope['roots'][0]['fields']));
+        $this->assertStringNotContainsString('linkit', json_encode($this->dolly()->preview($payload)->envelope['roots'][0]['fields']));
     }
 
     public function testEntryAssetCategoryAndUserLinksPointAtTheElementsTheyResolveToInThisEnvironment(): void
@@ -101,8 +101,8 @@ class LinkitTest extends Unit
             'userLink' => ['type' => UserLink::class, 'value' => (string)$author->id],
         ]);
 
-        $payload = $this->portage()->export([$source]);
-        $fields = $this->portage()->preview($payload)->envelope['roots'][0]['fields'];
+        $payload = $this->dolly()->export([$source]);
+        $fields = $this->dolly()->preview($payload)->envelope['roots'][0]['fields'];
         $this->assertContains(['type' => 'entry', 'value' => $craft->uid, 'customText' => null, 'target' => null], $fields);
         Schema::deleteElement($source);
         Schema::deleteElement($craft);
@@ -112,7 +112,7 @@ class LinkitTest extends Unit
         $newPhoto = Schema::asset($photos, 'photo.png', 'blog');
         $newRed = Schema::category($colours, ['title' => 'Red', 'slug' => 'red']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = $this->importedEntry($result->roots[0]->elementId);
         $this->assertSame((string)$newCraft->id, $imported->getFieldValue('entryLink')->value);
@@ -126,7 +126,7 @@ class LinkitTest extends Unit
     {
         [$payload] = $this->exportLinkToAGoneTopic();
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         $this->assertSame(
@@ -140,7 +140,7 @@ class LinkitTest extends Unit
     {
         [$payload, $goneUid] = $this->exportLinkToAGoneTopic();
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -156,7 +156,7 @@ class LinkitTest extends Unit
         [$payload, $goneUid] = $this->exportLinkToAGoneTopic();
         $other = Entry::find()->slug('other')->one();
 
-        $result = $this->portage()->import($payload, [$goneUid => $other->id]);
+        $result = $this->dolly()->import($payload, [$goneUid => $other->id]);
 
         $this->assertSame((string)$other->id, $this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta')->value);
     }
@@ -172,13 +172,13 @@ class LinkitTest extends Unit
         $emailLink = Schema::entry($news, $article, ['title' => 'Email', 'cta' => ['type' => Email::class, 'value' => 'hello@example.com']]);
         $entryLink = Schema::entry($news, $article, ['title' => 'Entry', 'cta' => ['type' => EntryLink::class, 'value' => (string)$gone->id]]);
 
-        $payload = $this->portage()->export([$emailLink, $entryLink]);
+        $payload = $this->dolly()->export([$emailLink, $entryLink]);
         Schema::deleteElement($emailLink);
         Schema::deleteElement($entryLink);
         Schema::deleteElement($gone);
         Schema::changeLinkitTypes($cta, [Url::class]);
 
-        $result = $this->portage()->import($payload, [$gone->uid => 'stub']);
+        $result = $this->dolly()->import($payload, [$gone->uid => 'stub']);
 
         foreach ($result->roots as $root) {
             $this->assertNull($this->importedEntry($root->elementId)->getFieldValue('cta'));
@@ -196,15 +196,15 @@ class LinkitTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => Product::class, 'value' => '1234']]);
 
-        $payload = $this->portage()->export([$source]);
-        $this->assertContains(['type' => 'product', 'unsupported' => true], $this->portage()->preview($payload)->envelope['roots'][0]['fields']);
+        $payload = $this->dolly()->export([$source]);
+        $this->assertContains(['type' => 'product', 'unsupported' => true], $this->dolly()->preview($payload)->envelope['roots'][0]['fields']);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         $this->assertSame(
-            ['The field "Cta" links to a product, which Portage can\'t move between environments. The link will be cleared.'],
+            ['The field "Cta" links to a product, which Dolly can\'t move between environments. The link will be cleared.'],
             $result->roots[0]->warnings,
         );
     }
@@ -217,11 +217,11 @@ class LinkitTest extends Unit
         [$news, $article] = $this->newsWithAssetLink();
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => AssetLink::class, 'value' => (string)$photo->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -237,11 +237,11 @@ class LinkitTest extends Unit
         [$news, $article] = $this->newsWithAssetLink();
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'cta' => ['type' => AssetLink::class, 'value' => (string)$gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $this->assertNull($this->importedEntry($result->roots[0]->elementId)->getFieldValue('cta'));
         $this->assertSame(
@@ -281,16 +281,16 @@ class LinkitTest extends Unit
             'customText' => 'Read more',
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
         return [$payload, $goneUid];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function importedEntry(?int $id): Entry

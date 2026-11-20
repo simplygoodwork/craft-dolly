@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\records;
+namespace simplygoodwork\craftdolly\records;
 
 use craft\db\ActiveRecord;
 
@@ -21,6 +21,6 @@ class ImportLogRecord extends ActiveRecord
 {
     public static function tableName(): string
     {
-        return '{{%portage_importlog}}';
+        return '{{%dolly_importlog}}';
     }
 }

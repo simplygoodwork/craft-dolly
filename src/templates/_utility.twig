@@ -1,17 +1,17 @@
 {% import '_includes/forms' as forms %}
 
 {% if not canImport %}
-    <p>{{ "You don't have permission to import content."|t('portage') }}</p>
+    <p>{{ "You don't have permission to import content."|t('dolly') }}</p>
 {% else %}
-    <h2>{{ 'Paste a Payload'|t('portage') }}</h2>
-    <p class="light">{{ 'Paste Payload text, or upload a .portage file. You will see a Preview before anything is imported.'|t('portage') }}</p>
+    <h2>{{ 'Paste a Payload'|t('dolly') }}</h2>
+    <p class="light">{{ 'Paste Payload text, or upload a .dolly file. You will see a Preview before anything is imported.'|t('dolly') }}</p>
 
     <form method="post" enctype="multipart/form-data" accept-charset="UTF-8">
-        {{ actionInput('portage/import/preview') }}
+        {{ actionInput('dolly/import/preview') }}
         {{ csrfInput() }}
 
         {{ forms.textareaField({
-            label: 'Payload text'|t('portage'),
+            label: 'Payload text'|t('dolly'),
             id: 'payload',
             name: 'payload',
             rows: 8,
@@ -19,16 +19,16 @@
         }) }}
 
         {{ forms.fileField({
-            label: 'Or upload a .portage file'|t('portage'),
+            label: 'Or upload a .dolly file'|t('dolly'),
             id: 'payloadFile',
             name: 'payloadFile',
-            accept: '.portage,text/plain',
+            accept: '.dolly,text/plain',
         }) }}
 
-        <button type="submit" class="btn submit">{{ 'Preview'|t('portage') }}</button>
+        <button type="submit" class="btn submit">{{ 'Preview'|t('dolly') }}</button>
     </form>
 
     <hr>
 
-    {% include 'portage/_log/_list' %}
+    {% include 'dolly/_log/_list' %}
 {% endif %}

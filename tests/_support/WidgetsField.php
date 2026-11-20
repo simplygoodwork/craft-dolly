@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use craft\fields\BaseRelationField;
 
 /**
- * A third-party relation field to widgets, which Portage has no adapter of its own for.
+ * A third-party relation field to widgets, which Dolly has no adapter of its own for.
  */
 final class WidgetsField extends BaseRelationField
 {

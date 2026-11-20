@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use craft\base\ElementInterface;
 use craft\elements\User;
 use craft\helpers\Db;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
 
 /**
- * Users. Natural key: email, then username. Not limited to a source, and never Stubbed: Portage never creates users.
+ * Users. Natural key: email, then username. Not limited to a source, and never Stubbed: Dolly never creates users.
  */
 final class UserDefinition extends ElementTypeDefinition
 {

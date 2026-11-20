@@ -10,14 +10,14 @@ settings:
   memory_limit: 1024M
 modules:
   config:
-    \simplygoodwork\craftportage\tests\support\CraftModule:
+    \simplygoodwork\craftdolly\tests\support\CraftModule:
       configFile: 'tests/_craft/config/test.php'
-      entryUrl: 'https://test.portage.test/index.php'
+      entryUrl: 'https://test.dolly.test/index.php'
       projectConfig: {}
       migrations: []
       plugins:
-        - class: '\simplygoodwork\craftportage\Plugin'
-          handle: portage
+        - class: '\simplygoodwork\craftdolly\Plugin'
+          handle: dolly
         - class: '\craft\ckeditor\Plugin'
           handle: ckeditor
         - class: '\benf\neo\Plugin'
@@ -50,6 +50,8 @@ modules:
           handle: codefield
         - class: '\verbb\tablemaker\TableMaker'
           handle: tablemaker
+        - class: '\verbb\iconpicker\IconPicker'
+          handle: icon-picker
       cleanup: true
       transaction: true
       dbSetup: { clean: true, setupCraft: true }

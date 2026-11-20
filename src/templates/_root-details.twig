@@ -12,13 +12,13 @@
             <li class="warning">{{ warning }}</li>
         {% endfor %}
         {% for reference in unresolvedReferences %}
-            <li>{{ 'Skipped in "{field}": {reference}'|t('portage', {
+            <li>{{ 'Skipped in "{field}": {reference}'|t('dolly', {
                 field: reference.field,
                 reference: reference.title is not null ? '"' ~ reference.title ~ '"' : reference.uid,
             }) }}</li>
         {% endfor %}
         {% for field in incompleteFields %}
-            <li>{{ 'Required but left empty: {field}'|t('portage', { field: field }) }}</li>
+            <li>{{ 'Required but left empty: {field}'|t('dolly', { field: field }) }}</li>
         {% endfor %}
     </ul>
 {% endif %}

@@ -1,13 +1,13 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Tag;
 use craft\helpers\Db;
 use craft\models\TagGroup;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
 
 /**
  * Tags. Natural key: group UID + title. Limited to their group, and Stubbed in it.

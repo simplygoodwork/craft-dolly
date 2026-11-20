@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -10,8 +10,8 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\UrlHelper;
 use nystudio107\retour\fields\ShortLink;
 use nystudio107\retour\helpers\Text;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 
 /**
  * Retour short links: the URL travels as it is.

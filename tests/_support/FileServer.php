@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use RuntimeException;
 

@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Category;
 use craft\helpers\Db;
 use craft\models\CategoryGroup;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
-use simplygoodwork\craftportage\references\NaturalKey;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\NaturalKey;
 
 /**
  * Categories. Natural key: group UID + slug, plus the parent slug path. Limited to their group, and Stubbed in it.

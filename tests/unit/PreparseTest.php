@@ -1,15 +1,15 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Entry;
 use craft\models\EntryType;
 use craft\models\Section;
 use jalendport\preparse\fields\PreparseFieldType;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Preparse: the value is left out of the Payload, and Preparse recalculates it from the Target field's template when
@@ -25,8 +25,8 @@ class PreparseTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Summer Menu']);
         $this->assertSame('SUMMER MENU', Entry::find()->id($source->id)->status(null)->one()?->getFieldValue('headlineCode'));
 
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
 
         // The field is named, so its Drift is checked, but its value isn't carried.
         $this->assertSame([$field->uid => null], $preview->envelope['roots'][0]['fields']);
@@ -38,11 +38,11 @@ class PreparseTest extends Unit
         [$news, $article, $field] = $this->newsWithPreparse('{{ entry.title|upper }}');
         $source = Schema::entry($news, $article, ['title' => 'Summer Menu']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($field->uid, ['fieldTwig' => '{{ entry.title|lower }} (imported)']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertNotNull($imported);
@@ -68,8 +68,8 @@ class PreparseTest extends Unit
         return [Schema::section('news', [$article]), $article, $field];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

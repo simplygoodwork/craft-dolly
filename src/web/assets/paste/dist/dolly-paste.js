@@ -1,6 +1,6 @@
 /* global Craft, Garnish, $ */
 (function () {
-  const t = (message, params) => Craft.t('portage', message, params);
+  const t = (message, params) => Craft.t('dolly', message, params);
 
   /**
    * Returns the Matrix or Neo blocks of a field in the order they're shown, which is the order of the field's value. Only
@@ -55,7 +55,7 @@
       // tall the Preview is. "fitted" makes the modal as tall as its content (Craft's modals are otherwise 66% of the
       // window), and Garnish caps that at the window less the gutters. The flex column is on an inner element because
       // Garnish sets the modal's own display when it shows it.
-      this.$form = $('<form class="modal fitted portage-paste-modal" method="post" enctype="multipart/form-data"/>');
+      this.$form = $('<form class="modal fitted dolly-paste-modal" method="post" enctype="multipart/form-data"/>');
       const $layout = $('<div/>').css({display: 'flex', flexDirection: 'column', height: '100%'}).appendTo(this.$form);
       this.$body = $('<div class="body"/>').css({flex: '1 1 auto', minHeight: 0, overflow: 'auto'}).appendTo($layout);
       this.$content = $('<div/>').appendTo(this.$body);
@@ -99,12 +99,12 @@
       this.$content.empty().append(
         $('<h2/>').text(t('Paste from another environment')),
         $('<p class="light"/>').text(
-          t('Paste Payload text, or upload a .portage file. You will see a Preview before anything is added to your draft.')
+          t('Paste Payload text, or upload a .dolly file. You will see a Preview before anything is added to your draft.')
         ),
         $('<textarea name="payload" rows="8" class="text fullwidth code" autofocus/>'),
         $('<div class="field"/>').append(
-          $('<div class="heading"/>').append($('<label/>').text(t('Or upload a .portage file'))),
-          $('<input type="file" name="payloadFile" accept=".portage,text/plain"/>')
+          $('<div class="heading"/>').append($('<label/>').text(t('Or upload a .dolly file'))),
+          $('<input type="file" name="payloadFile" accept=".dolly,text/plain"/>')
         )
       );
       this.$footer.empty().append(
@@ -129,7 +129,7 @@
         if (payload !== null) {
           data.set('payload', payload);
         }
-        const {data: response} = await Craft.sendActionRequest('POST', 'portage/paste/preview', {data});
+        const {data: response} = await Craft.sendActionRequest('POST', 'dolly/paste/preview', {data});
         this.show(response);
       } catch (error) {
         Craft.cp.displayError(error?.response?.data?.message || t('Couldn’t preview the Payload.'));
@@ -151,13 +151,13 @@
       Craft.appendBodyHtml(response.bodyHtml);
       this.step = 'preview';
 
-      const $preview = this.$content.find('#portage-paste-preview');
-      this.$content.find('[data-portage-cancel]').on('click', () => this.modal.hide());
-      this.$content.find('[data-portage-back]').on('click', () => this.showInput());
-      this.$content.find('[data-portage-update]').on('click', () => this.preview());
+      const $preview = this.$content.find('#dolly-paste-preview');
+      this.$content.find('[data-dolly-cancel]').on('click', () => this.modal.hide());
+      this.$content.find('[data-dolly-back]').on('click', () => this.showInput());
+      this.$content.find('[data-dolly-update]').on('click', () => this.preview());
       if ($preview.find('button.submit').length) {
         // Before the buttons move to the footer: the Preview keeps the Paste button off while a choice is being re-planned.
-        Portage.bindPreview($preview[0], () => this.preview());
+        Dolly.bindPreview($preview[0], () => this.preview());
       }
       this.$footer.empty().append($preview.children('.buttons'));
       this.modal.updateSizeAndPosition();
@@ -181,7 +181,7 @@
       this.$form.addClass('loading');
       this.$form.find('button.submit').prop('disabled', true);
       try {
-        await Craft.sendActionRequest('POST', 'portage/paste/paste', {data: this.formData()});
+        await Craft.sendActionRequest('POST', 'dolly/paste/paste', {data: this.formData()});
         this.modal.hide();
         // The blocks were added to the draft on the server, so the page loads the draft again to show them. The
         // confirmation is a flash message, which the page shows once it has loaded.
@@ -202,7 +202,7 @@
   function copyBlocks(ctx, blocks, positions) {
     const ids = positions.map((position) => blockId(blocks[position]));
 
-    return Portage.exportAndDeliver('portage/export/blocks', async () => {
+    return Dolly.exportAndDeliver('dolly/export/blocks', async () => {
       await ctx.editor.checkForm(false, true);
 
       return {
@@ -223,24 +223,24 @@
   document.addEventListener(
     'click',
     (ev) => {
-      if (!window.portageCanExport) {
+      if (!window.dollyCanExport) {
         return;
       }
       const button = ev.target.closest?.('.nested-element-cards .card .action-btn, .matrixblock .action-btn, .ni_block .action-btn');
       const menu = button && $(button).data('disclosureMenu');
-      if (!menu || menu.portageItem) {
+      if (!menu || menu.dollyItem) {
         return;
       }
 
-      menu.portageItem = true;
+      menu.dollyItem = true;
       const block = $(button).closest('.card, .matrixblock, .ni_block')[0];
       const $field = $(block).parent().closest('.field');
       const group = menu.addGroup(null, true, menu.getFirstDestructiveGroup());
       menu.addItem(
         {
-          icon: async () => await Craft.ui.icon('truck'),
+          icon: async () => await Craft.ui.icon('clone'),
           label: t('Copy for another environment'),
-          onActivate: () => Portage.copyBlockFrom($field, block),
+          onActivate: () => Dolly.copyBlockFrom($field, block),
         },
         group
       );
@@ -248,7 +248,7 @@
     true
   );
 
-  Object.assign((window.Portage = window.Portage || {}), {
+  Object.assign((window.Dolly = window.Dolly || {}), {
     /**
      * Copies the blocks selected in a Matrix or Neo field, with the blocks nested under them, for another environment.
      * The blocks are found in the draft by their position in the field, after the editor has saved what's on screen.
@@ -302,7 +302,7 @@
         // The browser won't let the page read the clipboard: the modal asks for the Payload instead.
       }
 
-      new PasteModal(ctx.editor, ctx.handle, text.startsWith('portage:') ? text : null);
+      new PasteModal(ctx.editor, ctx.handle, text.startsWith('dolly:') ? text : null);
     },
   });
 })();

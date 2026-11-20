@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\base\Element;
@@ -16,8 +16,8 @@ use craft\htmlfield\HtmlFieldData;
 use craft\services\Elements;
 use craft\services\Structures;
 use RuntimeException;
-use simplygoodwork\craftportage\fields\CompletesTokens;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\fields\CompletesTokens;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
 use Throwable;
 use yii\db\Transaction;
 
@@ -343,7 +343,7 @@ final class Importer
      */
     private function copyUpload(string $path, string $filename): string
     {
-        $copy = Craft::$app->getPath()->getTempPath() . '/portage-' . StringHelper::randomString(12) . '-' . $filename;
+        $copy = Craft::$app->getPath()->getTempPath() . '/dolly-' . StringHelper::randomString(12) . '-' . $filename;
         if (!is_file($path) || !@copy($path, $copy)) {
             throw new AssetFetchFailedException('the uploaded file is no longer available. Upload it again');
         }
@@ -407,8 +407,8 @@ final class Importer
                 $draft = Craft::$app->getDrafts()->createDraft(
                     $plan->canonical,
                     Craft::$app->getUser()->getId(),
-                    'Portage import',
-                    'Created by a Portage Import.',
+                    'Dolly import',
+                    'Created by a Dolly Import.',
                 );
             }
             foreach ($plan->sites as $site) {

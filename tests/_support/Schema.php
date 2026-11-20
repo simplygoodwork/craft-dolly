@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use benf\neo\elements\Block as NeoBlock;
 use benf\neo\Field as NeoField;
@@ -53,12 +53,12 @@ use presseddigital\linkit\fields\LinkitField;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
-use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
-use simplygoodwork\craftportage\references\ElementTypeRegistry;
-use simplygoodwork\craftportage\services\Portage;
+use simplygoodwork\craftdolly\events\RegisterElementTypesEvent;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\ElementTypeRegistry;
+use simplygoodwork\craftdolly\services\Dolly;
 use Solspace\Calendar\Calendar;
 use Solspace\Calendar\Elements\Event as CalendarEvent;
 use Solspace\Calendar\Models\CalendarModel;
@@ -71,6 +71,8 @@ use verbb\hyper\fields\HyperField;
 use verbb\hyper\Hyper;
 use verbb\hyper\models\LinkTypeConfig;
 use verbb\hyper\services\Links as HyperLinks;
+use verbb\iconpicker\base\IconSet;
+use verbb\iconpicker\IconPicker;
 use yii\base\Event;
 
 /**
@@ -154,7 +156,7 @@ final class Schema
     }
 
     /**
-     * Saves a global set, an element type Portage doesn't support.
+     * Saves a global set, an element type Dolly doesn't support.
      */
     public static function globalSet(string $handle): GlobalSet
     {
@@ -1009,7 +1011,7 @@ final class Schema
     public static function setImportDate(int $logId, string $dateTime): void
     {
         $date = new \DateTime($dateTime, new \DateTimeZone(Craft::$app->getTimeZone()));
-        Db::update('{{%portage_importlog}}', ['dateCreated' => Db::prepareDateForDb($date)], ['id' => $logId]);
+        Db::update('{{%dolly_importlog}}', ['dateCreated' => Db::prepareDateForDb($date)], ['id' => $logId]);
     }
 
     /**
@@ -1022,7 +1024,7 @@ final class Schema
      */
     public static function volume(string $handle, ?string $url = null, array $fields = [], array $config = []): Volume
     {
-        $path = sys_get_temp_dir() . '/portage-volumes/' . $handle . '-' . StringHelper::randomString(8);
+        $path = sys_get_temp_dir() . '/dolly-volumes/' . $handle . '-' . StringHelper::randomString(8);
         FileHelper::createDirectory($path);
 
         $fs = new Local([
@@ -1173,21 +1175,45 @@ final class Schema
     }
 
     /**
-     * Runs a callback with Portage's plugin settings changed, e.g. `['fetchTimeout' => 2]`, then restores them.
+     * Saves an Icon Picker icon set, e.g. `Schema::iconSet(SvgFolder::class, 'brand', ['folder' => 'brand'])`. Icon sets
+     * are in project config, like the schema the other helpers build.
+     *
+     * @param class-string<IconSet> $class
+     * @param array<string, mixed> $config
+     */
+    public static function iconSet(string $class, string $handle, array $config = []): IconSet
+    {
+        $iconSet = new $class(array_merge(['name' => self::nameFor($handle), 'handle' => $handle, 'enabled' => true], $config));
+        if (!IconPicker::$plugin->getIconSets()->saveIconSet($iconSet)) {
+            throw new RuntimeException("Couldn't save icon set \"$handle\": " . implode(' ', $iconSet->getFirstErrors()));
+        }
+
+        return $iconSet;
+    }
+
+    public static function deleteIconSet(IconSet $iconSet): void
+    {
+        if (!IconPicker::$plugin->getIconSets()->deleteIconSet($iconSet)) {
+            throw new RuntimeException("Couldn't delete icon set \"$iconSet->handle\".");
+        }
+    }
+
+    /**
+     * Runs a callback with Dolly's plugin settings changed, e.g. `['fetchTimeout' => 2]`, then restores them.
      *
      * @template T
      * @param array<string, mixed> $values
      * @param callable(): T $callback
      * @return T
      */
-    public static function withPortageSettings(array $values, callable $callback): mixed
+    public static function withDollySettings(array $values, callable $callback): mixed
     {
         return self::withProperties(Plugin::getInstance()->getSettings(), $values, $callback);
     }
 
     /**
-     * Runs a callback in an environment where a plugin registers an element type with Portage, under a short name,
-     * then unregisters it. Portage's element types are read once per service, so the service is rebuilt both times.
+     * Runs a callback in an environment where a plugin registers an element type with Dolly, under a short name,
+     * then unregisters it. Dolly's element types are read once per service, so the service is rebuilt both times.
      * `$definition` is usually an `ElementTypeDefinition`; anything else tests that the registration is refused. The
      * definition's element class is registered with Craft too, as the plugin's own element type, so Craft resolves its
      * reference handle.
@@ -1208,13 +1234,13 @@ final class Schema
         };
         Event::on(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
         Event::on(Elements::class, Elements::EVENT_REGISTER_ELEMENT_TYPES, $registerWithCraft);
-        Plugin::getInstance()->set('portage', Portage::class);
+        Plugin::getInstance()->set('dolly', Dolly::class);
         try {
             return $callback();
         } finally {
             Event::off(ElementTypeRegistry::class, ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES, $register);
             Event::off(Elements::class, Elements::EVENT_REGISTER_ELEMENT_TYPES, $registerWithCraft);
-            Plugin::getInstance()->set('portage', Portage::class);
+            Plugin::getInstance()->set('dolly', Dolly::class);
         }
     }
 
@@ -1245,7 +1271,7 @@ final class Schema
     }
 
     /**
-     * Runs a callback in an environment configured with a Shared key, read from the env var `PORTAGE_TEST_SHARED_KEY`
+     * Runs a callback in an environment configured with a Shared key, read from the env var `DOLLY_TEST_SHARED_KEY`
      * as a real environment would, or with no Shared key when `$key` is null. Restores both afterwards.
      *
      * @template T
@@ -1255,13 +1281,13 @@ final class Schema
     public static function withSharedKey(?string $key, callable $callback): mixed
     {
         return self::withEnv(
-            ['PORTAGE_TEST_SHARED_KEY' => $key],
-            fn() => self::withPortageSettings(['sharedKey' => $key === null ? null : '$PORTAGE_TEST_SHARED_KEY'], $callback),
+            ['DOLLY_TEST_SHARED_KEY' => $key],
+            fn() => self::withDollySettings(['sharedKey' => $key === null ? null : '$DOLLY_TEST_SHARED_KEY'], $callback),
         );
     }
 
     /**
-     * Runs a callback in an environment whose Shared key setting refers to the env var `PORTAGE_MISSING_KEY`, which
+     * Runs a callback in an environment whose Shared key setting refers to the env var `DOLLY_MISSING_KEY`, which
      * isn't set, as in an environment someone forgot to configure.
      *
      * @template T
@@ -1271,8 +1297,8 @@ final class Schema
     public static function withSharedKeyEnvVarUnset(callable $callback): mixed
     {
         return self::withEnv(
-            ['PORTAGE_MISSING_KEY' => null],
-            fn() => self::withPortageSettings(['sharedKey' => '$PORTAGE_MISSING_KEY'], $callback),
+            ['DOLLY_MISSING_KEY' => null],
+            fn() => self::withDollySettings(['sharedKey' => '$DOLLY_MISSING_KEY'], $callback),
         );
     }
 

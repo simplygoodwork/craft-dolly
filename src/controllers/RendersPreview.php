@@ -1,20 +1,20 @@
 <?php
 
-namespace simplygoodwork\craftportage\controllers;
+namespace simplygoodwork\craftdolly\controllers;
 
 use Craft;
 use craft\models\Volume;
 use craft\web\UploadedFile;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\import\ImportPlan;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\import\StagedUploads;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\schema\SchemaManifest;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\import\ImportPlan;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\import\StagedUploads;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\schema\SchemaManifest;
 
 /**
- * What the Preview's form and template need, which the Portage utility's Preview and the Preview in the paste modal
+ * What the Preview's form and template need, which the Dolly utility's Preview and the Preview in the paste modal
  * share: reading the choices a form posted, and the lists its choices pick from.
  */
 trait RendersPreview
@@ -152,11 +152,11 @@ trait RendersPreview
      */
     protected function driftKinds(): array
     {
-        return array_map(fn(array $kind) => Craft::t('portage', ucfirst($kind[1])), SchemaManifest::KINDS);
+        return array_map(fn(array $kind) => Craft::t('dolly', ucfirst($kind[1])), SchemaManifest::KINDS);
     }
 
     /**
-     * Returns the uploaded `.portage` file's contents if a file was chosen, otherwise the pasted text. Returns null if
+     * Returns the uploaded `.dolly` file's contents if a file was chosen, otherwise the pasted text. Returns null if
      * the chosen file couldn't be uploaded or read.
      */
     protected function payloadText(): ?string
@@ -184,19 +184,19 @@ trait RendersPreview
      */
     protected function planWithChoices(string $payload, array $form, ?string $notice = null, ?BlockTarget $target = null): array
     {
-        $portage = Plugin::getInstance()->getPortage();
+        $dolly = Plugin::getInstance()->getDolly();
         $errors = $notice !== null ? [$notice] : [];
-        $plan = $portage->preview($payload, $form['choices'], $form['rootChoices'], $target);
+        $plan = $dolly->preview($payload, $form['choices'], $form['rootChoices'], $target);
 
         while ($plan->isRefused() && $plan->refusalUid !== null && (isset($form['choices'][$plan->refusalUid]) || isset($form['rootChoices'][$plan->refusalUid]))) {
             $errors[] = (string)$plan->refusal;
             unset($form['choices'][$plan->refusalUid], $form['rootChoices'][$plan->refusalUid], $form['requested'][$plan->refusalUid]);
-            $plan = $portage->preview($payload, $form['choices'], $form['rootChoices'], $target);
+            $plan = $dolly->preview($payload, $form['choices'], $form['rootChoices'], $target);
         }
 
         if ($plan->isRefused() && ($form['choices'] || $form['rootChoices'])) {
             // The Payload itself may be fine: show it with the defaults, and the problem with the choices.
-            $defaults = $portage->preview($payload, target: $target);
+            $defaults = $dolly->preview($payload, target: $target);
             if (!$defaults->isRefused()) {
                 $errors[] = (string)$plan->refusal;
                 $plan = $defaults;

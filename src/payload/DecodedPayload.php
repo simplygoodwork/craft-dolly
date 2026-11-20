@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\payload;
+namespace simplygoodwork\craftdolly\payload;
 
 /**
  * A Payload's envelope plus its identity (a hash of the decoded JSON).

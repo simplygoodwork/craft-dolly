@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\web\assets\preview;
+namespace simplygoodwork\craftdolly\web\assets\preview;
 
 use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;
@@ -14,7 +14,7 @@ class PreviewAsset extends AssetBundle
     {
         $this->sourcePath = __DIR__ . '/dist';
         $this->depends = [CpAsset::class];
-        $this->js = ['portage-preview.js'];
+        $this->js = ['dolly-preview.js'];
 
         parent::init();
     }

@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
-use simplygoodwork\craftportage\export\ExportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
 
 /**
  * What the adapters of fields that hold Owned content (Matrix, Neo) share.

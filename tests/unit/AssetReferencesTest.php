@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -8,10 +8,10 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\events\ModelEvent;
 use craft\fields\Assets;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use yii\base\Event;
 
 /**
@@ -30,16 +30,16 @@ class AssetReferencesTest extends Unit
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($photo);
         Schema::changeUid($other);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('naturalKey', $plan->references[$sourceUid]->resolution->rule);
         $this->assertSame($photo->id, $plan->references[$sourceUid]->resolution->elementId);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([], $result->roots[0]->unresolvedReferences);
         $this->assertSame([$photo->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('images')->ids());
     }
@@ -58,20 +58,20 @@ class AssetReferencesTest extends Unit
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('skip', $plan->references[$sourceUid]->choice);
         $this->assertSame(['skip', 'fetch', 'upload', 'replace'], $plan->references[$sourceUid]->availableChoices);
         $this->assertSame(
             'Unresolved: will be fetched from ' . FileServer::start() . '/files/blog/2026/photo.png into the folder "blog/2026/" of the "Photos" volume',
-            $this->portage()->preview($payload, [$sourceUid => 'fetch'])->references[$sourceUid]->outcome(),
+            $this->dolly()->preview($payload, [$sourceUid => 'fetch'])->references[$sourceUid]->outcome(),
         );
         $this->assertNull(Asset::find()->uid($sourceUid)->one(), 'The Preview fetched the asset');
 
-        $result = $this->portage()->import($payload, [$sourceUid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$sourceUid => 'fetch']);
 
         $fetched = Asset::find()->uid($sourceUid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -104,13 +104,13 @@ class AssetReferencesTest extends Unit
             'images' => [$photo->id, $gone->id, $private->id],
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
         $this->hardDelete($gone);
         $this->hardDelete($private);
 
-        $result = $this->portage()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch', $privateUid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch', $privateUid => 'fetch']);
 
         $root = $result->roots[0];
         $this->assertSame('created', $root->status, implode(' ', $root->errors));
@@ -146,11 +146,11 @@ class AssetReferencesTest extends Unit
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Signed', 'images' => [$contract->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($contract);
 
-        $reference = $this->portage()->preview($payload)->references[$uid];
+        $reference = $this->dolly()->preview($payload)->references[$uid];
         $this->assertSame(['skip', 'upload', 'replace'], $reference->availableChoices);
         $this->assertSame(
             'Unresolved: will be skipped. It can\'t be fetched: its volume has no public URL in the Source environment.',
@@ -158,11 +158,11 @@ class AssetReferencesTest extends Unit
         );
         $this->assertSame(
             'The asset "Contract" can\'t be fetched: its volume has no public URL in the Source environment. Skip it or choose a replacement.',
-            $this->portage()->import($payload, [$uid => 'fetch'])->refusal,
+            $this->dolly()->import($payload, [$uid => 'fetch'])->refusal,
         );
         $this->assertSame(
-            'The asset "Contract" can\'t be Stubbed: Portage never Stubs assets. Skip it or choose a replacement.',
-            $this->portage()->preview($payload, [$uid => 'stub'])->refusal,
+            'The asset "Contract" can\'t be Stubbed: Dolly never Stubs assets. Skip it or choose a replacement.',
+            $this->dolly()->preview($payload, [$uid => 'stub'])->refusal,
         );
     }
 
@@ -175,11 +175,11 @@ class AssetReferencesTest extends Unit
 
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Too big', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
 
-        $result = Schema::withGeneralConfig(['maxUploadFileSize' => 50], fn() => $this->portage()->import($payload, [$uid => 'fetch']));
+        $result = Schema::withGeneralConfig(['maxUploadFileSize' => 50], fn() => $this->dolly()->import($payload, [$uid => 'fetch']));
 
         $this->assertSame('created', $result->roots[0]->status);
         $this->assertSame('the file is larger than the 50 bytes limit', $result->roots[0]->fetchFailures[0]['reason'] ?? null);
@@ -195,11 +195,11 @@ class AssetReferencesTest extends Unit
 
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Slow', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
 
-        $result = Schema::withPortageSettings(['fetchTimeout' => 2], fn() => $this->portage()->import($payload, [$uid => 'fetch']));
+        $result = Schema::withDollySettings(['fetchTimeout' => 2], fn() => $this->dolly()->import($payload, [$uid => 'fetch']));
 
         $this->assertSame('created', $result->roots[0]->status);
         $this->assertSame('the source didn\'t respond within 2 seconds', $result->roots[0]->fetchFailures[0]['reason'] ?? null);
@@ -213,11 +213,11 @@ class AssetReferencesTest extends Unit
 
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Annotated', 'images' => [$notes->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($notes);
 
-        $plan = Schema::withGeneralConfig(['allowedFileExtensions' => ['png', 'jpg']], fn() => $this->portage()->preview($payload));
+        $plan = Schema::withGeneralConfig(['allowedFileExtensions' => ['png', 'jpg']], fn() => $this->dolly()->preview($payload));
 
         $this->assertSame(['skip', 'upload', 'replace'], $plan->references[$uid]->availableChoices);
         $this->assertSame('Unresolved: will be skipped. It can\'t be fetched: this environment doesn\'t allow ".txt" files.', $plan->references[$uid]->outcome());
@@ -232,12 +232,12 @@ class AssetReferencesTest extends Unit
         [$news, $article] = $this->newsWithImages();
         $images = Craft::$app->getFields()->getFieldByHandle('images');
         $source = Schema::entry($news, $article, ['title' => 'Annotated', 'images' => [$notes->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($notes);
         Schema::updateField($images->uid, ['restrictFiles' => true, 'allowedKinds' => ['image']]);
 
-        $result = $this->portage()->import($payload, [$uid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$uid => 'fetch']);
 
         $this->assertSame([], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('images')->ids());
         $this->assertContains(
@@ -257,21 +257,21 @@ class AssetReferencesTest extends Unit
 
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Moved', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
         Schema::deleteVolume($photos);
 
         $this->assertSame(
             'The asset "Photo" can\'t be fetched into its own volume: it doesn\'t exist in this environment. Choose a volume to fetch it into.',
-            $this->portage()->preview($payload, [$uid => 'fetch'])->refusal,
+            $this->dolly()->preview($payload, [$uid => 'fetch'])->refusal,
         );
         $this->assertSame(
             'The volume "nowhere" chosen for the asset "Photo" doesn\'t exist in this environment.',
-            $this->portage()->preview($payload, [$uid => ['choice' => 'fetch', 'volume' => 'nowhere']])->refusal,
+            $this->dolly()->preview($payload, [$uid => ['choice' => 'fetch', 'volume' => 'nowhere']])->refusal,
         );
 
-        $result = $this->portage()->import($payload, [$uid => ['choice' => 'fetch', 'volume' => 'archive', 'folder' => 'imports/2026']]);
+        $result = $this->dolly()->import($payload, [$uid => ['choice' => 'fetch', 'volume' => 'archive', 'folder' => 'imports/2026']]);
 
         $fetched = Asset::find()->uid($uid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -289,7 +289,7 @@ class AssetReferencesTest extends Unit
         [$news, $article] = $this->newsWithImages();
         $fails = Schema::entry($news, $article, ['title' => 'Fails', 'images' => [$photo->id]]);
         $works = Schema::entry($news, $article, ['title' => 'Works', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$fails, $works]);
+        $payload = $this->dolly()->export([$fails, $works]);
         $this->hardDelete($fails);
         $this->hardDelete($works);
         $this->hardDelete($photo);
@@ -301,7 +301,7 @@ class AssetReferencesTest extends Unit
         };
         Event::on(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         try {
-            $result = $this->portage()->import($payload, [$uid => 'fetch']);
+            $result = $this->dolly()->import($payload, [$uid => 'fetch']);
         } finally {
             Event::off(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         }
@@ -329,12 +329,12 @@ class AssetReferencesTest extends Unit
 
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
         $file = $this->uploadedFile('red.png');
 
-        $plan = $this->portage()->preview($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
+        $plan = $this->dolly()->preview($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
         $this->assertSame('upload', $plan->references[$sourceUid]->choice);
         $this->assertSame(
             'Unresolved: the uploaded file will be saved into the folder "blog/2026/" of the "Photos" volume',
@@ -342,7 +342,7 @@ class AssetReferencesTest extends Unit
         );
         $this->assertNull(Asset::find()->uid($sourceUid)->one(), 'The Preview created the asset');
 
-        $result = $this->portage()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
+        $result = $this->dolly()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']]);
 
         $created = Asset::find()->uid($sourceUid)->one();
         $this->assertNotNull($created, 'No asset with the source UID');
@@ -356,7 +356,7 @@ class AssetReferencesTest extends Unit
 
         // Into another volume and folder.
         $this->hardDelete($created);
-        $chosen = $this->portage()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png', 'volume' => 'archive', 'folder' => 'uploads/2026']]);
+        $chosen = $this->dolly()->import($payload, [$sourceUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png', 'volume' => 'archive', 'folder' => 'uploads/2026']]);
         $again = Asset::find()->uid($sourceUid)->one();
         $this->assertNotNull($again, implode(' ', $chosen->roots[0]->warnings));
         $this->assertSame(['archive', 'uploads/2026/'], [$again->getVolume()->handle, $again->getFolder()->path]);
@@ -370,17 +370,17 @@ class AssetReferencesTest extends Unit
         $uid = $photo->uid;
         [$news, $article] = $this->newsWithImages();
         $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($photo);
 
         $this->assertSame(
             'The file to upload for the asset "Photo" couldn\'t be found. Upload it again.',
-            $this->portage()->preview($payload, [$uid => ['choice' => 'upload', 'path' => '/nowhere/missing.png']])->refusal,
+            $this->dolly()->preview($payload, [$uid => ['choice' => 'upload', 'path' => '/nowhere/missing.png']])->refusal,
         );
         $this->assertSame(
             'The file to upload for the asset "Photo" can\'t be used: this environment doesn\'t allow ".exe" files. Upload another file or skip it.',
-            $this->portage()->preview($payload, [$uid => ['choice' => 'upload', 'path' => $this->uploadedFile('tool.exe'), 'filename' => 'tool.exe']])->refusal,
+            $this->dolly()->preview($payload, [$uid => ['choice' => 'upload', 'path' => $this->uploadedFile('tool.exe'), 'filename' => 'tool.exe']])->refusal,
         );
     }
 
@@ -400,7 +400,7 @@ class AssetReferencesTest extends Unit
 
     private function uploadedFile(string $name): string
     {
-        $path = sys_get_temp_dir() . '/portage-test-' . uniqid() . '-' . $name;
+        $path = sys_get_temp_dir() . '/dolly-test-' . uniqid() . '-' . $name;
         file_put_contents($path, file_get_contents(codecept_data_dir('files/photo.png')));
         $this->uploadedFiles[] = $path;
 
@@ -417,9 +417,9 @@ class AssetReferencesTest extends Unit
         return [Schema::section('news', [$article]), $article];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function hardDelete(Entry|Asset $element): void

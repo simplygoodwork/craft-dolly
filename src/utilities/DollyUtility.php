@@ -1,36 +1,36 @@
 <?php
 
-namespace simplygoodwork\craftportage\utilities;
+namespace simplygoodwork\craftdolly\utilities;
 
 use Craft;
 use craft\base\Utility;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\Plugin;
 
 /**
- * The Portage utility: paste or upload a Payload to Preview and Import it, and browse the Import log.
+ * The Dolly utility: paste or upload a Payload to Preview and Import it, and browse the Import log.
  */
-class PortageUtility extends Utility
+class DollyUtility extends Utility
 {
     public static function displayName(): string
     {
-        return 'Portage';
+        return 'Dolly';
     }
 
     public static function id(): string
     {
-        return 'portage';
+        return 'dolly';
     }
 
     public static function icon(): ?string
     {
-        return 'truck';
+        return 'sheep';
     }
 
     public static function contentHtml(): string
     {
         $canImport = Craft::$app->getUser()->checkPermission(Plugin::PERMISSION_IMPORT);
 
-        return Craft::$app->getView()->renderTemplate('portage/_utility', [
+        return Craft::$app->getView()->renderTemplate('dolly/_utility', [
             'canImport' => $canImport,
             'imports' => $canImport ? Plugin::getInstance()->getImportLog()->getEntries() : [],
         ]);

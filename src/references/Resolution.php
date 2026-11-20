@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\references;
+namespace simplygoodwork\craftdolly\references;
 
 /**
  * The outcome of matching a Reference in the Target environment, and the rule that matched.

@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\base\ElementInterface;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\references\ElementTypes;
 
 /**
  * Builds unsaved Stubs for Unresolved references: disabled, minimal elements in the Reference's original section or

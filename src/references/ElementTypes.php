@@ -1,9 +1,9 @@
 <?php
 
-namespace simplygoodwork\craftportage\references;
+namespace simplygoodwork\craftdolly\references;
 
 use craft\base\ElementInterface;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\Plugin;
 
 /**
  * The element types a Payload may name, from the `ElementTypeRegistry`. The Payload never decides which PHP class is
@@ -18,11 +18,11 @@ final class ElementTypes
     public const NEO_BLOCK = 'neoBlock';
 
     /**
-     * The registry of this request's Portage service.
+     * The registry of this request's Dolly service.
      */
     public static function registry(): ElementTypeRegistry
     {
-        return Plugin::getInstance()->getPortage()->getElementTypes();
+        return Plugin::getInstance()->getDolly()->getElementTypes();
     }
 
     /**

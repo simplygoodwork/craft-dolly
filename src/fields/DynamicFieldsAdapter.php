@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -9,10 +9,10 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\Json;
 use lewisjenkins\craftdynamicfields\fields\Checkboxes;
 use lewisjenkins\craftdynamicfields\fields\Multiselect;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\references\ElementTypes;
 use yii\base\InvalidConfigException;
 
 /**
@@ -20,7 +20,7 @@ use yii\base\InvalidConfigException;
  * Twig template, so their values are often IDs: pbs-hub's "sectionIDs" stores section IDs. Each stores its value as a
  * string: the selected option's value, or a JSON array of them for checkboxes and multi-select.
  *
- * Portage can't tell what the IDs are of, so `config/portage.php` declares it by the field's handle (`dynamicFields`).
+ * Dolly can't tell what the IDs are of, so `config/dolly.php` declares it by the field's handle (`dynamicFields`).
  * A declared field's values travel as UIDs instead: Schema references (with Drift) for a Schema reference kind, or
  * References (matched, replaced or Stubbed like any other) for an element type. A value that doesn't resolve is dropped
  * from the field with a warning.
@@ -50,7 +50,7 @@ final class DynamicFieldsAdapter implements CompletesTokens
     /**
      * @return array{kind: string, values: list<string>, unmatched?: list<string>}|mixed for a declared field, the UIDs
      * of what its IDs identify, and any values that identify nothing; otherwise the fallback's value
-     * @throws InvalidConfigException if the field is declared as a kind Portage doesn't know
+     * @throws InvalidConfigException if the field is declared as a kind Dolly doesn't know
      */
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
@@ -81,7 +81,7 @@ final class DynamicFieldsAdapter implements CompletesTokens
     /**
      * @return list<string>|string|SkippedValue|null the IDs (or Stub and fetched asset tokens) in this environment, as a
      * list for checkboxes and multi-select or one value for the others, or null for none; or the fallback's value
-     * @throws InvalidConfigException if the field is declared as a kind Portage doesn't know
+     * @throws InvalidConfigException if the field is declared as a kind Dolly doesn't know
      */
     public function import(FieldInterface $field, mixed $portable, ImportContext $context): mixed
     {
@@ -164,7 +164,7 @@ final class DynamicFieldsAdapter implements CompletesTokens
      *
      * Fields are declared by their own handle, not a handle a field layout overrides it with.
      *
-     * @throws InvalidConfigException if the field is declared as a kind Portage doesn't know
+     * @throws InvalidConfigException if the field is declared as a kind Dolly doesn't know
      */
     private function declaredKind(FieldInterface $field): ?string
     {
@@ -176,7 +176,7 @@ final class DynamicFieldsAdapter implements CompletesTokens
 
         if (!is_string($kind) || (!isset(self::SCHEMA_KINDS[$kind]) && ElementTypes::definition($kind) === null)) {
             throw new InvalidConfigException(sprintf(
-                'The dynamicFields setting declares the field "%s" as "%s", which isn\'t a kind Portage knows. Use one of %s, or the short name of a registered element type, such as entry, category, tag, user or asset.',
+                'The dynamicFields setting declares the field "%s" as "%s", which isn\'t a kind Dolly knows. Use one of %s, or the short name of a registered element type, such as entry, category, tag, user or asset.',
                 $handle,
                 is_scalar($kind) ? (string)$kind : gettype($kind),
                 implode(', ', array_keys(self::SCHEMA_KINDS)),

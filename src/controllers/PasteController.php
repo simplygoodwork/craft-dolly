@@ -1,16 +1,16 @@
 <?php
 
-namespace simplygoodwork\craftportage\controllers;
+namespace simplygoodwork\craftdolly\controllers;
 
 use Craft;
 use craft\elements\Entry;
 use craft\web\Controller;
 use craft\web\View;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\import\ImportPlan;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\import\RootResult;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\import\ImportPlan;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\import\RootResult;
+use simplygoodwork\craftdolly\Plugin;
 use yii\web\ForbiddenHttpException;
 use yii\web\Response;
 
@@ -45,7 +45,7 @@ class PasteController extends Controller
         $target = $this->blockTarget();
         $payload = $this->payloadText();
         if ($payload === null) {
-            return $this->previewResponse(ImportPlan::refused(Craft::t('portage', 'The .portage file couldn’t be uploaded. Try again, or paste its text instead.')), '', $target);
+            return $this->previewResponse(ImportPlan::refused(Craft::t('dolly', 'The .dolly file couldn’t be uploaded. Try again, or paste its text instead.')), '', $target);
         }
 
         [$plan, $form, $error] = $this->planWithChoices($payload, $this->readChoices(), null, $target);
@@ -63,17 +63,17 @@ class PasteController extends Controller
         $target = $this->blockTarget();
         $payload = trim((string)$request->getRequiredBodyParam('payload'));
         $form = $this->readChoices();
-        $portage = Plugin::getInstance()->getPortage();
+        $dolly = Plugin::getInstance()->getDolly();
 
-        $plan = $portage->preview($payload, $form['choices'], $form['rootChoices'], $target);
+        $plan = $dolly->preview($payload, $form['choices'], $form['rootChoices'], $target);
         if ($plan->isRefused()) {
             return $this->asFailure((string)$plan->refusal);
         }
         if (!hash_equals($plan->fingerprint(), (string)$request->getBodyParam('previewed'))) {
-            return $this->asFailure(Craft::t('portage', 'Your choices changed since the Preview. Check it, then paste.'));
+            return $this->asFailure(Craft::t('dolly', 'Your choices changed since the Preview. Check it, then paste.'));
         }
 
-        $result = $portage->import($payload, $form['choices'], $form['rootChoices'], $target);
+        $result = $dolly->import($payload, $form['choices'], $form['rootChoices'], $target);
         if ($result->isRefused()) {
             return $this->asFailure((string)$result->refusal);
         }
@@ -83,17 +83,17 @@ class PasteController extends Controller
         $pasted = array_sum(array_map(fn(RootResult $root) => $root->status === RootResult::STATUS_PASTED ? $root->blocks : 0, $result->roots));
         $problems = array_merge(...array_map(fn(RootResult $root) => $root->errors, $result->roots));
         if ($pasted === 0) {
-            return $this->asFailure(Craft::t('portage', 'No blocks were pasted into {field}: {reasons}', [
+            return $this->asFailure(Craft::t('dolly', 'No blocks were pasted into {field}: {reasons}', [
                 'field' => $target->label(),
                 'reasons' => implode(' ', $problems),
             ]));
         }
 
         $message = $pasted === 1
-            ? Craft::t('portage', 'Pasted 1 block into {field}.', ['field' => $target->label()])
-            : Craft::t('portage', 'Pasted {count} blocks into {field}.', ['count' => $pasted, 'field' => $target->label()]);
+            ? Craft::t('dolly', 'Pasted 1 block into {field}.', ['field' => $target->label()])
+            : Craft::t('dolly', 'Pasted {count} blocks into {field}.', ['count' => $pasted, 'field' => $target->label()]);
         if ($problems) {
-            $message .= ' ' . Craft::t('portage', 'Some blocks couldn’t be pasted: {reasons}', ['reasons' => implode(' ', $problems)]);
+            $message .= ' ' . Craft::t('dolly', 'Some blocks couldn’t be pasted: {reasons}', ['reasons' => implode(' ', $problems)]);
         }
 
         // The editor loads the draft again to show the blocks, and the message with it.
@@ -142,7 +142,7 @@ class PasteController extends Controller
     private function previewResponse(ImportPlan $plan, string $payload, BlockTarget $target, array $form = [], ?string $choiceError = null): Response
     {
         $view = Craft::$app->getView();
-        $html = $view->renderTemplate('portage/_paste', [
+        $html = $view->renderTemplate('dolly/_paste', [
             'plan' => $plan,
             'payload' => $payload,
             'target' => $target,

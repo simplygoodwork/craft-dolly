@@ -5,37 +5,37 @@
  # The Preview of an Import: a rendering of the ImportPlan from the core service. It decides nothing.
  #}
 
-{% set title = 'Portage Preview'|t('portage') %}
+{% set title = 'Dolly Preview'|t('dolly') %}
 {% set crumbs = [
     { label: 'Utilities'|t('app'), url: url('utilities') },
-    { label: 'Portage', url: url('utilities/portage') },
+    { label: 'Dolly', url: url('utilities/dolly') },
 ] %}
 
 {% set driftStates = {
-    'matched': 'Matched'|t('portage'),
-    'drifted': 'Drifted'|t('portage'),
-    'type-changed': 'Type changed'|t('portage'),
-    'missing': 'Missing'|t('portage'),
+    'matched': 'Matched'|t('dolly'),
+    'drifted': 'Drifted'|t('dolly'),
+    'type-changed': 'Type changed'|t('dolly'),
+    'missing': 'Missing'|t('dolly'),
 } %}
 
 {% block content %}
-<div id="portage-preview">
+<div id="dolly-preview">
     {% if plan.isRefused() %}
         <p class="error">{{ plan.refusal }}</p>
     {% else %}
-        <p>{{ 'Nothing has been imported yet. Check what will happen, change what you like, then import.'|t('portage') }}</p>
+        <p>{{ 'Nothing has been imported yet. Check what will happen, change what you like, then import.'|t('dolly') }}</p>
 
         {% if choiceError %}
-            <p class="error" id="portage-choice-error">{{ choiceError }}</p>
+            <p class="error" id="dolly-choice-error">{{ choiceError }}</p>
         {% endif %}
 
         {% if plan.source %}
             <p class="light">
-                {{ 'Exported from {siteUrl} ({environment}) by {user} on {date}.'|t('portage', {
-                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('portage'),
-                    environment: plan.source.environment ?? 'unknown environment'|t('portage'),
-                    user: plan.source.exportedBy ?? 'an unknown user'|t('portage'),
-                    date: plan.source.exportedAt ?? 'an unknown date'|t('portage'),
+                {{ 'Exported from {siteUrl} ({environment}) by {user} on {date}.'|t('dolly', {
+                    siteUrl: plan.source.siteUrl ?? 'an unknown site'|t('dolly'),
+                    environment: plan.source.environment ?? 'unknown environment'|t('dolly'),
+                    user: plan.source.exportedBy ?? 'an unknown user'|t('dolly'),
+                    date: plan.source.exportedAt ?? 'an unknown date'|t('dolly'),
                 }) }}
             </p>
         {% endif %}
@@ -44,36 +44,36 @@
             <p class="warning">{{ warning }}</p>
         {% endfor %}
 
-        <form id="portage-import" method="post" enctype="multipart/form-data" accept-charset="UTF-8">
-        {{ actionInput('portage/import/import') }}
+        <form id="dolly-import" method="post" enctype="multipart/form-data" accept-charset="UTF-8">
+        {{ actionInput('dolly/import/import') }}
         {{ csrfInput() }}
         {{ hiddenInput('payload', payload) }}
         {{ hiddenInput('previewed', previewed) }}
 
-        <h2>{{ 'Entries'|t('portage') }}</h2>
+        <h2>{{ 'Entries'|t('dolly') }}</h2>
         {% for root in plan.roots %}
             <div class="pane">
                 {% set name = root.title is not null ? '"' ~ root.title ~ '"' : root.sourceUid %}
                 {% if root.isBlocked() %}
-                    <p class="error">{{ '{name} can’t be imported: {reason}'|t('portage', { name: name, reason: root.blockedBy }) }}</p>
+                    <p class="error">{{ '{name} can’t be imported: {reason}'|t('dolly', { name: name, reason: root.blockedBy }) }}</p>
                 {% elseif root.mode == 'overwrite' %}
-                    <p>{{ 'A draft will be created on {entry} with the Payload’s content.'|t('portage', { entry: '"' ~ root.overwrite.canonical.title ~ '"' }) }}</p>
+                    <p>{{ 'A draft will be created on {entry} with the Payload’s content.'|t('dolly', { entry: '"' ~ root.overwrite.canonical.title ~ '"' }) }}</p>
                 {% else %}
-                    <p>{{ '{name} will be created as a disabled entry in the "{section}" section.'|t('portage', { name: name, section: root.section.name }) }}</p>
+                    <p>{{ '{name} will be created as a disabled entry in the "{section}" section.'|t('dolly', { name: name, section: root.section.name }) }}</p>
                 {% endif %}
 
                 {% if not root.isBlocked() and root.match and root.mode == 'create' %}
-                    <p class="light">{{ 'It matches an existing entry, which will be left alone.'|t('portage') }}</p>
+                    <p class="light">{{ 'It matches an existing entry, which will be left alone.'|t('dolly') }}</p>
                 {% endif %}
 
                 {% if root.sourceUid and root.availableSections %}
                     {% set requestedSection = requestedRoots[root.sourceUid].section ?? root.section.uid ?? '' %}
                     {% if root.availableSections|length > 1 or root.isBlocked() %}
                         <div class="field">
-                            <div class="heading"><label>{{ 'Section'|t('portage') }}</label></div>
+                            <div class="heading"><label>{{ 'Section'|t('dolly') }}</label></div>
                             <div class="select">
-                                <select name="rootChoices[{{ root.sourceUid }}][section]" data-portage-section data-portage-replan>
-                                    {% if not root.section %}<option value="">{{ 'Choose a section'|t('portage') }}</option>{% endif %}
+                                <select name="rootChoices[{{ root.sourceUid }}][section]" data-dolly-section data-dolly-replan>
+                                    {% if not root.section %}<option value="">{{ 'Choose a section'|t('dolly') }}</option>{% endif %}
                                     {% for section in root.availableSections %}
                                         <option value="{{ section.uid }}"{{ section.uid == requestedSection ? ' selected' }}>{{ section.name }}</option>
                                     {% endfor %}
@@ -84,11 +84,11 @@
                 {% endif %}
                 {% if root.sourceUid and 'overwrite' in root.availableModes %}
                     <div class="field">
-                        <div class="heading"><label>{{ 'What to do with the matching entry'|t('portage') }}</label></div>
+                        <div class="heading"><label>{{ 'What to do with the matching entry'|t('dolly') }}</label></div>
                         <div class="select">
-                            <select name="rootChoices[{{ root.sourceUid }}][mode]" data-portage-mode data-portage-replan>
-                                <option value="create"{{ root.mode == 'create' ? ' selected' }}>{{ 'Create a new entry'|t('portage') }}</option>
-                                <option value="overwrite"{{ root.mode == 'overwrite' ? ' selected' }}>{{ 'Overwrite it (on a draft)'|t('portage') }}</option>
+                            <select name="rootChoices[{{ root.sourceUid }}][mode]" data-dolly-mode data-dolly-replan>
+                                <option value="create"{{ root.mode == 'create' ? ' selected' }}>{{ 'Create a new entry'|t('dolly') }}</option>
+                                <option value="overwrite"{{ root.mode == 'overwrite' ? ' selected' }}>{{ 'Overwrite it (on a draft)'|t('dolly') }}</option>
                             </select>
                         </div>
                     </div>
@@ -97,7 +97,7 @@
                     <p class="light">{{ root.overwriteUnavailable }}</p>
                 {% endif %}
 
-                {% include 'portage/_root-details' with {
+                {% include 'dolly/_root-details' with {
                     warnings: root.warnings,
                     unresolvedReferences: root.unresolvedReferences,
                     incompleteFields: root.incompleteFields,
@@ -105,7 +105,7 @@
             </div>
         {% endfor %}
 
-        {% include 'portage/_references' with {
+        {% include 'dolly/_references' with {
             plan: plan,
             requested: requested,
             choiceLabels: choiceLabels,
@@ -113,41 +113,41 @@
             volumes: volumes,
         } only %}
 
-        {% include 'portage/_drift' with {
+        {% include 'dolly/_drift' with {
             plan: plan,
             driftKinds: driftKinds,
             driftStates: driftStates,
         } only %}
 
         <div class="buttons">
-            <button type="submit" id="portage-update" class="btn" name="action" value="portage/import/preview">{{ 'Update Preview'|t('portage') }}</button>
+            <button type="submit" id="dolly-update" class="btn" name="action" value="dolly/import/preview">{{ 'Update Preview'|t('dolly') }}</button>
             {% if plan.hasImportableRoots() %}
-                <button type="submit" class="btn submit" name="action" value="portage/import/import">{{ 'Import'|t('portage') }}</button>
+                <button type="submit" class="btn submit" name="action" value="dolly/import/import">{{ 'Import'|t('dolly') }}</button>
             {% endif %}
         </div>
         {% if not plan.hasImportableRoots() %}
-            <p class="error">{{ 'None of the entries can be imported.'|t('portage') }}</p>
+            <p class="error">{{ 'None of the entries can be imported.'|t('dolly') }}</p>
         {% endif %}
         </form>
     {% endif %}
 </div>
 
 {% if not plan.isRefused() %}
-{% do view.registerAssetBundle('simplygoodwork\\craftportage\\web\\assets\\preview\\PreviewAsset') %}
+{% do view.registerAssetBundle('simplygoodwork\\craftdolly\\web\\assets\\preview\\PreviewAsset') %}
 {% js %}{% verbatim %}
 (function() {
-    var form = document.getElementById('portage-import');
+    var form = document.getElementById('dolly-import');
     if (!form) { return; }
-    var update = document.getElementById('portage-update');
-    Portage.bindPreview(form, function() { form.requestSubmit(update); });
+    var update = document.getElementById('dolly-update');
+    Dolly.bindPreview(form, function() { form.requestSubmit(update); });
 })();
 {% endverbatim %}{% endjs %}
 {% endif %}
 
 {% if plan.envelope %}
     <details>
-        <summary>{{ 'View as JSON'|t('portage') }}</summary>
-        <pre id="portage-json" class="code">{{ plan.envelope|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}</pre>
+        <summary>{{ 'View as JSON'|t('dolly') }}</summary>
+        <pre id="dolly-json" class="code">{{ plan.envelope|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}</pre>
     </details>
 {% endif %}
 {% endblock %}

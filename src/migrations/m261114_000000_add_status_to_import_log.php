@@ -1,10 +1,10 @@
 <?php
 
-namespace simplygoodwork\craftportage\migrations;
+namespace simplygoodwork\craftdolly\migrations;
 
 use craft\db\Migration;
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\records\ImportLogRecord;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\records\ImportLogRecord;
 
 /**
  * Records the status of each Import in the Import log, for Imports that run in the queue. Imports already in the log

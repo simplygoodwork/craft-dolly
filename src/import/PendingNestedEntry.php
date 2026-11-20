@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -18,8 +18,8 @@ use RuntimeException;
  */
 final class PendingNestedEntry
 {
-    private const TOKEN_PREFIX = '{portage-nested:';
-    private const TOKEN_PATTERN = '/\{portage-nested:([0-9a-f-]{36})\}/';
+    private const TOKEN_PREFIX = '{dolly-nested:';
+    private const TOKEN_PATTERN = '/\{dolly-nested:([0-9a-f-]{36})\}/';
 
     /**
      * @var array<int, array{enabled: bool, title?: string, slug?: string, fields: array<string, mixed>}> the entry's

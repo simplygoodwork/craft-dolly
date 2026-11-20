@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\schema;
+namespace simplygoodwork\craftdolly\schema;
 
 use Craft;
 use craft\base\FieldInterface;

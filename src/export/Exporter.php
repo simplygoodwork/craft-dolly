@@ -1,15 +1,15 @@
 <?php
 
-namespace simplygoodwork\craftportage\export;
+namespace simplygoodwork\craftdolly\export;
 
 use benf\neo\elements\Block;
 use Craft;
 use craft\elements\Entry;
 use DateTimeInterface;
 use InvalidArgumentException;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\schema\SchemaManifest;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\schema\SchemaManifest;
 
 /**
  * Builds a Payload envelope from Root elements.

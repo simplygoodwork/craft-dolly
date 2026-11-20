@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Entry;
@@ -8,9 +8,9 @@ use craft\models\EntryType;
 use craft\models\Section;
 use percipiolondon\colourswatches\fields\ColourSwatches;
 use percipiolondon\colourswatches\models\ColourSwatches as Swatch;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Colour Swatches: the selected swatch travels by its label, and a label the Target field's palette doesn't have is
@@ -29,13 +29,13 @@ class ColourSwatchesTest extends Unit
         [$news, $article, $field] = $this->newsWithSwatches(self::SWATCHES);
         $source = Schema::entry($news, $article, ['title' => 'Banner', 'banner' => ['label' => 'teal', 'color' => '#48d3cd']]);
 
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
         $this->assertSame(['label' => 'teal', 'color' => '#48d3cd'], $preview->envelope['roots'][0]['fields'][$field->uid] ?? null);
         $this->assertSame([], $preview->roots[0]->warnings);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $swatch = $this->importedSwatch($result->roots[0]->elementId);
         $this->assertSame('teal', $swatch->label);
@@ -49,14 +49,14 @@ class ColourSwatchesTest extends Unit
         [$news, $article, $field] = $this->newsWithSwatches(self::SWATCHES);
         $source = Schema::entry($news, $article, ['title' => 'Banner', 'banner' => ['label' => 'teal', 'color' => '#48d3cd']]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($field->uid, ['options' => [
             ['label' => 'blue', 'color' => '#2638c4', 'default' => '1', 'class' => ''],
             ['label' => 'teal', 'color' => '#00a0a0', 'default' => '', 'class' => 'teal-dark'],
         ]]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $swatch = $this->importedSwatch($result->roots[0]->elementId);
         $this->assertSame('teal', $swatch->label);
@@ -71,15 +71,15 @@ class ColourSwatchesTest extends Unit
         [$news, $article, $field] = $this->newsWithSwatches(self::SWATCHES);
         $source = Schema::entry($news, $article, ['title' => 'Banner', 'banner' => ['label' => 'coral', 'color' => '#fe704e']]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($field->uid, ['options' => array_slice(self::SWATCHES, 0, 2)]);
 
         $drift = 'The field "Banner" has different settings in this environment than where it was exported. Its values will be imported, but check them.';
         $warning = 'The field "Banner" no longer has the colour "coral" in this environment. That value will be dropped, and the field will use its default colour "blue".';
-        $this->assertSame([$drift, $warning], $this->portage()->preview($payload)->roots[0]->warnings);
+        $this->assertSame([$drift, $warning], $this->dolly()->preview($payload)->roots[0]->warnings);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame('blue', $this->importedSwatch($result->roots[0]->elementId)->label);
         $this->assertSame([$drift, $warning], $result->roots[0]->warnings);
@@ -90,14 +90,14 @@ class ColourSwatchesTest extends Unit
         [$news, $article, $field] = $this->newsWithSwatches(self::SWATCHES);
         $source = Schema::entry($news, $article, ['title' => 'Banner', 'banner' => ['label' => 'coral', 'color' => '#fe704e']]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::updateField($field->uid, ['options' => [
             ['label' => 'blue', 'color' => '#2638c4', 'default' => '', 'class' => ''],
             ['label' => 'teal', 'color' => '#48d3cd', 'default' => '', 'class' => ''],
         ]]);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertNotNull($imported);
@@ -120,12 +120,12 @@ class ColourSwatchesTest extends Unit
 
         $source = Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [$red, $green]]], function() use ($news, $article) {
             $entry = Schema::entry($news, $article, ['title' => 'Banner', 'banner' => ['label' => 'Green', 'color' => [['color' => '#22c55e', 'background' => 'bg-green-500']]]]);
-            return [$entry, $this->portage()->export([$entry])];
+            return [$entry, $this->dolly()->export([$entry])];
         });
         [$entry, $payload] = $source;
         Schema::deleteElement($entry);
 
-        $result = Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [$red, $blue]]], fn() => $this->portage()->import($payload));
+        $result = Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [$red, $blue]]], fn() => $this->dolly()->import($payload));
 
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
         $this->assertNotNull($imported);
@@ -162,8 +162,8 @@ class ColourSwatchesTest extends Unit
         return $value;
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

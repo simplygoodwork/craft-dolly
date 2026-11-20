@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\import;
+namespace simplygoodwork\craftdolly\import;
 
 use Craft;
 use craft\base\ElementInterface;
-use simplygoodwork\craftportage\references\ElementTypes;
-use simplygoodwork\craftportage\references\Resolution;
+use simplygoodwork\craftdolly\references\ElementTypes;
+use simplygoodwork\craftdolly\references\Resolution;
 
 /**
  * What an Import will do with one Reference: its Resolution in the Target environment and, for an Unresolved
@@ -146,11 +146,11 @@ final class ReferencePlan
     public static function choiceLabels(): array
     {
         return [
-            self::CHOICE_SKIP => Craft::t('portage', 'Skip it'),
-            self::CHOICE_STUB => Craft::t('portage', 'Create a Stub'),
-            self::CHOICE_FETCH => Craft::t('portage', 'Fetch it from the source URL'),
-            self::CHOICE_UPLOAD => Craft::t('portage', 'Upload a file'),
-            self::CHOICE_REPLACE => Craft::t('portage', 'Pick a replacement'),
+            self::CHOICE_SKIP => Craft::t('dolly', 'Skip it'),
+            self::CHOICE_STUB => Craft::t('dolly', 'Create a Stub'),
+            self::CHOICE_FETCH => Craft::t('dolly', 'Fetch it from the source URL'),
+            self::CHOICE_UPLOAD => Craft::t('dolly', 'Upload a file'),
+            self::CHOICE_REPLACE => Craft::t('dolly', 'Pick a replacement'),
         ];
     }
 
@@ -162,11 +162,11 @@ final class ReferencePlan
     public static function loggedOutcomes(): array
     {
         return [
-            self::CHOICE_SKIP => Craft::t('portage', 'skipped'),
-            self::CHOICE_STUB => Craft::t('portage', 'a Stub was created'),
-            self::CHOICE_FETCH => Craft::t('portage', 'fetched from its source URL'),
-            self::CHOICE_UPLOAD => Craft::t('portage', 'created from an uploaded file'),
-            self::CHOICE_REPLACE => Craft::t('portage', 'replaced'),
+            self::CHOICE_SKIP => Craft::t('dolly', 'skipped'),
+            self::CHOICE_STUB => Craft::t('dolly', 'a Stub was created'),
+            self::CHOICE_FETCH => Craft::t('dolly', 'fetched from its source URL'),
+            self::CHOICE_UPLOAD => Craft::t('dolly', 'created from an uploaded file'),
+            self::CHOICE_REPLACE => Craft::t('dolly', 'replaced'),
         ];
     }
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use benf\neo\elements\Block;
 use Codeception\Test\Unit;
@@ -10,11 +10,11 @@ use craft\elements\User;
 use craft\enums\PropagationMethod;
 use craft\fields\Entries;
 use craft\models\EntryType;
-use simplygoodwork\craftportage\import\BlockTarget;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Requires;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\import\BlockTarget;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Requires;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Copying Matrix and Neo blocks out of a field and pasting them into a draft's field, through the core service.
@@ -40,14 +40,14 @@ class BlockPasteTest extends Unit
             'new3' => ['type' => 'text', 'fields' => ['body' => 'Third']],
         ]]);
         $copied = $this->blocks($source, 'blocks');
-        $payload = $this->portage()->export([$copied[0], $copied[2]]);
+        $payload = $this->dolly()->export([$copied[0], $copied[2]]);
         Schema::deleteElement($source);
         $target = Schema::entry($news, $article, ['title' => 'Prod', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Already here']],
         ]]);
         $draft = Schema::draft($target, [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertFalse($result->isRefused());
         $this->assertCount(2, $result->roots);
@@ -70,10 +70,10 @@ class BlockPasteTest extends Unit
             $blocks["new$i"] = ['type' => 'text', 'fields' => ['body' => "Block $i"]];
         }
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => $blocks]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'), queue: true);
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'), queue: true);
 
         $this->assertFalse($result->queued);
         $this->assertCount(11, $result->roots);
@@ -87,11 +87,11 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Once']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft($source, [], provisional: true);
 
-        $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
-        $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
+        $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $blocks = $this->blocks($this->draftOf($draft), 'blocks');
         $this->assertSame(['Once', 'Once', 'Once'], array_map(fn(Entry $block) => $block->getFieldValue('body'), $blocks));
@@ -104,10 +104,10 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'quote', 'fields' => ['quote' => 'Wise words']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'quotesOnly'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'quotesOnly'));
 
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(['Wise words'], array_map(fn(Entry $block) => $block->getFieldValue('quote'), $this->blocks($this->draftOf($draft), 'quotesOnly')));
@@ -121,11 +121,11 @@ class BlockPasteTest extends Unit
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Not a quote']],
             'new2' => ['type' => 'quote', 'fields' => ['quote' => 'A quote']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
         $target = $this->target($draft, 'quotesOnly');
 
-        $plan = $this->portage()->preview($payload, target: $target);
+        $plan = $this->dolly()->preview($payload, target: $target);
         $this->assertFalse($plan->isRefused());
         $this->assertTrue($plan->roots[0]->isBlocked());
         $this->assertSame('None of its blocks can be added to the field "Quotes Only".', $plan->roots[0]->blockedBy);
@@ -135,7 +135,7 @@ class BlockPasteTest extends Unit
         );
         $this->assertFalse($plan->roots[1]->isBlocked());
 
-        $result = $this->portage()->import($payload, target: $target);
+        $result = $this->dolly()->import($payload, target: $target);
 
         $this->assertSame(['failed', 'pasted'], array_map(fn($root) => $root->status, $result->roots));
         $this->assertSame(['A quote'], array_map(fn(Entry $block) => $block->getFieldValue('quote'), $this->blocks($this->draftOf($draft), 'quotesOnly')));
@@ -152,13 +152,13 @@ class BlockPasteTest extends Unit
             ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Sibling']],
         ]]);
         $blocks = $this->neoBlocks($source);
-        $payload = $this->portage()->export([$blocks[0]]);
+        $payload = $this->dolly()->export([$blocks[0]]);
         $target = Schema::entry($news, $article, ['title' => 'Prod', 'content' => [
             ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Already here']],
         ]]);
         $draft = Schema::draft($target, [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'content'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'content'));
 
         $this->assertSame(1, count($result->roots), 'The children are Owned content, not Root elements');
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
@@ -183,10 +183,10 @@ class BlockPasteTest extends Unit
         ]]);
         $blocks = $this->neoBlocks($source);
         // The parent and the grandchild are selected too: the grandchild is carried by the child, and not twice.
-        $payload = $this->portage()->export([$blocks[1], $blocks[2]]);
+        $payload = $this->dolly()->export([$blocks[1], $blocks[2]]);
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'content'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'content'));
 
         $this->assertSame(1, count($result->roots));
         $this->assertSame(
@@ -201,18 +201,18 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'content' => [
             ['type' => 'paragraph', 'level' => 1, 'fields' => ['copy' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->neoBlocks($source));
+        $payload = $this->dolly()->export($this->neoBlocks($source));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $other = $this->portage()->preview($payload, target: $this->target($draft, 'sidebar'));
+        $other = $this->dolly()->preview($payload, target: $this->target($draft, 'sidebar'));
         $this->assertTrue($other->isRefused());
         $this->assertSame('Neo blocks can only be pasted into the Neo field they were copied from ("Content"). They can\'t be pasted into the field "Sidebar".', $other->refusal);
 
-        $matrix = $this->portage()->preview($payload, target: $this->target($draft, 'notes'));
+        $matrix = $this->dolly()->preview($payload, target: $this->target($draft, 'notes'));
         $this->assertTrue($matrix->isRefused());
         $this->assertSame('Neo blocks can only be pasted into the Neo field they were copied from ("Content"). They can\'t be pasted into the field "Notes".', $matrix->refusal);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'sidebar'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'sidebar'));
         $this->assertTrue($result->isRefused());
         $this->assertSame([], $this->neoBlocks($this->draftOf($draft), 'sidebar'));
         $this->assertSame([], Plugin::getInstance()->getImportLog()->getEntries());
@@ -224,10 +224,10 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'notes' => [
             'new1' => ['type' => 'note', 'fields' => ['text' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'notes'));
+        $payload = $this->dolly()->export($this->blocks($source, 'notes'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $plan = $this->portage()->preview($payload, target: $this->target($draft, 'content'));
+        $plan = $this->dolly()->preview($payload, target: $this->target($draft, 'content'));
 
         $this->assertSame('Matrix blocks can\'t be pasted into the field "Content", which is a Neo field. Paste them into a Matrix field.', $plan->refusal);
     }
@@ -238,18 +238,18 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $blocksPayload = $this->portage()->export($this->blocks($source, 'blocks'));
-        $entriesPayload = $this->portage()->export([$source]);
+        $blocksPayload = $this->dolly()->export($this->blocks($source, 'blocks'));
+        $entriesPayload = $this->dolly()->export([$source]);
         $draft = Schema::draft($source, [], provisional: true);
 
         $this->assertSame(
             'This Payload holds blocks copied from a Matrix or Neo field. Paste it with "Paste from another environment" in the menu of a Matrix or Neo field in an entry editor.',
-            $this->portage()->preview($blocksPayload)->refusal,
+            $this->dolly()->preview($blocksPayload)->refusal,
         );
-        $this->assertTrue($this->portage()->import($blocksPayload)->isRefused());
+        $this->assertTrue($this->dolly()->import($blocksPayload)->isRefused());
         $this->assertSame(
-            'This Payload holds whole entries, not blocks. Import it in the Portage utility.',
-            $this->portage()->preview($entriesPayload, target: $this->target($draft, 'blocks'))->refusal,
+            'This Payload holds whole entries, not blocks. Import it in the Dolly utility.',
+            $this->dolly()->preview($entriesPayload, target: $this->target($draft, 'blocks'))->refusal,
         );
     }
 
@@ -259,9 +259,9 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
 
-        $result = $this->portage()->import($payload, target: $this->target($source, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($source, 'blocks'));
 
         $this->assertTrue($result->isRefused());
         $this->assertSame(
@@ -282,17 +282,17 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($pages, $page, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'card', 'fields' => ['related' => [$craft->id]]],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         Schema::deleteElement($craft);
         $draft = Schema::draft(Schema::entry($pages, $page, ['title' => 'Prod']), [], provisional: true);
         $target = $this->target($draft, 'blocks');
 
-        $plan = $this->portage()->preview($payload, target: $target);
+        $plan = $this->dolly()->preview($payload, target: $target);
         $reference = array_values($plan->references)[0];
         $this->assertSame(['skip', 'stub', 'replace'], $reference->availableChoices);
         $this->assertSame([['uid' => $craft->uid, 'elementType' => 'entry', 'title' => 'Craft', 'field' => 'Related']], $plan->roots[0]->unresolvedReferences);
 
-        $result = $this->portage()->import($payload, [$craft->uid => 'stub'], target: $target);
+        $result = $this->dolly()->import($payload, [$craft->uid => 'stub'], target: $target);
 
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertCount(1, $result->roots[0]->stubs);
@@ -307,13 +307,13 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
         $editor = Schema::user('editor');
         Schema::grantPermissions($editor, ['accessCp', 'viewEntries:' . $news->uid]);
         Craft::$app->getUser()->setIdentity($editor);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame('failed', $result->roots[0]->status);
         $this->assertSame(['You don\'t have permission to edit the entry "Prod", so blocks can\'t be pasted into the field "Blocks".'], $result->roots[0]->errors);
@@ -327,11 +327,11 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         Schema::deleteElement($source);
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(['Hello'], $this->bodies($this->draftOf($draft), 'blocks'));
@@ -345,13 +345,13 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         Schema::deleteElement($source);
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Existing']],
         ]]), [], provisional: true);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(['Existing', 'Hello'], $this->bodies($this->draftOf($draft), 'blocks'));
@@ -365,7 +365,7 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         Schema::deleteElement($source);
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
         $primary = Craft::$app->getSites()->getPrimarySite();
@@ -382,7 +382,7 @@ class BlockPasteTest extends Unit
         ]);
         Craft::$app->getUser()->setIdentity($editor);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame('pasted', $result->roots[0]->status, implode(' ', $result->roots[0]->errors));
         $this->assertSame(['Hello'], $this->bodies($this->draftOf($draft), 'blocks'));
@@ -396,19 +396,19 @@ class BlockPasteTest extends Unit
             'new1' => ['type' => 'text', 'fields' => ['body' => 'One']],
             'new2' => ['type' => 'text', 'fields' => ['body' => 'Two']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         Schema::deleteElement($source);
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Existing']],
         ]]), [], provisional: true);
 
-        $plan = $this->portage()->preview($payload, target: $this->target($draft, 'blocks'));
+        $plan = $this->dolly()->preview($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame(
             ['The field "Blocks" allows at most 1 block. Your draft has 1 and this adds 1, so remove some before applying the draft.'],
             $plan->roots[0]->warnings,
         );
-        $this->assertSame('pasted', $this->portage()->import($payload, target: $this->target($draft, 'blocks'))->roots[0]->status, 'The draft saves anyway');
+        $this->assertSame('pasted', $this->dolly()->import($payload, target: $this->target($draft, 'blocks'))->roots[0]->status, 'The draft saves anyway');
     }
 
     public function testAPasteWithNobodyLoggedInIsBlocked(): void
@@ -417,11 +417,11 @@ class BlockPasteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Staging', 'blocks' => [
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Hello']],
         ]]);
-        $payload = $this->portage()->export($this->blocks($source, 'blocks'));
+        $payload = $this->dolly()->export($this->blocks($source, 'blocks'));
         $draft = Schema::draft(Schema::entry($news, $article, ['title' => 'Prod']), [], provisional: true);
         Craft::$app->getUser()->setIdentity(null);
 
-        $result = $this->portage()->import($payload, target: $this->target($draft, 'blocks'));
+        $result = $this->dolly()->import($payload, target: $this->target($draft, 'blocks'));
 
         $this->assertSame('failed', $result->roots[0]->status);
         $this->assertSame([], $this->blocks($this->draftOf($draft), 'blocks'));
@@ -499,8 +499,8 @@ class BlockPasteTest extends Unit
         return array_values($owner->getFieldValue($handle)->status(null)->all());
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

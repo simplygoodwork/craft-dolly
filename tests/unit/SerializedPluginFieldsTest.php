@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\base\FieldInterface;
@@ -10,9 +10,9 @@ use craft\models\Section;
 use nystudio107\codefield\fields\Code;
 use nystudio107\codefield\models\CodeData;
 use rias\positionfieldtype\fields\Position;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Position and Code fields hold plain values, which travel as the field serializes them, with no warning.
@@ -50,13 +50,13 @@ class SerializedPluginFieldsTest extends Unit
      */
     private function roundTrip(Entry $source, string $fieldUid, mixed $expected): Entry
     {
-        $payload = $this->portage()->export([$source]);
-        $preview = $this->portage()->preview($payload);
+        $payload = $this->dolly()->export([$source]);
+        $preview = $this->dolly()->preview($payload);
         $this->assertSame($expected, $preview->envelope['roots'][0]['fields'][$fieldUid] ?? null);
         $this->assertSame([], $preview->roots[0]->warnings);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->warnings);
         $imported = Entry::find()->id($result->roots[0]->elementId)->status(null)->one();
@@ -75,8 +75,8 @@ class SerializedPluginFieldsTest extends Unit
         return [Schema::section('news', [$article]), $article];
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

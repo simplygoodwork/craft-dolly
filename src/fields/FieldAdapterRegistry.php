@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use benf\neo\Field as NeoField;
 use Composer\InstalledVersions;
@@ -54,9 +54,10 @@ use nystudio107\seomatic\fields\SeoSettings;
 use percipiolondon\colourswatches\fields\ColourSwatches;
 use presseddigital\linkit\fields\LinkitField;
 use rias\positionfieldtype\fields\Position;
-use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\events\RegisterFieldAdaptersEvent;
+use simplygoodwork\craftdolly\references\ElementTypes;
 use verbb\hyper\fields\HyperField;
+use verbb\iconpicker\fields\IconPickerField;
 use verbb\tablemaker\fields\TableMakerField;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -135,7 +136,7 @@ final class FieldAdapterRegistry extends Component
         }
         // CKEditor before 4.0.4 replaces nested entries with their rendered HTML whenever it normalizes a value outside
         // the control panel, so it would lose them in a console or queued Export and when an Import sets the value. Its
-        // fields are skipped like other nested content Portage can't move.
+        // fields are skipped like other nested content Dolly can't move.
         if (!InstalledVersions::isInstalled('craftcms/ckeditor') || InstalledVersions::satisfies(new VersionParser(), 'craftcms/ckeditor', '>=4.0.4')) {
             $this->adapters[CkEditorField::class] = new CkEditorAdapter();
         }
@@ -166,6 +167,9 @@ final class FieldAdapterRegistry extends Component
         }
         if (class_exists(TableMakerField::class)) {
             $this->adapters[TableMakerField::class] = new TableMakerAdapter();
+        }
+        if (class_exists(IconPickerField::class)) {
+            $this->adapters[IconPickerField::class] = new IconPickerAdapter();
         }
         foreach ([Position::class, Code::class] as $class) {
             if (class_exists($class)) {

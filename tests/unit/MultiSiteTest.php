@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -8,9 +8,9 @@ use craft\base\Field;
 use craft\elements\Entry;
 use craft\enums\PropagationMethod;
 use craft\models\Site;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Multi-site content: Root elements and their Owned content travel with their content for every site they exist in.
@@ -34,9 +34,9 @@ class MultiSiteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Hello', 'slug' => 'hello', 'summary' => 'In English']);
         Schema::translate($source, $this->german, ['title' => 'Hallo', 'slug' => 'hallo', 'summary' => 'Auf Deutsch']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $id = $result->roots[0]->elementId;
@@ -55,14 +55,14 @@ class MultiSiteTest extends Unit
         $source = Schema::entry($products, $product, ['title' => 'Kettle', 'productCode' => 'K-100', 'summary' => 'Boils water']);
         Schema::translate($source, $this->german, ['title' => 'Wasserkocher', 'summary' => 'Kocht Wasser']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $root = $this->decode($payload)['roots'][0];
         $this->assertSame([$code->uid => 'K-100'], $root['fields']);
         $this->assertSame([$summary->uid => 'Boils water'], $root['sites'][$this->english->uid]['fields']);
         $this->assertSame([$summary->uid => 'Kocht Wasser'], $root['sites'][$this->german->uid]['fields']);
 
         $this->hardDelete($source);
-        $id = $this->portage()->import($payload)->roots[0]->elementId;
+        $id = $this->dolly()->import($payload)->roots[0]->elementId;
 
         $this->assertSame('K-100', $this->importedEntry($id, $this->english)->getFieldValue('productCode'));
         $this->assertSame('K-100', $this->importedEntry($id, $this->german)->getFieldValue('productCode'));
@@ -78,10 +78,10 @@ class MultiSiteTest extends Unit
         Schema::translate($source, $this->german, ['title' => 'Hallo', 'summary' => 'Auf Deutsch']);
         Schema::translate($source, $french, ['title' => 'Bonjour', 'summary' => 'En français']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::deleteSite($this->german);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertSame('created', $root->status);
@@ -97,10 +97,10 @@ class MultiSiteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Hello']);
         Schema::translate($source, $this->german, ['title' => 'Hallo']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::disableSectionForSite($news, $this->german);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertSame('created', $root->status);
@@ -133,9 +133,9 @@ class MultiSiteTest extends Unit
             'sortOrder' => [$germanBlocks[0]->id, $germanBlocks[1]->id],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $id = $result->roots[0]->elementId;
@@ -165,7 +165,7 @@ class MultiSiteTest extends Unit
             'sortOrder' => [$germanBlock->id],
         ]]);
 
-        $result = $this->portage()->import($this->portage()->export([$source]));
+        $result = $this->dolly()->import($this->dolly()->export([$source]));
 
         $this->assertSame([], $result->roots[0]->errors);
         $id = $result->roots[0]->elementId;
@@ -192,9 +192,9 @@ class MultiSiteTest extends Unit
             'new1' => ['type' => 'text', 'fields' => ['body' => 'Nur auf Deutsch']],
         ]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([], $result->roots[0]->errors);
         $id = $result->roots[0]->elementId;
@@ -211,9 +211,9 @@ class MultiSiteTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'English only']);
         $this->assertNull(Entry::find()->id($source->id)->siteId($this->german->id)->status(null)->one());
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertSame([], $root->warnings);
@@ -227,10 +227,10 @@ class MultiSiteTest extends Unit
         $news = Schema::section('news', [$article], ['propagationMethod' => PropagationMethod::Custom]);
         $source = Schema::entry($news, $article, ['title' => 'English only']);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::updateSection($news, ['propagationMethod' => PropagationMethod::All]);
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $root = $result->roots[0];
         $this->assertContains(
@@ -256,12 +256,12 @@ class MultiSiteTest extends Unit
      */
     private function decode(string $payload): array
     {
-        return json_decode(gzdecode(base64_decode(substr($payload, strlen('portage:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode(gzdecode(base64_decode(substr($payload, strlen('dolly:v1:')), true)), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function hardDelete(Entry $entry): void

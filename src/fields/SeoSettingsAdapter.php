@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\elements\Asset;
 use craft\helpers\Json;
 use nystudio107\seomatic\models\MetaBundle;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 use yii\base\Arrayable;
 
 /**
@@ -32,7 +32,7 @@ use yii\base\Arrayable;
 final class SeoSettingsAdapter implements FieldAdapter, CompletesTokens
 {
     /**
-     * The parts of the field's value that Portage moves. The rest of the bundle (its meta containers, redirects and
+     * The parts of the field's value that Dolly moves. The rest of the bundle (its meta containers, redirects and
      * source details) is SEOmatic's own defaults, rebuilt when the value is normalized.
      */
     private const PARTS = ['metaGlobalVars', 'metaSiteVars', 'metaSitemapVars', 'metaBundleSettings'];
@@ -161,7 +161,7 @@ final class SeoSettingsAdapter implements FieldAdapter, CompletesTokens
     }
 
     /**
-     * Returns the parts of a field value that Portage moves, as plain arrays.
+     * Returns the parts of a field value that Dolly moves, as plain arrays.
      *
      * @return array<string, array<mixed>>
      */

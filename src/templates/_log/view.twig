@@ -5,25 +5,25 @@
  # each Root element.
  #}
 
-{% set title = 'Import #{id}'|t('portage', { id: import.id }) %}
+{% set title = 'Import #{id}'|t('dolly', { id: import.id }) %}
 {% set crumbs = [
     { label: 'Utilities'|t('app'), url: url('utilities') },
-    { label: 'Portage', url: url('utilities/portage') },
+    { label: 'Dolly', url: url('utilities/dolly') },
 ] %}
 
 {% set user = import.userId ? craft.users.id(import.userId).status(null).one() : null %}
 {% set statuses = {
-    'created': 'Created a disabled entry'|t('portage'),
-    'overwritten': 'Created a draft on'|t('portage'),
-    'pasted': 'Added blocks to the draft of'|t('portage'),
-    'failed': 'Failed'|t('portage'),
-    'not-imported': 'Not imported yet'|t('portage'),
+    'created': 'Created a disabled entry'|t('dolly'),
+    'overwritten': 'Created a draft on'|t('dolly'),
+    'pasted': 'Added blocks to the draft of'|t('dolly'),
+    'failed': 'Failed'|t('dolly'),
+    'not-imported': 'Not imported yet'|t('dolly'),
 } %}
 {% set importStatuses = {
-    'queued': 'Queued: waiting for the queue to start it.'|t('portage'),
-    'in-progress': 'In progress: {done} of {total} Root elements imported.'|t('portage', { done: import.results|filter(r => r.status != 'not-imported')|length, total: import.results|length }),
-    'completed': 'Completed.'|t('portage'),
-    'failed': 'Failed: nothing more was imported.'|t('portage'),
+    'queued': 'Queued: waiting for the queue to start it.'|t('dolly'),
+    'in-progress': 'In progress: {done} of {total} Root elements imported.'|t('dolly', { done: import.results|filter(r => r.status != 'not-imported')|length, total: import.results|length }),
+    'completed': 'Completed.'|t('dolly'),
+    'failed': 'Failed: nothing more was imported.'|t('dolly'),
 } %}
 
 {% block content %}
@@ -31,47 +31,47 @@
     {# The queue runs it in the background: show how far it got. #}
     {% do view.registerJs('setTimeout(function() { window.location.reload(); }, 3000);') %}
 {% endif %}
-<div id="portage-log-entry">
-    <p id="portage-log-status" class="{{ import.status == 'failed' ? 'error' : (import.inProgress ? 'warning' : 'success') }}" data-status="{{ import.status }}">
+<div id="dolly-log-entry">
+    <p id="dolly-log-status" class="{{ import.status == 'failed' ? 'error' : (import.inProgress ? 'warning' : 'success') }}" data-status="{{ import.status }}">
         <strong>{{ importStatuses[import.status] ?? import.status }}</strong>
         {% if import.error %}{{ import.error }}{% endif %}
     </p>
     <dl class="meta">
-        <dt>{{ 'Imported by'|t('portage') }}</dt>
-        <dd>{{ user ? user.name : 'A user that no longer exists'|t('portage') }}</dd>
-        <dt>{{ 'Imported on'|t('portage') }}</dt>
+        <dt>{{ 'Imported by'|t('dolly') }}</dt>
+        <dd>{{ user ? user.name : 'A user that no longer exists'|t('dolly') }}</dd>
+        <dt>{{ 'Imported on'|t('dolly') }}</dt>
         <dd>{{ import.dateCreated|datetime('short') }}</dd>
-        <dt>{{ 'Exported from'|t('portage') }}</dt>
-        <dd>{{ import.source.siteUrl ?? 'an unknown site'|t('portage') }} ({{ import.source.environment ?? 'unknown environment'|t('portage') }})</dd>
-        <dt>{{ 'Exported by'|t('portage') }}</dt>
-        <dd>{{ import.source.exportedBy ?? 'an unknown user'|t('portage') }}, {{ import.source.exportedAt ?? 'at an unknown time'|t('portage') }}</dd>
-        <dt>{{ 'Payload identity'|t('portage') }}</dt>
+        <dt>{{ 'Exported from'|t('dolly') }}</dt>
+        <dd>{{ import.source.siteUrl ?? 'an unknown site'|t('dolly') }} ({{ import.source.environment ?? 'unknown environment'|t('dolly') }})</dd>
+        <dt>{{ 'Exported by'|t('dolly') }}</dt>
+        <dd>{{ import.source.exportedBy ?? 'an unknown user'|t('dolly') }}, {{ import.source.exportedAt ?? 'at an unknown time'|t('dolly') }}</dd>
+        <dt>{{ 'Payload identity'|t('dolly') }}</dt>
         <dd><code>{{ import.payloadIdentity }}</code></dd>
     </dl>
 
     {% if import.choices %}
-        <h2>{{ 'Choices for Unresolved references'|t('portage') }}</h2>
+        <h2>{{ 'Choices for Unresolved references'|t('dolly') }}</h2>
         <ul class="bullets">
             {% for choice in import.choices %}
                 {% set name = (choice.title is not null ? '"' ~ choice.title ~ '"' : choice.uid) ~ (choice.elementType ? ' (' ~ choice.elementType ~ ')' : '') %}
                 <li>
                     {% if choice.choice == 'replace' %}
-                        {{ '{name}: replaced with {replacement}'|t('portage', { name: name, replacement: choice.replacementTitle ?? ('#' ~ choice.replacementId) }) }}
+                        {{ '{name}: replaced with {replacement}'|t('dolly', { name: name, replacement: choice.replacementTitle ?? ('#' ~ choice.replacementId) }) }}
                     {% else %}
-                        {{ '{name}: {outcome}'|t('portage', { name: name, outcome: outcomes[choice.choice] ?? outcomes.skip }) }}
+                        {{ '{name}: {outcome}'|t('dolly', { name: name, outcome: outcomes[choice.choice] ?? outcomes.skip }) }}
                     {% endif %}
                     {% if choice.filename ?? null %}
-                        {{ '(file {filename})'|t('portage', { filename: choice.filename }) }}
+                        {{ '(file {filename})'|t('dolly', { filename: choice.filename }) }}
                     {% endif %}
                     {% if choice.location ?? null %}
-                        {{ 'Saved in {location}.'|t('portage', { location: choice.location }) }}
+                        {{ 'Saved in {location}.'|t('dolly', { location: choice.location }) }}
                     {% endif %}
                 </li>
             {% endfor %}
         </ul>
     {% endif %}
 
-    <h2>{{ 'Results'|t('portage') }}</h2>
+    <h2>{{ 'Results'|t('dolly') }}</h2>
     {% for result in import.results %}
         {% set entry = result.elementId ? craft.entries.id(result.elementId).status(null).site('*').unique().one() : null %}
         {% set draft = result.draftId ?? null ? craft.entries.draftId(result.draftId).status(null).site('*').unique().one() : null %}
@@ -90,7 +90,7 @@
             {% set section = result.section ?? null ? craft.app.entries.getSectionByUid(result.section) : null %}
             {% if result.status != 'pasted' %}
             <p class="light">
-                {{ (result.mode ?? 'create') == 'overwrite' ? 'Overwrite'|t('portage') : 'Create new'|t('portage') }}{% if section %}, {{ 'in the "{section}" section'|t('portage', { section: section.name }) }}{% endif %}
+                {{ (result.mode ?? 'create') == 'overwrite' ? 'Overwrite'|t('dolly') : 'Create new'|t('dolly') }}{% if section %}, {{ 'in the "{section}" section'|t('dolly', { section: section.name }) }}{% endif %}
             </p>
             {% endif %}
             {% if result.errors ?? [] or result.stubs ?? [] or result.fetchedAssets ?? [] %}
@@ -99,15 +99,15 @@
                         <li class="error">{{ error }}</li>
                     {% endfor %}
                     {% for stub in result.stubs ?? [] %}
-                        <li>{{ 'Created a disabled Stub for {name}.'|t('portage', { name: stub.title is not null ? '"' ~ stub.title ~ '"' : stub.uid }) }}</li>
+                        <li>{{ 'Created a disabled Stub for {name}.'|t('dolly', { name: stub.title is not null ? '"' ~ stub.title ~ '"' : stub.uid }) }}</li>
                     {% endfor %}
                     {% for asset in result.fetchedAssets ?? [] %}
                         {% set assetName = asset.title is not null ? '"' ~ asset.title ~ '"' : asset.uid %}
-                        <li>{{ (asset.uploaded ?? false) ? 'Created the asset {name} from an uploaded file.'|t('portage', { name: assetName }) : 'Fetched the asset {name} from its source URL.'|t('portage', { name: assetName }) }}</li>
+                        <li>{{ (asset.uploaded ?? false) ? 'Created the asset {name} from an uploaded file.'|t('dolly', { name: assetName }) : 'Fetched the asset {name} from its source URL.'|t('dolly', { name: assetName }) }}</li>
                     {% endfor %}
                 </ul>
             {% endif %}
-            {% include 'portage/_root-details' with {
+            {% include 'dolly/_root-details' with {
                 warnings: result.warnings ?? [],
                 unresolvedReferences: result.unresolvedReferences ?? [],
                 incompleteFields: result.incompleteFields ?? [],

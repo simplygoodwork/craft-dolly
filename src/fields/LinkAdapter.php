@@ -1,15 +1,15 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use Craft;
 use craft\base\FieldInterface;
 use craft\fields\data\LinkData;
 use craft\fields\Link;
 use craft\fields\linktypes\BaseElementLinkType;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
-use simplygoodwork\craftportage\references\ElementTypes;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
+use simplygoodwork\craftdolly\references\ElementTypes;
 
 /**
  * Craft's Link field: URL, email, phone and other links that don't point at an element travel as they are, along with
@@ -27,7 +27,7 @@ final class LinkAdapter implements FieldAdapter
 
     /**
      * @return array<string, mixed>|null the link's `serialize()` form, with the reference tag translated. A link to a
-     * type of element Portage doesn't support is left out, since its ID means nothing in another environment.
+     * type of element Dolly doesn't support is left out, since its ID means nothing in another environment.
      */
     public function export(FieldInterface $field, mixed $value, ExportContext $context): mixed
     {
@@ -65,7 +65,7 @@ final class LinkAdapter implements FieldAdapter
 
         if ($this->linksToElement($field, $type)) {
             if (!$this->isSupportedElementType($type)) {
-                $context->plan->warn(sprintf('The field "%s" links to a %s, which Portage can\'t move between environments. The link will be cleared.', $field->name, $type));
+                $context->plan->warn(sprintf('The field "%s" links to a %s, which Dolly can\'t move between environments. The link will be cleared.', $field->name, $type));
                 return null;
             }
             $value = $this->refTags->importValue($portable['value'], $field, $context);
@@ -120,7 +120,7 @@ final class LinkAdapter implements FieldAdapter
     }
 
     /**
-     * Returns whether Portage can move links of an element link type: the type's ID is its element type's reference
+     * Returns whether Dolly can move links of an element link type: the type's ID is its element type's reference
      * handle, and that element type is registered.
      */
     private function isSupportedElementType(mixed $typeId): bool

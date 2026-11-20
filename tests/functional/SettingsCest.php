@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\functional;
+namespace simplygoodwork\craftdolly\tests\functional;
 
 use craft\elements\User;
 use FunctionalTester;
 
 /**
- * Light coverage of Portage's settings page: the Shared key's behaviour is covered through the core service.
+ * Light coverage of Dolly's settings page: the Shared key's behaviour is covered through the core service.
  */
 class SettingsCest
 {
@@ -14,7 +14,7 @@ class SettingsCest
     {
         $I->amLoggedInAs(User::find()->admin()->one());
 
-        $I->amOnPage('/admin/settings/plugins/portage');
+        $I->amOnPage('/admin/settings/plugins/dolly');
 
         $I->seeResponseCodeIs(200);
         $I->see('Shared key');

@@ -1,16 +1,16 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\fields\Entries;
-use simplygoodwork\craftportage\import\ReferencePlan;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\import\ReferencePlan;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 
 /**
  * Embedded references written as Craft reference tags (`{type:id@site:attr||fallback}`) in text: translated to
@@ -28,13 +28,13 @@ class EmbeddedReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Linked', 'body' => "Read {entry:$craft->id:url} now."]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($craft);
         $recreated = Schema::entry($topics, $topic, ['title' => 'Craft', 'slug' => 'craft']);
         $this->assertNotSame($craft->id, $recreated->id);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame("Read {entry:$recreated->id:url} now.", $this->importedEntry($result->roots[0]->elementId)->getFieldValue('body'));
     }
@@ -54,10 +54,10 @@ class EmbeddedReferencesTest extends Unit
             'body' => "<img src=\"{asset:$photo->id:url||/missing.png}\"> {craft\\elements\\Category:$red->id:title} {entry:news/linked:url}",
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->assertSame(
             "<img src=\"{asset:$photo->uid:url||/missing.png}\"> {category:$red->uid:title} {entry:news/linked:url}",
-            $this->portage()->preview($payload)->envelope['roots'][0]['fields'][$body->uid],
+            $this->dolly()->preview($payload)->envelope['roots'][0]['fields'][$body->uid],
         );
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
@@ -65,7 +65,7 @@ class EmbeddedReferencesTest extends Unit
         $newPhoto = Schema::asset($photos, 'photo.png', 'blog');
         $newRed = Schema::category($colours, ['title' => 'Red', 'slug' => 'red']);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             "<img src=\"{asset:$newPhoto->id:url||/missing.png}\"> {category:$newRed->id:title} {entry:news/linked:url}",
@@ -88,14 +88,14 @@ class EmbeddedReferencesTest extends Unit
             'body' => "See <a class=\"more\" href=\"{entry:$gone->id:url}\">the <em>gone</em> topic</a>. Its URL: {entry:$gone->id:url}. {entry:$gone->id:title||Untitled}",
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('Unresolved: will be skipped', $plan->references[$goneUid]->outcome());
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             'See the <em>gone</em> topic. Its URL: . Untitled',
@@ -128,16 +128,16 @@ class EmbeddedReferencesTest extends Unit
             ],
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($gone);
 
-        $plan = $this->portage()->preview($payload, [$goneUid => 'stub']);
+        $plan = $this->dolly()->preview($payload, [$goneUid => 'stub']);
         $this->assertSame(['skip', 'stub', 'replace'], $plan->references[$goneUid]->availableChoices);
         $this->assertSame('Unresolved: a Stub will be created', $plan->references[$goneUid]->outcome());
         $this->assertNull(Entry::find()->uid($goneUid)->status(null)->one(), 'The Preview created the Stub');
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -171,17 +171,17 @@ class EmbeddedReferencesTest extends Unit
             'body' => "{entry:$craft->id@$german->id:url} {entry:$craft->id@german:url} {entry:$craft->id@$french->id:url||Craft}",
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteSite($french);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame(
             "{entry:$craft->uid@$germanUid:url} {entry:$craft->uid@german:url} {entry:$craft->uid@$french->uid:url||Craft}",
             $plan->envelope['roots'][0]['fields'][$body->uid],
         );
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame(
             "{entry:$craft->id@$german->id:url} {entry:$craft->id@german:url} Craft",
@@ -208,10 +208,10 @@ class EmbeddedReferencesTest extends Unit
             'body' => "<a href=\"{entry:$linked->id:url}\">Linked</a>",
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
 
         $this->assertSame(['Related', 'Linked'], array_values(array_map(
             fn(ReferencePlan $reference) => $reference->title,
@@ -235,12 +235,12 @@ class EmbeddedReferencesTest extends Unit
             'body' => "{asset:$photo->id:url} {asset:$gone->id:url||no notes}",
         ]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
         Schema::deleteElement($gone);
 
-        $result = $this->portage()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch']);
+        $result = $this->dolly()->import($payload, [$photoUid => 'fetch', $goneUid => 'fetch']);
 
         $fetched = Asset::find()->uid($photoUid)->one();
         $this->assertNotNull($fetched, 'No asset with the source UID');
@@ -258,19 +258,19 @@ class EmbeddedReferencesTest extends Unit
         $text = '{globalset:99:handle} {entry:0b5c9d8e-1f2a-4b3c-8d4e-5f6a7b8c9d0e:url} {entry:news/hello:url}';
         $source = Schema::entry($news, $article, ['title' => 'Plain', 'body' => $text]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame($text, $this->importedEntry($result->roots[0]->elementId)->getFieldValue('body'));
         $this->assertSame([], $result->roots[0]->warnings);
         $this->assertSame([], $result->roots[0]->unresolvedReferences);
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function importedEntry(?int $id): Entry

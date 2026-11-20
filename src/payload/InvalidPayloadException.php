@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\payload;
+namespace simplygoodwork\craftdolly\payload;
 
 use RuntimeException;
 

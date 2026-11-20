@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\schema;
+namespace simplygoodwork\craftdolly\schema;
 
 /**
  * The Drift of every Schema reference in a Payload.

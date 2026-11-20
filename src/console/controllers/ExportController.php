@@ -1,11 +1,11 @@
 <?php
 
-namespace simplygoodwork\craftportage\console\controllers;
+namespace simplygoodwork\craftdolly\console\controllers;
 
 use craft\console\Controller;
 use craft\elements\Entry;
 use craft\helpers\Console;
-use simplygoodwork\craftportage\Plugin;
+use simplygoodwork\craftdolly\Plugin;
 use yii\base\InvalidConfigException;
 use yii\console\ExitCode;
 
@@ -42,7 +42,7 @@ class ExportController extends Controller
         }
 
         try {
-            $payload = Plugin::getInstance()->getPortage()->export($entries);
+            $payload = Plugin::getInstance()->getDolly()->export($entries);
         } catch (InvalidConfigException $e) {
             $this->stderr($e->getMessage() . PHP_EOL, Console::FG_RED);
             return ExitCode::CONFIG;

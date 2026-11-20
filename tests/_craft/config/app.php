@@ -1,6 +1,6 @@
 <?php
 
-use simplygoodwork\craftportage\tests\support\CalendarProjectConfigHandlers;
+use simplygoodwork\craftdolly\tests\support\CalendarProjectConfigHandlers;
 
 return [
     'bootstrap' => [CalendarProjectConfigHandlers::class],

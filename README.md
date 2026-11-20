@@ -1,4 +1,4 @@
-# Portage
+# Dolly
 
 Easily port content from one environment to another.
 
@@ -9,13 +9,13 @@ This plugin requires Craft CMS 5.0.0 or later, and PHP 8.2 or later.
 A few features need a newer Craft, and turn themselves off on older versions:
 
 - Copying and pasting Matrix and Neo blocks needs Craft 5.7 or later, which adds the field action menus they live in. Copying whole entries works on every version.
-- The Link (Craft 5.3), Range (5.5), JSON and Button Group (5.7) fields only exist from those versions, so Portage only moves them where Craft has them.
+- The Link (Craft 5.3), Range (5.5), JSON and Button Group (5.7) fields only exist from those versions, so Dolly only moves them where Craft has them.
 
-Some plugin releases allow Craft 5.0 but don't work with it, or with Portage:
+Some plugin releases allow Craft 5.0 but don't work with it, or with Dolly:
 
 - Hyper 2.3.1 and later use a class Craft 5.8 added, so a site on Craft 5.0–5.7 needs Hyper 2.3.0 or earlier.
-- Formie 3.0.22–3.1.0 use an element query parameter Craft added in 5.2, so a site on Craft 5.0 or 5.1 needs Formie 3.1.1 or later. Before 3.0.22, forms' UIDs are out of sync, so Portage matches forms only by their handle.
-- CKEditor 4.0.0–4.0.3 replace nested entries with their rendered HTML whenever an entry is saved outside the control panel (Craft's `resave` commands included), so Portage skips CKEditor fields on those versions, with a warning in the Preview. Update to CKEditor 4.0.4 or later.
+- Formie 3.0.22–3.1.0 use an element query parameter Craft added in 5.2, so a site on Craft 5.0 or 5.1 needs Formie 3.1.1 or later. Before 3.0.22, forms' UIDs are out of sync, so Dolly matches forms only by their handle.
+- CKEditor 4.0.0–4.0.3 replace nested entries with their rendered HTML whenever an entry is saved outside the control panel (Craft's `resave` commands included), so Dolly skips CKEditor fields on those versions, with a warning in the Preview. Update to CKEditor 4.0.4 or later.
 
 ## Installation
 
@@ -23,7 +23,7 @@ You can install this plugin from the Plugin Store or with Composer.
 
 #### From the Plugin Store
 
-Go to the Plugin Store in your project’s Control Panel and search for “Portage”. Then press “Install”.
+Go to the Plugin Store in your project’s Control Panel and search for “Dolly”. Then press “Install”.
 
 #### With Composer
 
@@ -34,10 +34,10 @@ Open your terminal and run the following commands:
 cd /path/to/my-project.test
 
 # tell Composer to load the plugin
-composer require simplygoodwork/craft-portage
+composer require simplygoodwork/craft-dolly
 
 # tell Craft to install the plugin
-./craft plugin/install portage
+./craft plugin/install dolly
 ```
 
 ## Command line
@@ -45,22 +45,22 @@ composer require simplygoodwork/craft-portage
 Export entries (comma-separated IDs) as a Payload, to stdout or a file:
 
 ```bash
-php craft portage/export 123
-php craft portage/export 123,456 --output=page.portage
+php craft dolly/export 123
+php craft dolly/export 123,456 --output=page.dolly
 ```
 
 Import a Payload passed as an argument, from a file, or on stdin. `--user` is required: the email of the active user the Import runs as. New entries are created disabled, Unresolved references are skipped and listed, and the Import is recorded in the Import log against that user:
 
 ```bash
-php craft portage/import 'portage:v1:H4sI…' --user=editor@example.com
-php craft portage/import --file=page.portage --user=editor@example.com
-php craft portage/import --user=editor@example.com < page.portage
+php craft dolly/import 'dolly:v1:H4sI…' --user=editor@example.com
+php craft dolly/import --file=page.dolly --user=editor@example.com
+php craft dolly/import --user=editor@example.com < page.dolly
 ```
 
 Add `--dry-run` to print the Preview and write nothing, not even an Import log entry. The Preview lists the Drift of every field, entry type, section and site that changed since Export, what will be skipped, and the required fields that will be left empty:
 
 ```bash
-php craft portage/import --file=page.portage --user=editor@example.com --dry-run
+php craft dolly/import --file=page.dolly --user=editor@example.com --dry-run
 ```
 
 Related entries, categories, tags and users (including authors) are matched by UID, then by their Natural key: section + slug (plus the parent slug path in Structures) for entries, group + slug (plus parent path) for categories, group + title for tags, and email, then username, for users. A Natural key that matches more than one element matches none, so the Reference is left unresolved rather than related to the wrong element. The Preview shows the rule that matched each Reference.
@@ -68,15 +68,15 @@ Related entries, categories, tags and users (including authors) are matched by U
 An Unresolved reference is skipped by default. Choose to create a disabled Stub in its original section or group with `--stub`, or to relate an existing element instead with `--replace`, or put the choices in a JSON file for `--choices`. Users are never Stubbed: an unresolved author is replaced by the `--user` the Import runs as, and unresolved users in user fields are skipped. Nor are entries the same Payload imports as Root elements, since a Stub would duplicate them. Stubs are created in the first site of their section or group, at the top level of a Structure. A choice that can't be carried out refuses the whole Payload before anything is written.
 
 ```bash
-php craft portage/import --file=page.portage --user=editor@example.com --stub=<uid>,<uid> --replace=<uid>=123
-php craft portage/import --file=page.portage --user=editor@example.com --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
+php craft dolly/import --file=page.dolly --user=editor@example.com --stub=<uid>,<uid> --replace=<uid>=123
+php craft dolly/import --file=page.dolly --user=editor@example.com --choices=choices.json   # {"<uid>": "stub", "<uid>": 123}
 ```
 
 A Root entry that matches an existing entry, by UID or else by its Natural key in the target section, can be imported in one of two modes: create a new entry (the default; a UID that's already used gets a fresh one, and so does any of its Owned content) or overwrite. Overwrite creates a draft on the matched entry and applies only the fields the Payload carries and that aren't skipped; a Matrix or Neo field's blocks are replaced as a whole. The matched entry itself is never changed, and its enabled state and authors are kept. Choose overwrite with `--overwrite`, a comma-separated list of Root element UIDs, or `*` for every Root element that matches an entry (the rest are created). Send Root entries to another section with `--section`: a section handle for every Root entry, or comma-separated `uid=handle` pairs. The section must allow the entry type, otherwise the Payload is refused. The report says "Created a draft #X on entry #Y" for each overwrite, and `--dry-run` prints each Root element's match, the modes available, the mode chosen and the target section:
 
 ```bash
-php craft portage/import --file=page.portage --user=editor@example.com --overwrite='*'
-php craft portage/import --file=page.portage --user=editor@example.com --overwrite=<uid> --section=<uid>=blog
+php craft dolly/import --file=page.dolly --user=editor@example.com --overwrite='*'
+php craft dolly/import --file=page.dolly --user=editor@example.com --overwrite=<uid> --section=<uid>=blog
 ```
 
 When the Import log already holds the Payload, the Preview warns who imported it and when. The warning doesn't stop the Import.
@@ -85,7 +85,7 @@ Values for fields that are missing or have changed type in this environment are 
 
 SEOmatic's SEO Settings field moves its values as they are, including Twig and object templates. The SEO, Facebook and Twitter images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Twig written by hand that contains an asset ID, and the images of the site-level identity and creator settings, move untranslated. Section-level SEOmatic bundles are never read or written. A setting that pulls from a field the Target entry doesn't have is imported with a warning.
 
-Ether SEO's SEO field moves its title, description, keywords, score, social titles and descriptions, robots and canonical URL as they are. The Twitter and Facebook images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Ether fills empty robots with the environment's global default robots each time it loads a value, so Portage exports the robots and social texts the entry stores in the database: robots an entry doesn't store are filled with the Target environment's defaults, not the Source environment's. The social handles (the site's Twitter handle and Facebook app ID) come from each environment's own settings and aren't moved. The canonical URL isn't translated, so it may still point at the Source environment.
+Ether SEO's SEO field moves its title, description, keywords, score, social titles and descriptions, robots and canonical URL as they are. The Twitter and Facebook images are References like any asset (matched, fetched or cleared with a warning), and only images are accepted. Ether fills empty robots with the environment's global default robots each time it loads a value, so Dolly exports the robots and social texts the entry stores in the database: robots an entry doesn't store are filled with the Target environment's defaults, not the Source environment's. The social handles (the site's Twitter handle and Facebook app ID) come from each environment's own settings and aren't moved. The canonical URL isn't translated, so it may still point at the Source environment.
 
 A Linkit field's link names its link type by Linkit's handle for it (`entry`, `url`, `email`…), never by class. URL, email, phone and social links move as they are, with their custom text and target. An entry, asset, category or user link is a Reference like any other (matched, stubbed, replaced, fetched or cleared with a warning). A Commerce product link, and a link of a type the Target field doesn't enable, is cleared with a warning, before any Reference it holds is resolved.
 
@@ -97,9 +97,11 @@ SimpleMap's Map fields move their location (latitude, longitude, zoom, address a
 
 Preparse fields aren't carried in the Payload. Preparse renders their value from the field's template every time an element is saved, so the Target environment recalculates it from its own content and template, and the Preview notes it for each Preparse field.
 
-Position and Code fields move their values as they are (a Code field with its language). TableMaker fields move their columns, rows and caption as they are, except for links to entries, categories and assets in rich text cells (TableMaker 5.1.1+). TableMaker stores such a link as a fragment at the end of its URL (`<a href="https://…/page#entry:12@1:url">`), and a cell can also hold reference tags. Both are Embedded references: their element IDs and sites travel as UIDs and resolve in the Target environment like any Reference, so they can be skipped, replaced or Stubbed. A link whose element or site doesn't resolve is removed and its text kept, with a Preview warning, and an unresolved reference tag is replaced with its fallback text, as in CKEditor fields. Plain text cells are only text: TableMaker never resolves reference tags in them, so neither does Portage.
+Icon Picker fields move the selected icon with its icon set. The icon set is found in the Target environment by its UID (stored by Icon Picker 3.1 and later), or by its handle for a value that has no UID. An icon whose set doesn't exist in the Target environment, or that the Target field doesn't offer, is dropped and the Preview warns about it. An SVG icon whose file isn't in the Target environment's icon sets folder (`@webroot/icon-picker/` by default, which isn't in project config) is imported with a warning, and shows once the file is deployed. A value saved by Icon Picker 3.0.0, which doesn't name its icon set, moves as it is.
 
-Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. (Before Formie 3.0.22, which fixed forms whose UIDs were out of sync, a form only ever matches by its handle.) An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4). Formie 4 limits form queries in the control panel to the forms the user can view in Formie, but Formie's own Forms field doesn't, and nor does Portage: an Import from the control panel relates a form its user can't view in Formie, as editing the field there can. A replacement form must still be one the user can view.
+Position and Code fields move their values as they are (a Code field with its language). TableMaker fields move their columns, rows and caption as they are, except for links to entries, categories and assets in rich text cells (TableMaker 5.1.1+). TableMaker stores such a link as a fragment at the end of its URL (`<a href="https://…/page#entry:12@1:url">`), and a cell can also hold reference tags. Both are Embedded references: their element IDs and sites travel as UIDs and resolve in the Target environment like any Reference, so they can be skipped, replaced or Stubbed. A link whose element or site doesn't resolve is removed and its text kept, with a Preview warning, and an unresolved reference tag is replaced with its fallback text, as in CKEditor fields. Plain text cells are only text: TableMaker never resolves reference tags in them, so neither does Dolly.
+
+Formie's Forms field moves its relations like any relation field. Forms aren't in project config, so a form's UID usually differs between environments, and a form that doesn't match by UID matches by its handle. (Before Formie 3.0.22, which fixed forms whose UIDs were out of sync, a form only ever matches by its handle.) An Unresolved form can be skipped or replaced with another form, but is never Stubbed. Replacements aren't limited to a form template (Formie 3) or form group (Formie 4). Formie 4 limits form queries in the control panel to the forms the user can view in Formie, but Formie's own Forms field doesn't, and nor does Dolly: an Import from the control panel relates a form its user can't view in Formie, as editing the field there can. A replacement form must still be one the user can view.
 
 When Solspace Calendar is installed, its events are a registered element type (`calendarEvent`), so a Calendar Events field moves its relations like any relation field. An event is matched by UID, then by its calendar and its slug. The slug is the event's slug in the site the entry was exported from, and it matches the event in any site, since an event's slug can differ per site. A replacement for an unresolved event must be in the same calendar. Events are never Stubbed: skip the Reference or choose a replacement.
 
@@ -110,44 +112,44 @@ A user with the **Export content** permission gets **Copy for another environmen
 - In an entry editor's action menu. It exports what the editor is showing: unsaved changes are saved to the draft first (the provisional draft, or the named draft being edited), and that draft's content is exported as the entry it belongs to. A new entry that isn't published yet is exported as a new entry. A revision, a nested entry and another user's provisional draft can't be exported. Only the sites the user can edit are included in the Payload.
 - As a bulk action in the entry index. It exports the selected canonical entries as one Payload with a Root element for each; drafts and revisions in the index aren't offered.
 
-The Payload goes to the clipboard, with a confirmation. A Payload larger than `clipboardLimit` bytes (100,000 by default; set it in `config/portage.php`), or one the browser won't let the page copy, is offered as a `.portage` file to download instead (a button in the notice), which the Portage utility accepts like pasted text. Both actions check that the user can view the entries.
+The Payload goes to the clipboard, with a confirmation. A Payload larger than `clipboardLimit` bytes (100,000 by default; set it in `config/dolly.php`), or one the browser won't let the page copy, is offered as a `.dolly` file to download instead (a button in the notice), which the Dolly utility accepts like pasted text. Both actions check that the user can view the entries.
 
 ### Copying blocks in Matrix and Neo fields
 
 Users with the "Export content" permission can copy blocks, and users with the "Import content" permission can paste them, in the entry editor (Craft 5.7 or later):
 
 - **Copy.** Select one or more blocks with their checkboxes, then choose **Copy for another environment** in a block's menu (it copies every selected block when the block is one of them; the page's block IDs are checked against the draft, so a page that's out of date is refused rather than copying the wrong block), or **Copy selected for another environment** in the field's menu. It works for Matrix fields in the cards and inline views, and for Neo fields. A Neo block is copied with the blocks nested under it, and the Payload's Root elements are the blocks you selected. Unsaved changes are saved to your draft first, and the Payload goes to the clipboard like an entry's.
-- **Paste.** Choose **Paste from another environment** in a Matrix or Neo field's menu. A Payload on the clipboard is previewed straight away; otherwise the modal asks for the text or a `.portage` file. The modal's Preview has the same choices for Unresolved references as the utility's. **Paste** adds the blocks to the end of the field in your draft of the entry (the provisional draft is created if there's none), as normal edits: the live entry is never changed, and you save or apply the draft as usual. A paste is recorded in the Import log. Only the draft's own site is written, as Craft's editor does; Craft propagates the blocks to the entry's other sites as the field's propagation method says, so a site the user may not edit is never saved. If the paste takes the field past its maximum number of blocks, the Preview warns, and the draft saves anyway (Craft checks the maximum when the draft is applied).
+- **Paste.** Choose **Paste from another environment** in a Matrix or Neo field's menu. A Payload on the clipboard is previewed straight away; otherwise the modal asks for the text or a `.dolly` file. The modal's Preview has the same choices for Unresolved references as the utility's. **Paste** adds the blocks to the end of the field in your draft of the entry (the provisional draft is created if there's none), as normal edits: the live entry is never changed, and you save or apply the draft as usual. A paste is recorded in the Import log. Only the draft's own site is written, as Craft's editor does; Craft propagates the blocks to the entry's other sites as the field's propagation method says, so a site the user may not edit is never saved. If the paste takes the field past its maximum number of blocks, the Preview warns, and the draft saves anyway (Craft checks the maximum when the draft is applied).
 
 Previewing a paste saves what's on screen to your draft first, which creates the provisional draft if there isn't one, even if you then cancel. This is deliberate: it's what Craft's own "add block" does, and the Preview needs the draft's blocks and sites, so deferring the draft until you click Paste would mean planning against live content.
 
-Matrix blocks can be pasted into any Matrix field that allows their entry types; the blocks it doesn't allow are skipped with a warning. Neo blocks can only be pasted into the Neo field they were copied from (matched by UID), since their block types and hierarchy belong to it: any other field refuses the Payload with a message. A Payload of blocks isn't accepted by the utility or `portage/import`, and a Payload of entries isn't accepted by a field. In the core service, `import()` and `preview()` take a `BlockTarget` (a draft and one of its Matrix or Neo fields) for a paste.
+Matrix blocks can be pasted into any Matrix field that allows their entry types; the blocks it doesn't allow are skipped with a warning. Neo blocks can only be pasted into the Neo field they were copied from (matched by UID), since their block types and hierarchy belong to it: any other field refuses the Payload with a message. A Payload of blocks isn't accepted by the utility or `dolly/import`, and a Payload of entries isn't accepted by a field. In the core service, `import()` and `preview()` take a `BlockTarget` (a draft and one of its Matrix or Neo fields) for a paste.
 
 ## Large Imports in the queue
 
-An Import from the Portage utility of more than 10 Root elements, or with any asset Fetch from a source URL, runs as a queue job instead of in the request. The Import log entry is created at once as *Queued*, moves to *In progress* as the job starts, and gets each Root element's result as it's imported (each is *not imported yet* until then, and the entry's page reloads itself while the Import is unfinished), then ends *Completed* with a result for every Root element. A Root element that fails keeps its own failed result and doesn't stop the others, since each has its own transaction. An Import is *Failed* only if the job couldn't run at all: the user who queued it is gone or no longer has the **Import content** permission, the Payload is refused, the job couldn't be added to the queue, its worker died (an Import in progress for over an hour without a result is shown as failed), or this environment changed after the Preview so that the Import would no longer do what the Preview showed (nothing is imported then, and the Payload has to be previewed again).
+An Import from the Dolly utility of more than 10 Root elements, or with any asset Fetch from a source URL, runs as a queue job instead of in the request. The Import log entry is created at once as *Queued*, moves to *In progress* as the job starts, and gets each Root element's result as it's imported (each is *not imported yet* until then, and the entry's page reloads itself while the Import is unfinished), then ends *Completed* with a result for every Root element. A Root element that fails keeps its own failed result and doesn't stop the others, since each has its own transaction. An Import is *Failed* only if the job couldn't run at all: the user who queued it is gone or no longer has the **Import content** permission, the Payload is refused, the job couldn't be added to the queue, its worker died (an Import in progress for over an hour without a result is shown as failed), or this environment changed after the Preview so that the Import would no longer do what the Preview showed (nothing is imported then, and the Payload has to be previewed again).
 
 The job carries the Payload text and the choices the Preview showed exactly as the user imported them, plus the fingerprint of the plan the user saw, and runs as the user who queued it. Files uploaded for unresolved assets stay in the user's staging directory until the job has used them, then are discarded, so a queue worker has to share Craft's runtime temp path with the web server. Staged files are purged after 24 hours (when that user next uploads one), so a queue that is more than a day behind fails the Import for an uploaded asset. Without a Shared key, the Payload text sits in Craft's `queue` table, and shows in the Queue Manager's job details, until the job has run; with one it's the encrypted text. A job that has started is never retried, because some of its Root elements may already be imported.
 
-`portage/import` always runs inline, whatever the size. So does pasting blocks into a draft, whatever its size or asset Fetches. This is a product decision that departs from "any asset fetch" in the spec: the editor needs the blocks in its draft when the paste is done, so a paste can't wait for a job. In the core service, `import()` only queues when it's called with `queue: true`, which the utility does.
+`dolly/import` always runs inline, whatever the size. So does pasting blocks into a draft, whatever its size or asset Fetches. This is a product decision that departs from "any asset fetch" in the spec: the editor needs the blocks in its draft when the paste is done, so a paste can't wait for a job. In the core service, `import()` only queues when it's called with `queue: true`, which the utility does.
 
 ## Shared key
 
-Set a Shared key to encrypt and authenticate every Payload. In **Settings → Plugins → Portage**, set **Shared key** to an env var, such as `$PORTAGE_SHARED_KEY`, and give that env var the same secret in every environment. Saving the setting only accepts an env var reference, so the secret itself never reaches project config. (A `sharedKey` set in `config/portage.php` isn't checked, so keep it an env var reference there too.)
+Set a Shared key to encrypt and authenticate every Payload. In **Settings → Plugins → Dolly**, set **Shared key** to an env var, such as `$DOLLY_SHARED_KEY`, and give that env var the same secret in every environment. Saving the setting only accepts an env var reference, so the secret itself never reaches project config. (A `sharedKey` set in `config/dolly.php` isn't checked, so keep it an env var reference there too.)
 
-With a Shared key, every Export produces a `portage:v1e:` Payload, encrypted with Craft's authenticated encryption, and an Import only accepts Payloads encrypted with the same key: an unencrypted Payload, one encrypted with a different key and one changed after Export are all refused. Without a Shared key, an encrypted Payload is refused. If the setting names an env var that isn't set, Export and Import both fail rather than fall back to unencrypted Payloads.
+With a Shared key, every Export produces a `dolly:v1e:` Payload, encrypted with Craft's authenticated encryption, and an Import only accepts Payloads encrypted with the same key: an unencrypted Payload, one encrypted with a different key and one changed after Export are all refused. Without a Shared key, an encrypted Payload is refused. If the setting names an env var that isn't set, Export and Import both fail rather than fall back to unencrypted Payloads.
 
 ## Field types
 
-Portage moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches, Retour short link, SimpleMap (Maps), Preparse, Position, Code and TableMaker fields with a Field adapter each, and LJ Dynamic Fields' fields that are declared in config (see "Dynamic Fields"). Adapters for third-party fields are registered only when their plugin is installed, and those for the Link, Range, JSON and Button Group fields only on the Craft versions that have them (see Requirements). CKEditor fields move the same way on every CKEditor version from 4.0.4. Hyper fields move the same way on Hyper 2 and 3, including fields on one of Hyper 3's shared link type configs: a link matches its link type in the Target field by handle, and the Preview reports Drift for each field's link types. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
+Dolly moves Craft's core fields (plain text, number, range, dropdown, radio buttons, checkboxes, multi-select, button group, lightswitch, date, time, color, email, Link, money, table, JSON, country, icon, and the relation, Matrix, CKEditor, Neo, Hyper and SEOmatic SEO Settings fields), Linkit, Ether SEO, Colour Swatches, Retour short link, SimpleMap (Maps), Preparse, Position, Code, TableMaker and Icon Picker fields with a Field adapter each, and LJ Dynamic Fields' fields that are declared in config (see "Dynamic Fields"). Adapters for third-party fields are registered only when their plugin is installed, and those for the Link, Range, JSON and Button Group fields only on the Craft versions that have them (see Requirements). CKEditor fields move the same way on every CKEditor version from 4.0.4. Hyper fields move the same way on Hyper 2 and 3, including fields on one of Hyper 3's shared link type configs: a link matches its link type in the Target field by handle, and the Preview reports Drift for each field's link types. An option field whose options changed between environments drops any selected value the Target field no longer offers, and the Preview warns about it.
 
-A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Portage can't translate them. A field that can't be serialized is left out of the Payload.
+A field type with no adapter falls back to Craft's own `serializeValue()` and `normalizeValue()`. The Preview warns that its value will be imported as it is, and may contain environment-specific IDs, since Dolly can't translate them. A field that can't be serialized is left out of the Payload.
 
 Fields that hold nested content and have no adapter, such as Content Block and Addresses, are skipped with a warning rather than falling back, since Craft's raw serialization would carry the source IDs of every element inside them untranslated.
 
 ### Dynamic Fields
 
-LJ Dynamic Fields' fields (dropdown, radio buttons, checkboxes and multi-select) render their options from a Twig template, so their values are often IDs that mean something else in another environment. Declare what a field's values are the IDs of in `config/portage.php`, by the field's own handle (not a handle a field layout overrides it with):
+LJ Dynamic Fields' fields (dropdown, radio buttons, checkboxes and multi-select) render their options from a Twig template, so their values are often IDs that mean something else in another environment. Declare what a field's values are the IDs of in `config/dolly.php`, by the field's own handle (not a handle a field layout overrides it with):
 
 ```php
 return [
@@ -158,7 +160,7 @@ return [
 ];
 ```
 
-A kind is one of `section`, `entryType`, `categoryGroup`, `volume` and `site`, which travel as Schema references (listed with their Drift in the Preview), or the short name of a registered element type (`entry`, `category`, `tag`, `user`, `asset`, or any other registered type; see "Registering an element type"), which travel as References and are matched, replaced, Stubbed or fetched like any other. On Import each becomes the ID of the same thing in the Target environment. A value that doesn't resolve, or wasn't the ID of that kind where it was exported, is dropped from the field with a warning. A kind Portage doesn't know makes Export and Import fail with an `InvalidConfigException`.
+A kind is one of `section`, `entryType`, `categoryGroup`, `volume` and `site`, which travel as Schema references (listed with their Drift in the Preview), or the short name of a registered element type (`entry`, `category`, `tag`, `user`, `asset`, or any other registered type; see "Registering an element type"), which travel as References and are matched, replaced, Stubbed or fetched like any other. On Import each becomes the ID of the same thing in the Target environment. A value that doesn't resolve, or wasn't the ID of that kind where it was exported, is dropped from the field with a warning. A kind Dolly doesn't know makes Export and Import fail with an `InvalidConfigException`.
 
 Declare a field the same way in every environment. The Payload carries the kind the field was declared as, and if the Target environment declares it differently, or only one environment declares it, its values are skipped with a warning rather than read as IDs of something else. A value that selects nothing is imported either way. An undeclared Dynamic field falls back to Craft's serialization, with the fallback's warning.
 
@@ -166,11 +168,11 @@ A Money field travels with its currency: if the Target field's currency differs,
 
 ### Registering an adapter for your field type
 
-A plugin can register an adapter for its own field class with `FieldAdapterRegistry::EVENT_REGISTER_ADAPTERS`. Implement `simplygoodwork\craftportage\fields\FieldAdapter`: `export()` returns the JSON-safe value for the Payload, and `import()` returns a value for `setFieldValue()` in the Target environment. Adapters are matched on the field's exact class, and a registered adapter replaces the fallback (and any adapter Portage ships for that class).
+A plugin can register an adapter for its own field class with `FieldAdapterRegistry::EVENT_REGISTER_ADAPTERS`. Implement `simplygoodwork\craftdolly\fields\FieldAdapter`: `export()` returns the JSON-safe value for the Payload, and `import()` returns a value for `setFieldValue()` in the Target environment. Adapters are matched on the field's exact class, and a registered adapter replaces the fallback (and any adapter Dolly ships for that class).
 
 ```php
-use simplygoodwork\craftportage\events\RegisterFieldAdaptersEvent;
-use simplygoodwork\craftportage\fields\FieldAdapterRegistry;
+use simplygoodwork\craftdolly\events\RegisterFieldAdaptersEvent;
+use simplygoodwork\craftdolly\fields\FieldAdapterRegistry;
 use yii\base\Event;
 
 Event::on(
@@ -182,17 +184,17 @@ Event::on(
 );
 ```
 
-Register the handler while your plugin initializes, before Portage is first used in the request: the registry is built once and an adapter registered later is ignored. Every registered value must implement `FieldAdapter`, or building the registry throws an `InvalidConfigException`. During `export()`, `$context->element()` is the element that holds the value, for a field whose `serializeValue()` needs it; Import never has a Target element while it plans, so `import()` has none. Use `ExportContext::addReference()` and `ImportContext::resolveReference()` for any elements the value points at, and `$context->plan->warn()` for anything the Import drops.
+Register the handler while your plugin initializes, before Dolly is first used in the request: the registry is built once and an adapter registered later is ignored. Every registered value must implement `FieldAdapter`, or building the registry throws an `InvalidConfigException`. During `export()`, `$context->element()` is the element that holds the value, for a field whose `serializeValue()` needs it; Import never has a Target element while it plans, so `import()` has none. Use `ExportContext::addReference()` and `ImportContext::resolveReference()` for any elements the value points at, and `$context->plan->warn()` for anything the Import drops.
 
 ### Registering an element type
 
-A Payload carries related elements as References to the element types Portage knows: entries, categories, tags, users and assets, plus Formie forms (`formieForm`) when Formie is installed and enabled. A plugin can register its own element type with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`, under a short name that the Payload carries instead of the class (ADR-0004). Then any relation field to that type moves its relations, matched by UID and then by the type's Natural key, with no Field adapter of its own. So do Link and Hyper links to it.
+A Payload carries related elements as References to the element types Dolly knows: entries, categories, tags, users and assets, plus Formie forms (`formieForm`) when Formie is installed and enabled. A plugin can register its own element type with `ElementTypeRegistry::EVENT_REGISTER_ELEMENT_TYPES`, under a short name that the Payload carries instead of the class (ADR-0004). Then any relation field to that type moves its relations, matched by UID and then by the type's Natural key, with no Field adapter of its own. So do Link and Hyper links to it.
 
-Extend `simplygoodwork\craftportage\references\ElementTypeDefinition`. Only `elementClass()`, `naturalKey()` (the identifying attributes the Reference carries, JSON-safe) and `find()` (the ID of the one element matching them, or null) are required. By default a Reference of the type isn't limited to an element source and is never Stubbed. Override `sourceFor()`, `isInSource()` and `sourceName()` to limit replacements to the Reference's own source, and `canBeStubbed()` and `stub()` to allow Stubs. Override `query()` when the type's own element query is limited in a way a relation isn't: Portage loads elements of the type through it to match a Reference by UID and to load the matched element or a replacement.
+Extend `simplygoodwork\craftdolly\references\ElementTypeDefinition`. Only `elementClass()`, `naturalKey()` (the identifying attributes the Reference carries, JSON-safe) and `find()` (the ID of the one element matching them, or null) are required. By default a Reference of the type isn't limited to an element source and is never Stubbed. Override `sourceFor()`, `isInSource()` and `sourceName()` to limit replacements to the Reference's own source, and `canBeStubbed()` and `stub()` to allow Stubs. Override `query()` when the type's own element query is limited in a way a relation isn't: Dolly loads elements of the type through it to match a Reference by UID and to load the matched element or a replacement.
 
 ```php
-use simplygoodwork\craftportage\events\RegisterElementTypesEvent;
-use simplygoodwork\craftportage\references\ElementTypeRegistry;
+use simplygoodwork\craftdolly\events\RegisterElementTypesEvent;
+use simplygoodwork\craftdolly\references\ElementTypeRegistry;
 use yii\base\Event;
 
 Event::on(
@@ -204,11 +206,11 @@ Event::on(
 );
 ```
 
-Register the type in every environment, under the same short name: a Payload naming a type that isn't registered is refused. Short names are letters and digits, starting with a letter. The short name is only what the Payload carries: messages and the Preview call an element of the type by its class's `lowerDisplayName()` ("form", "event"), and an imported reference tag uses the class's `refHandle()` in the Target environment. Register the handler before Portage is first used in the request, as for adapters. A definition that doesn't extend `ElementTypeDefinition`, an invalid or reserved name, or a class already registered under another name throws an `InvalidConfigException`. `tests/_support/WidgetDefinition.php` is a complete example.
+Register the type in every environment, under the same short name: a Payload naming a type that isn't registered is refused. Short names are letters and digits, starting with a letter. The short name is only what the Payload carries: messages and the Preview call an element of the type by its class's `lowerDisplayName()` ("form", "event"), and an imported reference tag uses the class's `refHandle()` in the Target environment. Register the handler before Dolly is first used in the request, as for adapters. A definition that doesn't extend `ElementTypeDefinition`, an invalid or reserved name, or a class already registered under another name throws an `InvalidConfigException`. `tests/_support/WidgetDefinition.php` is a complete example.
 
 ## Limits
 
-An Import refuses a Payload larger than `maxPayloadSize` bytes (8 MB by default), whether as text or decompressed, and stops decompressing as soon as it passes the limit, so a small Payload that decompresses to gigabytes can't exhaust memory. Raise it in `config/portage.php`:
+An Import refuses a Payload larger than `maxPayloadSize` bytes (8 MB by default), whether as text or decompressed, and stops decompressing as soon as it passes the limit, so a small Payload that decompresses to gigabytes can't exhaust memory. Raise it in `config/dolly.php`:
 
 ```php
 return [
@@ -222,42 +224,42 @@ The envelope is validated before anything is planned: a Payload with an unknown 
 
 ### Running tests
 
-The suite uses [Codeception](https://codeception.com) with Craft’s own test module (`craft\test\Craft`). It runs inside the DDEV project that hosts this plugin, against a dedicated `portage_test` database. That database is wiped and Craft is reinstalled on every run, with Portage installed. The dev database is never touched.
+The suite uses [Codeception](https://codeception.com) with Craft’s own test module (`craft\test\Craft`). It runs inside the DDEV project that hosts this plugin, against a dedicated `dolly_test` database. That database is wiped and Craft is reinstalled on every run, with Dolly installed. The dev database is never touched.
 
 From the DDEV project root:
 
 ```bash
 # once, to install the plugin's dev dependencies
-ddev exec --dir /var/www/html/plugins/portage composer install
+ddev exec --dir /var/www/html/plugins/dolly composer install
 
 # whole suite
-ddev exec --dir /var/www/html/plugins/portage composer test
+ddev exec --dir /var/www/html/plugins/dolly composer test
 
 # one file, or one test
-ddev exec --dir /var/www/html/plugins/portage vendor/bin/codecept run unit HarnessTest
-ddev exec --dir /var/www/html/plugins/portage vendor/bin/codecept run unit HarnessTest:testSavesAndReadsBackMatrixBlocks
+ddev exec --dir /var/www/html/plugins/dolly vendor/bin/codecept run unit HarnessTest
+ddev exec --dir /var/www/html/plugins/dolly vendor/bin/codecept run unit HarnessTest:testSavesAndReadsBackMatrixBlocks
 ```
 
-The bootstrap creates the test database if it's missing. It connects to `db` as `root`/`root` by default. Override that with `PORTAGE_TEST_DB_HOST`, `PORTAGE_TEST_DB_PORT`, `PORTAGE_TEST_DB_NAME`, `PORTAGE_TEST_DB_USER` and `PORTAGE_TEST_DB_PASSWORD`. The database name must contain `test`.
+The bootstrap creates the test database if it's missing. It connects to `db` as `root`/`root` by default. Override that with `DOLLY_TEST_DB_HOST`, `DOLLY_TEST_DB_PORT`, `DOLLY_TEST_DB_NAME`, `DOLLY_TEST_DB_USER` and `DOLLY_TEST_DB_PASSWORD`. The database name must contain `test`.
 
 Each test runs in a transaction that is rolled back afterwards, so schema and content created in one test don't leak into the next. The suites use `tests/_support/CraftModule.php`, Craft's test module with Craft 5.2.7's fix for that rollback backported, since before 5.2.7 no test's transaction ever began.
 
 Before committing, run every check (phpstan, coding standards, the whole suite):
 
 ```bash
-ddev exec --dir /var/www/html/plugins/portage composer check
+ddev exec --dir /var/www/html/plugins/dolly composer check
 ```
 
 #### Other Craft and plugin versions
 
-GitHub Actions (`.github/workflows/ci.yml`) runs `composer check` against each version set Portage supports. `composer.lock` isn't committed, so each job resolves its own versions:
+GitHub Actions (`.github/workflows/ci.yml`) runs `composer check` against each version set Dolly supports. `composer.lock` isn't committed, so each job resolves its own versions:
 
-| Job | PHP | Craft | Hyper | CKEditor | Formie |
-|---|---|---|---|---|---|
-| Lowest (`--prefer-lowest`) | 8.2 | 5.0.x | 2 | 4.0.4 | 3.1.1 |
-| Craft 5.7 (first with block copy/paste) | 8.2 | 5.7.x | 2 | 4 | 3 |
-| Latest with Hyper 3 | 8.4 | latest | 3 | 5 | 4 |
-| Latest with Hyper 2 | 8.4 | latest | 2 | 5 | 3 |
+| Job | PHP | Craft | Hyper | CKEditor | Formie | Icon Picker |
+|---|---|---|---|---|---|---|
+| Lowest (`--prefer-lowest`) | 8.2 | 5.0.x | 2 | 4.0.4 | 3.1.1 | 3.0.0 |
+| Craft 5.7 (first with block copy/paste) | 8.2 | 5.7.x | 2 | 4 | 3 | 3.0.x |
+| Latest with Hyper 3 | 8.4 | latest | 3 | 5 | 4 | latest |
+| Latest with Hyper 2 | 8.4 | latest | 2 | 5 | 3 | latest |
 
 Every job installs Formie, so its tests run against Formie 3 or 4 as the table says.
 
@@ -265,22 +267,22 @@ To run the suite against another version set locally, copy the plugin to a scrat
 
 ```bash
 ddev exec bash -c '
-  rm -rf /tmp/portage-lowest && mkdir /tmp/portage-lowest
-  tar -C /var/www/html/plugins/portage --exclude=./vendor --exclude=./.git --exclude=./composer.lock -cf - . | tar -xf - -C /tmp/portage-lowest
-  cd /tmp/portage-lowest
+  rm -rf /tmp/dolly-lowest && mkdir /tmp/dolly-lowest
+  tar -C /var/www/html/plugins/dolly --exclude=./vendor --exclude=./.git --exclude=./composer.lock -cf - . | tar -xf - -C /tmp/dolly-lowest
+  cd /tmp/dolly-lowest
   composer config audit.block-insecure false
   composer require --no-update "craftcms/cms:~5.0.0"
   composer require --dev --no-update "verbb/hyper:^2.0" "craftcms/ckeditor:~4.0.4" "verbb/formie:^3.1.1"
   php8.2 /usr/local/bin/composer update --prefer-lowest --no-interaction
-  PORTAGE_TEST_DB_NAME=portage_test_lowest php8.2 -d display_errors=0 -d "error_reporting=E_ALL & ~E_DEPRECATED" vendor/bin/codecept run
+  DOLLY_TEST_DB_NAME=dolly_test_lowest php8.2 -d display_errors=0 -d "error_reporting=E_ALL & ~E_DEPRECATED" vendor/bin/codecept run
 '
 ```
 
-Composer 2.9+ refuses to install versions with published security advisories, which includes Craft 5.0.0 and many early 5.x releases, hence `audit.block-insecure false`. Use a test database of its own (`PORTAGE_TEST_DB_NAME`), since the suite wipes it. Swap the constraints for another job's.
+Composer 2.9+ refuses to install versions with published security advisories, which includes Craft 5.0.0 and many early 5.x releases, hence `audit.block-insecure false`. Use a test database of its own (`DOLLY_TEST_DB_NAME`), since the suite wipes it. Swap the constraints for another job's.
 
 The `-d` options give PHP the error settings of CI's production `php.ini`. DDEV's PHP CLI displays deprecations, and the oldest versions of Craft's dependencies raise some on PHP 8.2 as Codeception starts, before the test bootstrap can buffer the output, which makes the tests fail with "headers have already been sent".
 
-A test of a feature that doesn't exist in every supported version skips itself with `simplygoodwork\craftportage\tests\support\Requires`, rather than failing. Call it first in the test, or in `_before()` for a whole class:
+A test of a feature that doesn't exist in every supported version skips itself with `simplygoodwork\craftdolly\tests\support\Requires`, rather than failing. Call it first in the test, or in `_before()` for a whole class:
 
 ```php
 Requires::classes('The JSON field', \craft\fields\Json::class); // a field type added after Craft 5.0
@@ -294,7 +296,7 @@ Console tests use `consoleCommand($command, $params, $ignoreStdOut)`. Pass `fals
 
 ### Building schema in tests
 
-`simplygoodwork\craftportage\tests\support\Schema` (in `tests/_support/Schema.php`) builds fields, entry types, sections and entries through Craft's services, and throws with the validation errors (nested entries included) if a save fails:
+`simplygoodwork\craftdolly\tests\support\Schema` (in `tests/_support/Schema.php`) builds fields, entry types, sections and entries through Craft's services, and throws with the validation errors (nested entries included) if a save fails:
 
 ```php
 $textBlock = Schema::blockType('textBlock', [Schema::plainText('body')]);
@@ -323,6 +325,8 @@ $entry = Schema::entry($section, $page, [
 
 `Schema::withColourSwatchesSettings(['palettes' => ['Brand' => [...]]], fn() => ...)` runs a callback with Colour Swatches' config-file palettes changed, to simulate an environment whose `config/colour-swatches.php` differs.
 
+`Schema::iconSet(SvgFolder::class, 'brand', ['folder' => 'brand'])` saves an Icon Picker icon set, and `Schema::deleteIconSet()` deletes one.
+
 `Schema::calendar('conferences')` saves a Solspace Calendar calendar enabled for every site, and `Schema::calendarEvent($calendar, '2026-12-01 09:00', ['title' => 'Launch', 'slug' => 'launch'])` saves a one-hour event in it. Calendar registers its project config handlers only on the first app in a PHP process, but each test gets a new app, so `tests/_craft/config/app.php` bootstraps `CalendarProjectConfigHandlers` (in `tests/_support/`) to register them on every later app. Without it, calendars are never written to the database, and any test that saves a site fails in Calendar's site handler.
 
 `Schema::retourRedirect('go/summer', 'offers/summer')` saves a manual Retour redirect, `Schema::deleteRetourRedirect('/go/summer')` deletes one (Retour keeps the redirect of a short link in a block when its entry is deleted), and `Schema::applyDraft($draftId)` applies a draft as an editor would, in a request of its own as far as Retour is concerned.
@@ -336,12 +340,12 @@ $photos = Schema::volume('photos', FileServer::start() . '/files');
 $photo = Schema::asset($photos, 'photo.png', 'blog/2026', ['title' => 'Red square', 'alt' => 'A red square']);
 ```
 
-`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, with Portage and with Craft, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. `Schema::form()` saves a Formie form with no fields. `Schema::asControlPanelRequest()` runs a callback as a control panel request, as a Preview or Import from the control panel is. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::recreateSection()` gives a section a new ID under the same UID, as the same section has in another environment. It applies the section through project config, because before Craft 5.4.9 `saveSection()` gives every new section a new UID. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
+`Schema::updateEntry()` edits an entry in the Target environment, `Schema::addFieldToEntryType()` adds a field to an entry type's layout, and `Schema::setImportDate()` sets when a logged Import happened. `Schema::withElementType()` registers an element type for a callback, with Dolly and with Craft, as a plugin would, and `Schema::widget()` saves an element of the test-support type `Widget`. `Schema::form()` saves a Formie form with no fields. `Schema::asControlPanelRequest()` runs a callback as a control panel request, as a Preview or Import from the control panel is. To simulate a different Target environment, change the install between Export and Import with `Schema::updateField()`, `Schema::changeFieldType()`, `Schema::deleteField()`, `Schema::updateSection()`, `Schema::disableSectionForSite()`, `Schema::deleteSection()`, `Schema::deleteSite()` and `Schema::deleteVolume()`. `Schema::recreateSection()` gives a section a new ID under the same UID, as the same section has in another environment. It applies the section through project config, because before Craft 5.4.9 `saveSection()` gives every new section a new UID. `Schema::changeUid()` and `Schema::changeUserIdentity()` make a related element match only by its Natural key, or by a user's username:
 
 ```php
-$payload = Plugin::getInstance()->getPortage()->export([$entry]);
+$payload = Plugin::getInstance()->getDolly()->export([$entry]);
 Schema::updateField($summary->uid, ['charLimit' => 42]);
-$plan = Plugin::getInstance()->getPortage()->preview($payload);
+$plan = Plugin::getInstance()->getDolly()->preview($payload);
 ```
 
 These refresh Craft's in-memory schema caches, as a new request would. Craft otherwise keeps serving the old fields and entry types to the Import. If you change schema through Craft's services directly, call `Schema::refresh()` afterwards. Add a `Schema` method for any new kind of change rather than changing schema inline in a test.

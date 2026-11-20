@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -13,9 +13,9 @@ use craft\fields\Categories;
 use craft\fields\Entries;
 use craft\fields\Tags;
 use craft\fields\Users;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use yii\base\Event;
 
 /**
@@ -34,15 +34,15 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$craft->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($craft);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('naturalKey', $plan->references[$sourceUid]->resolution->rule);
         $this->assertSame($craft->id, $plan->references[$sourceUid]->resolution->elementId);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([], $result->roots[0]->unresolvedReferences);
         $this->assertSame([$craft->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('relatedTopics')->ids());
     }
@@ -61,12 +61,12 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedPages' => [$servicesIntro->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($aboutIntro);
         Schema::changeUid($servicesIntro);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('naturalKey', $plan->references[$sourceUid]->resolution->rule);
         $this->assertSame($servicesIntro->id, $plan->references[$sourceUid]->resolution->elementId);
     }
@@ -85,16 +85,16 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Colourful', 'colours' => [$coolLight->id, $red->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($warmLight);
         Schema::changeUid($coolLight);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('naturalKey', $plan->references[$coolLightUid]->resolution->rule);
         $this->assertSame('uid', $plan->references[$red->uid]->resolution->rule);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([$coolLight->id, $red->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('colours')->ids());
     }
 
@@ -109,15 +109,15 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Tagged', 'keywords' => [$php->id, $craft->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($php);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('naturalKey', $plan->references[$phpUid]->resolution->rule);
         $this->assertSame('uid', $plan->references[$craft->uid]->resolution->rule);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([$php->id, $craft->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('keywords')->ids());
     }
 
@@ -133,21 +133,21 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Contacts', 'contacts' => [$sam->id, $alex->id, $jo->id, $gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($alex);
         Schema::changeUid($jo);
         Schema::changeUserIdentity($jo, 'jo@elsewhere.example.com');
         Craft::$app->getElements()->deleteElement($gone, true);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('uid', $plan->references[$sam->uid]->resolution->rule);
         $this->assertSame('naturalKey', $plan->references[$alexUid]->resolution->rule);
         $this->assertSame('naturalKey', $plan->references[$joUid]->resolution->rule);
         $this->assertSame($jo->id, $plan->references[$joUid]->resolution->elementId);
         $this->assertFalse($plan->references[$goneUid]->resolution->isResolved());
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
         $this->assertSame([$sam->id, $alex->id, $jo->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('contacts')->ids());
         $this->assertSame([
             ['uid' => $goneUid, 'elementType' => 'user', 'title' => 'gone', 'field' => 'Contacts'],
@@ -165,17 +165,17 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($gone);
 
-        $plan = $this->portage()->preview($payload);
+        $plan = $this->dolly()->preview($payload);
         $this->assertSame('skip', $plan->references[$goneUid]->choice);
         $this->assertSame(['skip', 'stub', 'replace'], $plan->references[$goneUid]->availableChoices);
-        $this->assertSame('stub', $this->portage()->preview($payload, [$goneUid => 'stub'])->references[$goneUid]->choice);
+        $this->assertSame('stub', $this->dolly()->preview($payload, [$goneUid => 'stub'])->references[$goneUid]->choice);
         $this->assertNull(Entry::find()->uid($goneUid)->status(null)->one(), 'The Preview created the Stub');
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
 
         $stub = Entry::find()->uid($goneUid)->status(null)->one();
         $this->assertNotNull($stub, 'No Stub with the source UID');
@@ -206,12 +206,12 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Stubbed', 'colours' => [$red->id], 'keywords' => [$craft->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Craft::$app->getElements()->deleteElement($red, true);
         Craft::$app->getElements()->deleteElement($craft, true);
 
-        $result = $this->portage()->import($payload, [$redUid => 'stub', $craftUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$redUid => 'stub', $craftUid => 'stub']);
 
         $category = Category::find()->uid($redUid)->status(null)->one();
         $this->assertNotNull($category, 'No category Stub with the source UID');
@@ -239,12 +239,12 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($gone);
 
-        $this->assertSame('replace', $this->portage()->preview($payload, [$goneUid => $instead->id])->references[$goneUid]->choice);
-        $result = $this->portage()->import($payload, [$goneUid => $instead->id]);
+        $this->assertSame('replace', $this->dolly()->preview($payload, [$goneUid => $instead->id])->references[$goneUid]->choice);
+        $result = $this->dolly()->import($payload, [$goneUid => $instead->id]);
 
         $this->assertSame([$instead->id], $this->importedEntry($result->roots[0]->elementId)->getFieldValue('relatedTopics')->ids());
         $this->assertSame([], $result->roots[0]->unresolvedReferences);
@@ -261,15 +261,15 @@ class ReferencesTest extends Unit
         $source = Schema::entry($news, $article, ['title' => 'Contacts', 'contacts' => [$gone->id]]);
         $sourceUid = $source->uid;
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Craft::$app->getElements()->deleteElement($gone, true);
 
-        $this->assertSame(['skip', 'replace'], $this->portage()->preview($payload)->references[$goneUid]->availableChoices);
-        $refusal = 'The user "Gone User" can\'t be Stubbed: Portage never creates users. Skip it or choose a replacement user.';
-        $this->assertSame($refusal, $this->portage()->preview($payload, [$goneUid => 'stub'])->refusal);
+        $this->assertSame(['skip', 'replace'], $this->dolly()->preview($payload)->references[$goneUid]->availableChoices);
+        $refusal = 'The user "Gone User" can\'t be Stubbed: Dolly never creates users. Skip it or choose a replacement user.';
+        $this->assertSame($refusal, $this->dolly()->preview($payload, [$goneUid => 'stub'])->refusal);
 
-        $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+        $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
         $this->assertSame($refusal, $result->refusal);
         $this->assertNull(Entry::find()->uid($sourceUid)->status(null)->one());
         $this->assertNull(User::find()->uid($goneUid)->status(null)->one());
@@ -286,13 +286,13 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         $this->hardDelete($gone);
 
         $this->assertSame(
             'The replacement for the Reference "Gone" doesn\'t exist: there\'s no entry with the ID 999999 in this environment.',
-            $this->portage()->preview($payload, [$goneUid => 999999])->refusal,
+            $this->dolly()->preview($payload, [$goneUid => 999999])->refusal,
         );
     }
 
@@ -306,12 +306,12 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article], ['maxAuthors' => 2]);
         $source = Schema::entry($news, $article, ['title' => 'Co-written', 'authorIds' => [$sam->id, $gone->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Craft::$app->getElements()->deleteElement($gone, true);
         Craft::$app->getUser()->setIdentity($importer);
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertSame([$sam->id, $importer->id], $this->importedEntry($result->roots[0]->elementId)->getAuthorIds());
         $this->assertSame(
@@ -333,7 +333,7 @@ class ReferencesTest extends Unit
         $fails = Schema::entry($news, $article, ['title' => 'Fails', 'relatedTopics' => [$gone->id]]);
         $works = Schema::entry($news, $article, ['title' => 'Works', 'relatedTopics' => [$gone->id]]);
 
-        $payload = $this->portage()->export([$fails, $works]);
+        $payload = $this->dolly()->export([$fails, $works]);
         $this->hardDelete($fails);
         $this->hardDelete($works);
         $this->hardDelete($gone);
@@ -346,7 +346,7 @@ class ReferencesTest extends Unit
         };
         Event::on(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         try {
-            $result = $this->portage()->import($payload, [$goneUid => 'stub']);
+            $result = $this->dolly()->import($payload, [$goneUid => 'stub']);
         } finally {
             Event::off(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         }
@@ -370,14 +370,14 @@ class ReferencesTest extends Unit
         $linking = Schema::entry($news, $article, ['title' => 'Linking', 'relatedArticles' => [$target->id]]);
         $targetUid = $target->uid;
 
-        $payload = $this->portage()->export([$linking, $target]);
+        $payload = $this->dolly()->export([$linking, $target]);
         $this->hardDelete($linking);
         $this->hardDelete($target);
 
-        $this->assertSame(['skip', 'replace'], $this->portage()->preview($payload)->references[$targetUid]->availableChoices);
+        $this->assertSame(['skip', 'replace'], $this->dolly()->preview($payload)->references[$targetUid]->availableChoices);
         $this->assertSame(
             'The Reference "Target" can\'t be Stubbed: this Payload imports it as a Root element. Skip it or choose a replacement.',
-            $this->portage()->import($payload, [$targetUid => 'stub'])->refusal,
+            $this->dolly()->import($payload, [$targetUid => 'stub'])->refusal,
         );
         $this->assertSame(0, (int)Entry::find()->sectionId($news->id)->status(null)->count());
     }
@@ -394,12 +394,12 @@ class ReferencesTest extends Unit
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Related', 'relatedTopics' => [$first->id]]);
 
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         $this->hardDelete($source);
         Schema::changeUid($first);
         Schema::changeUid($second);
 
-        $this->assertFalse($this->portage()->preview($payload)->references[$sourceUid]->resolution->isResolved());
+        $this->assertFalse($this->dolly()->preview($payload)->references[$sourceUid]->resolution->isResolved());
     }
 
     public function testACategoryStubRolledBackWithItsRootElementIsCreatedAgainForTheNext(): void
@@ -413,7 +413,7 @@ class ReferencesTest extends Unit
         $fails = Schema::entry($news, $article, ['title' => 'Fails', 'colours' => [$red->id]]);
         $works = Schema::entry($news, $article, ['title' => 'Works', 'colours' => [$red->id]]);
 
-        $payload = $this->portage()->export([$fails, $works]);
+        $payload = $this->dolly()->export([$fails, $works]);
         $this->hardDelete($fails);
         $this->hardDelete($works);
         Craft::$app->getElements()->deleteElement($red, true);
@@ -425,7 +425,7 @@ class ReferencesTest extends Unit
         };
         Event::on(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         try {
-            $result = $this->portage()->import($payload, [$redUid => 'stub']);
+            $result = $this->dolly()->import($payload, [$redUid => 'stub']);
         } finally {
             Event::off(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
         }
@@ -437,9 +437,9 @@ class ReferencesTest extends Unit
         $this->assertSame([$categories[0]->id], $this->importedEntry($result->roots[1]->elementId)->getFieldValue('colours')->status(null)->ids());
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 
     private function hardDelete(Entry $entry): void

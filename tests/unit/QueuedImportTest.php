@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\unit;
+namespace simplygoodwork\craftdolly\tests\unit;
 
 use Codeception\Test\Unit;
 use Craft;
@@ -14,12 +14,12 @@ use craft\fields\Assets;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\web\UploadedFile;
-use simplygoodwork\craftportage\import\StagedUploads;
-use simplygoodwork\craftportage\models\ImportLogEntry;
-use simplygoodwork\craftportage\Plugin;
-use simplygoodwork\craftportage\services\Portage;
-use simplygoodwork\craftportage\tests\support\FileServer;
-use simplygoodwork\craftportage\tests\support\Schema;
+use simplygoodwork\craftdolly\import\StagedUploads;
+use simplygoodwork\craftdolly\models\ImportLogEntry;
+use simplygoodwork\craftdolly\Plugin;
+use simplygoodwork\craftdolly\services\Dolly;
+use simplygoodwork\craftdolly\tests\support\FileServer;
+use simplygoodwork\craftdolly\tests\support\Schema;
 use yii\base\Event;
 use yii\queue\Queue;
 
@@ -51,9 +51,9 @@ class QueuedImportTest extends Unit
     public function testAnImportOfTenRootElementsRunsInlineEvenWhenTheQueueIsAllowed(): void
     {
         [$section, $type] = $this->newsSection();
-        $payload = $this->portage()->export($this->entries($section, $type, 10));
+        $payload = $this->dolly()->export($this->entries($section, $type, 10));
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
 
         $this->assertFalse($result->queued);
         $this->assertCount(10, $result->roots);
@@ -65,10 +65,10 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
 
         $this->assertTrue($result->queued);
         $this->assertSame([], $result->roots);
@@ -86,10 +86,10 @@ class QueuedImportTest extends Unit
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
         $uids = array_map(fn(Entry $entry) => $entry->uid, $entries);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         $this->runQueue();
 
         $log = $this->log((int)$result->logId);
@@ -109,10 +109,10 @@ class QueuedImportTest extends Unit
         Craft::$app->getUser()->setIdentity($editor);
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         $other = User::find()->admin()->id('not ' . $editor->id)->one();
         $this->assertNotNull($other);
         Craft::$app->getUser()->setIdentity($other);
@@ -133,11 +133,11 @@ class QueuedImportTest extends Unit
         foreach (range(1, 5) as $i) {
             $doomed[] = Schema::entry($pages, $page, ['title' => "Doomed $i"]);
         }
-        $payload = $this->portage()->export([...$good, ...$doomed]);
+        $payload = $this->dolly()->export([...$good, ...$doomed]);
         $this->deleteAll([...$good, ...$doomed]);
         Schema::deleteSection($pages);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         $this->runQueue();
 
         $log = $this->log((int)$result->logId);
@@ -154,10 +154,10 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         Schema::deleteSection($section);
         $this->runQueue();
 
@@ -172,13 +172,13 @@ class QueuedImportTest extends Unit
     {
         [$news, $article] = $this->newsSection();
         $entries = $this->entries($news, $article, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $target = $entries[3];
         $targetUid = $target->uid;
         $others = array_filter($entries, fn(Entry $entry) => $entry->id !== $target->id);
         $this->deleteAll($others);
 
-        $result = $this->portage()->import($payload, rootChoices: [$targetUid => ['mode' => 'overwrite']], queue: true);
+        $result = $this->dolly()->import($payload, rootChoices: [$targetUid => ['mode' => 'overwrite']], queue: true);
         $this->assertTrue($result->queued);
         $this->runQueue();
 
@@ -201,16 +201,16 @@ class QueuedImportTest extends Unit
         $article = Schema::entryType('article', [Schema::field(Assets::class, 'images')]);
         $news = Schema::section('news', [$article]);
         $source = Schema::entry($news, $article, ['title' => 'Pictured', 'images' => [$photo->id]]);
-        $payload = $this->portage()->export([$source]);
+        $payload = $this->dolly()->export([$source]);
         Schema::deleteElement($source);
         Schema::deleteElement($photo);
 
         // Without a fetch, a single Root element runs inline.
-        $inline = $this->portage()->import($payload, queue: true);
+        $inline = $this->dolly()->import($payload, queue: true);
         $this->assertFalse($inline->queued);
         Schema::deleteElement($this->entryById($inline->roots[0]->elementId));
 
-        $result = $this->portage()->import($payload, [$assetUid => 'fetch'], queue: true);
+        $result = $this->dolly()->import($payload, [$assetUid => 'fetch'], queue: true);
 
         $this->assertTrue($result->queued);
         $this->assertNull(Asset::find()->uid($assetUid)->one(), 'The asset is fetched by the job');
@@ -237,14 +237,14 @@ class QueuedImportTest extends Unit
         foreach (range(2, 11) as $i) {
             $entries[] = Schema::entry($news, $article, ['title' => "Plain $i"]);
         }
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
         Schema::deleteElement($photo);
         $upload = $this->stageUpload('red.png');
         $file = $upload['path'];
         $choice = ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png', 'volume' => 'archive', 'folder' => 'uploads/2026'];
 
-        $result = $this->portage()->import($payload, [$assetUid => $choice], queue: true);
+        $result = $this->dolly()->import($payload, [$assetUid => $choice], queue: true);
 
         $this->assertTrue($result->queued);
         $this->assertFileExists($file, 'The upload has to stay until the job has run');
@@ -270,26 +270,26 @@ class QueuedImportTest extends Unit
         foreach (range(2, 11) as $i) {
             $entries[] = Schema::entry($news, $article, ['title' => "Plain $i"]);
         }
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
         Schema::deleteElement($photo);
-        $file = sys_get_temp_dir() . '/portage-test-' . uniqid() . '-red.png';
+        $file = sys_get_temp_dir() . '/dolly-test-' . uniqid() . '-red.png';
         copy(codecept_data_dir('files/photo.png'), $file);
         $this->uploadedFiles[] = $file;
 
-        $result = $this->portage()->import($payload, [$assetUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']], queue: true);
+        $result = $this->dolly()->import($payload, [$assetUid => ['choice' => 'upload', 'path' => $file, 'filename' => 'red.png']], queue: true);
         $this->runQueue();
 
         $this->assertSame(ImportLogEntry::STATUS_COMPLETED, $this->log((int)$result->logId)->status);
         $this->assertNotNull(Asset::find()->uid($assetUid)->one());
-        $this->assertFileExists($file, 'A file the Import was given from elsewhere is not Portage\'s to delete');
+        $this->assertFileExists($file, 'A file the Import was given from elsewhere is not Dolly\'s to delete');
     }
 
     public function testARootElementFailingInsideItsTransactionDoesNotStopTheOthers(): void
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
         $refuse = function(ModelEvent $event): void {
             if ($event->sender instanceof Entry && $event->sender->title === 'Entry 4') {
@@ -299,7 +299,7 @@ class QueuedImportTest extends Unit
         Event::on(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
 
         try {
-            $result = $this->portage()->import($payload, queue: true);
+            $result = $this->dolly()->import($payload, queue: true);
             $this->runQueue();
         } finally {
             Event::off(Entry::class, Entry::EVENT_BEFORE_SAVE, $refuse);
@@ -319,9 +319,9 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         $seen = null;
         $watch = function(Event $event) use ($result, &$seen): void {
             if ($seen === null && $event->sender instanceof Entry && $event->sender->title === 'Entry 3') {
@@ -346,14 +346,14 @@ class QueuedImportTest extends Unit
     public function testAnImportWhoseUserLostTheImportPermissionIsNotRun(): void
     {
         $editor = Schema::user('editor');
-        Schema::grantPermissions($editor, ['accessCp', 'portage-importContent']);
+        Schema::grantPermissions($editor, ['accessCp', 'dolly-importContent']);
         Craft::$app->getUser()->setIdentity($editor);
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         $this->assertTrue($result->queued);
         Schema::grantPermissions($editor, ['accessCp']);
         $this->runQueue();
@@ -371,10 +371,10 @@ class QueuedImportTest extends Unit
         Craft::$app->getUser()->setIdentity($editor);
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         Craft::$app->getUsers()->suspendUser($editor);
         $this->runQueue();
 
@@ -388,12 +388,12 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
-        $fingerprint = $this->portage()->preview($payload)->fingerprint();
+        $fingerprint = $this->dolly()->preview($payload)->fingerprint();
         $logId = Plugin::getInstance()->getImportLog()->recordQueued('0f', [], []);
 
-        $this->portage()->runQueuedImport($logId, $payload, [], [], $fingerprint, function(): void {
+        $this->dolly()->runQueuedImport($logId, $payload, [], [], $fingerprint, function(): void {
             throw new \RuntimeException('SQLSTATE[HY000]: secret details');
         });
 
@@ -405,13 +405,13 @@ class QueuedImportTest extends Unit
     public function testAnImportInProgressThatWentQuietForTooLongFailsInsteadOfStayingInProgress(): void
     {
         [$section, $type] = $this->newsSection();
-        $payload = $this->portage()->export($this->entries($section, $type, 11));
-        $result = $this->portage()->import($payload, queue: true);
+        $payload = $this->dolly()->export($this->entries($section, $type, 11));
+        $result = $this->dolly()->import($payload, queue: true);
         $log = Plugin::getInstance()->getImportLog();
         $this->assertTrue($log->start((int)$result->logId));
         $this->assertSame(ImportLogEntry::STATUS_IN_PROGRESS, $this->log((int)$result->logId)->status, 'A running job is left alone');
 
-        Craft::$app->getDb()->createCommand()->update('{{%portage_importlog}}', ['dateUpdated' => gmdate('Y-m-d H:i:s', time() - 7200)], ['id' => $result->logId])->execute();
+        Craft::$app->getDb()->createCommand()->update('{{%dolly_importlog}}', ['dateUpdated' => gmdate('Y-m-d H:i:s', time() - 7200)], ['id' => $result->logId])->execute();
 
         $entry = $this->log((int)$result->logId);
         $this->assertSame(ImportLogEntry::STATUS_FAILED, $entry->status);
@@ -430,11 +430,11 @@ class QueuedImportTest extends Unit
         foreach (range(2, 11) as $i) {
             $entries[] = Schema::entry($news, $article, ['title' => "Plain $i"]);
         }
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
         Schema::changeUid($kept);
 
-        $result = $this->portage()->import($payload, queue: true);
+        $result = $this->dolly()->import($payload, queue: true);
         Schema::deleteElement($kept);
         Schema::entry($topics, $topic, ['title' => 'Kept']);
         $this->runQueue();
@@ -448,14 +448,14 @@ class QueuedImportTest extends Unit
     public function testAQueuePushThatFailsFailsTheLogEntryAndRefusesInsteadOfLeavingItQueued(): void
     {
         [$section, $type] = $this->newsSection();
-        $payload = $this->portage()->export($this->entries($section, $type, 11));
+        $payload = $this->dolly()->export($this->entries($section, $type, 11));
         $refuse = function(): void {
             throw new \RuntimeException('The queue is down');
         };
         Event::on(Queue::class, Queue::EVENT_BEFORE_PUSH, $refuse);
 
         try {
-            $result = $this->portage()->import($payload, queue: true);
+            $result = $this->dolly()->import($payload, queue: true);
         } finally {
             Event::off(Queue::class, Queue::EVENT_BEFORE_PUSH, $refuse);
         }
@@ -471,12 +471,12 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = Schema::withSharedKey('correct horse battery staple', fn() => $this->portage()->export($entries));
-        $this->assertStringStartsWith('portage:v1e:', $payload);
+        $payload = Schema::withSharedKey('correct horse battery staple', fn() => $this->dolly()->export($entries));
+        $this->assertStringStartsWith('dolly:v1e:', $payload);
         $this->deleteAll($entries);
 
         $result = Schema::withSharedKey('correct horse battery staple', function() use ($payload) {
-            $result = $this->portage()->import($payload, queue: true);
+            $result = $this->dolly()->import($payload, queue: true);
             $this->runQueue();
 
             return $result;
@@ -491,30 +491,30 @@ class QueuedImportTest extends Unit
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
 
-        $queued = $this->portage()->import($payload, queue: true);
-        $warnings = $this->portage()->preview($payload)->warnings;
+        $queued = $this->dolly()->import($payload, queue: true);
+        $warnings = $this->dolly()->preview($payload)->warnings;
         $this->assertCount(1, $warnings);
         $this->assertMatchesRegularExpression("/^This Payload is already queued for import here \\(Import #$queued->logId, queued on /", $warnings[0]);
 
         Plugin::getInstance()->getImportLog()->start((int)$queued->logId);
         Plugin::getInstance()->getImportLog()->fail((int)$queued->logId, 'Nothing was imported.');
-        $this->assertSame([], $this->portage()->preview($payload)->warnings);
+        $this->assertSame([], $this->dolly()->preview($payload)->warnings);
     }
 
     public function testTheProgressOfTheJobIsReportedAfterEachRootElement(): void
     {
         [$section, $type] = $this->newsSection();
         $entries = $this->entries($section, $type, 11);
-        $payload = $this->portage()->export($entries);
+        $payload = $this->dolly()->export($entries);
         $this->deleteAll($entries);
-        $fingerprint = $this->portage()->preview($payload)->fingerprint();
+        $fingerprint = $this->dolly()->preview($payload)->fingerprint();
         $logId = Plugin::getInstance()->getImportLog()->recordQueued('0f', [], []);
         $reported = [];
 
-        $this->portage()->runQueuedImport($logId, $payload, [], [], $fingerprint, function(int $done, int $total) use (&$reported): void {
+        $this->dolly()->runQueuedImport($logId, $payload, [], [], $fingerprint, function(int $done, int $total) use (&$reported): void {
             $reported[] = "$done/$total";
         });
 
@@ -524,9 +524,9 @@ class QueuedImportTest extends Unit
     public function testWithoutAskingForTheQueueEveryImportRunsInline(): void
     {
         [$section, $type] = $this->newsSection();
-        $payload = $this->portage()->export($this->entries($section, $type, 12));
+        $payload = $this->dolly()->export($this->entries($section, $type, 12));
 
-        $result = $this->portage()->import($payload);
+        $result = $this->dolly()->import($payload);
 
         $this->assertFalse($result->queued);
         $this->assertCount(12, $result->roots);
@@ -568,7 +568,7 @@ class QueuedImportTest extends Unit
      */
     private function stageUpload(string $name): array
     {
-        $temp = sys_get_temp_dir() . '/portage-test-' . uniqid() . '-' . $name;
+        $temp = sys_get_temp_dir() . '/dolly-test-' . uniqid() . '-' . $name;
         copy(codecept_data_dir('files/photo.png'), $temp);
         $this->uploadedFiles[] = $temp;
         $staged = (new StagedUploads((int)Craft::$app->getUser()->getId()))->stage(new UploadedFile(['name' => $name, 'tempName' => $temp, 'error' => UPLOAD_ERR_OK, 'size' => (int)filesize($temp)]));
@@ -595,7 +595,7 @@ class QueuedImportTest extends Unit
 
     private function waitingJobs(): int
     {
-        // Craft queues jobs of its own as it saves elements, so count only Portage's.
+        // Craft queues jobs of its own as it saves elements, so count only Dolly's.
         return (int)(new Query())->from(Table::QUEUE)->where(['like', 'job', 'ImportJob'])->count();
     }
 
@@ -604,8 +604,8 @@ class QueuedImportTest extends Unit
         Craft::$app->getQueue()->run();
     }
 
-    private function portage(): Portage
+    private function dolly(): Dolly
     {
-        return Plugin::getInstance()->getPortage();
+        return Plugin::getInstance()->getDolly();
     }
 }

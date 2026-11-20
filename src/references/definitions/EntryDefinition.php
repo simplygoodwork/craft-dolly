@@ -1,14 +1,14 @@
 <?php
 
-namespace simplygoodwork\craftportage\references\definitions;
+namespace simplygoodwork\craftdolly\references\definitions;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Entry;
 use craft\helpers\Db;
 use craft\models\Section;
-use simplygoodwork\craftportage\references\ElementTypeDefinition;
-use simplygoodwork\craftportage\references\NaturalKey;
+use simplygoodwork\craftdolly\references\ElementTypeDefinition;
+use simplygoodwork\craftdolly\references\NaturalKey;
 
 /**
  * Entries. Natural key: section UID + slug, plus the parent slug path in Structure sections. Limited to their section,

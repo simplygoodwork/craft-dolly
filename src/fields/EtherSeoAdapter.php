@@ -1,6 +1,6 @@
 <?php
 
-namespace simplygoodwork\craftportage\fields;
+namespace simplygoodwork\craftdolly\fields;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
@@ -10,8 +10,8 @@ use craft\elements\Asset;
 use craft\helpers\Json;
 use ether\seo\models\data\SeoData;
 use ether\seo\models\data\SocialData;
-use simplygoodwork\craftportage\export\ExportContext;
-use simplygoodwork\craftportage\import\ImportContext;
+use simplygoodwork\craftdolly\export\ExportContext;
+use simplygoodwork\craftdolly\import\ImportContext;
 
 /**
  * Ether's SEO field: an element's title and description overrides, keywords, score, social (Twitter and Facebook)

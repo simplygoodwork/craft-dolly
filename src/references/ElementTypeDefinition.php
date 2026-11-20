@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\references;
+namespace simplygoodwork\craftdolly\references;
 
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
 
 /**
- * How Portage handles References to one element type: its element class, its Natural key, the element source a
+ * How Dolly handles References to one element type: its element class, its Natural key, the element source a
  * Reference of the type is limited to, and whether and how it's Stubbed.
  *
  * A definition is registered in the `ElementTypeRegistry` under a short name, which is what the Payload carries. The
@@ -23,7 +23,7 @@ abstract class ElementTypeDefinition
     abstract public function elementClass(): string;
 
     /**
-     * Returns a new query for elements of the type, which Portage uses to match a Reference by UID and to load the
+     * Returns a new query for elements of the type, which Dolly uses to match a Reference by UID and to load the
      * element a Reference matched or was replaced with. Override it when the type's queries are limited by default in
      * a way a relation isn't, such as to what the current user can see in the control panel.
      */

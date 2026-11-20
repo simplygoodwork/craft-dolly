@@ -1,12 +1,12 @@
 <?php
 
-namespace simplygoodwork\craftportage\tests\support;
+namespace simplygoodwork\craftdolly\tests\support;
 
 use craft\elements\GlobalSet;
 use verbb\hyper\base\ElementLink;
 
 /**
- * A Hyper link type for an element type Portage doesn't support, standing in for a plugin's (Commerce products, say).
+ * A Hyper link type for an element type Dolly doesn't support, standing in for a plugin's (Commerce products, say).
  */
 final class GlobalSetHyperLinkType extends ElementLink
 {
