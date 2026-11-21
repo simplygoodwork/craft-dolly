@@ -10,7 +10,8 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - develop-craft5
+      - main-craft5
   pull_request:
   workflow_dispatch:
 
