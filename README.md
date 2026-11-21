@@ -1,6 +1,9 @@
-# Dolly
+<img src="src/icon.svg" width="100" height="100" alt="Dolly icon">
 
-Dolly is a Craft CMS 5 plugin for site editors and developers who need to copy content between environments, such as staging and production. You can move whole entries or selected Matrix and Neo blocks between sites that share project config. The environments do not need a connection to each other.
+# Dolly
+## Plugin for Craft CMS 5.x
+
+Dolly is for site editors and developers who need to copy content between environments, such as staging and production. You can move whole entries or selected Matrix and Neo blocks between sites that share project config. The environments do not need a connection to each other.
 
 **How it works**
 
@@ -56,7 +59,13 @@ Some plugin releases allow Craft 5.0 but don't work with it, or with Dolly:
 
 ## Installation
 
-You can install Dolly from the Plugin Store or with Composer.
+You can install Dolly from the Plugin Store, with DDEV, or with Composer.
+
+### With DDEV
+
+```bash
+ddev composer require simplygoodwork/craft-dolly -w && ddev craft plugin/install dolly
+```
 
 ### From the Plugin Store
 
@@ -735,3 +744,7 @@ $plan = Plugin::getInstance()->getDolly()->preview($payload);
 ```
 
 These refresh Craft's in-memory schema caches, as a new request would. Craft otherwise keeps serving the old fields and entry types to the Import. If you change schema through Craft's services directly, call `Schema::refresh()` afterwards. Add a `Schema` method for any new kind of change rather than changing schema inline in a test.
+
+---
+
+Brought to you by [Good Work](https://simplygoodwork.com).
