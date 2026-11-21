@@ -109,7 +109,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}-${{ matrix.name }}
+          # Keyed by the job's position in the matrix: cache keys can't contain the commas in its name.
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}-${{ strategy.job-index }}
           restore-keys: composer-${{ matrix.php }}-
 
       # Composer 2.9+ refuses to install versions with published security
